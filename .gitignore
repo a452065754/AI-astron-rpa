@@ -5,6 +5,9 @@ rpa_config.local.json
 docs/_local_secrets.md
 docs/backup/*.sql
 
+# 换设备打包产物（scripts/handover_export.py 生成，内含明文凭据）
+handover/
+
 # ============ Python ============
 __pycache__/
 *.py[cod]

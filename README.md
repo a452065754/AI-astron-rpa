@@ -18,8 +18,14 @@
 **核心能力已通，当前卡在「人工评审」这一环。** 下一步做什么、换设备怎么接，看
 [`docs/待办清单.md`](docs/待办清单.md)（唯一真源）和 [`docs/交接清单.md`](docs/交接清单.md)。
 
-> **换电脑/换 AI 接力必读**：`rpa_config.json` 与 `docs/_local_secrets.md` **不在 git 里**，要手工带走；
-> robotId 会全部作废，用 `--robot-name` 按名字找/建，别抄旧 id。
+> **换电脑/换 AI 接力必读**
+>
+> 1. `rpa_config.json` 与 `docs/_local_secrets.md` **不在 git 里**，`git clone` 拿不到。别手拷——
+>    旧机器跑 `python scripts/handover_export.py`，把产出的 `handover/` 整个带走；
+>    新机器放回原位后 `python scripts/handover_export.py --check` 体检。
+> 2. robotId / elementId 换机后**全部作废**，用 `--robot-name` 按名字找/建，别抄旧 id
+>    （`rpa_config.json` 里的 `defaults.robot_id` 就是旧机器的，别信）。
+> 3. 跑一次 `mkdir -p "$APPDATA/astron-rpa/astron"`（坑 118，不做 DataTable 全系原子必崩）。
 
 ## 核心设计
 

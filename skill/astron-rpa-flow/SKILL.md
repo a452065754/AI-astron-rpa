@@ -57,7 +57,8 @@ robotId / elementId 换机器后**全部作废**，但规格、脚本、文档�
 # ① 补两个「不在 git 里」的文件（最容易漏！git clone 拿不到）
 #    rpa_config.json（网关地址/API Key/默认 robotId）
 #    docs/_local_secrets.md（SSH/MySQL/Redis/Minio/Casdoor 密码留档）
-#    从旧机器复制过来；没有就 cp rpa_config.example.json rpa_config.json 再填
+#    旧机器：python scripts/handover_export.py   → 产出 handover/ 整个拷过来
+#    新机器：python scripts/handover_export.py --check
 python scripts/rpa_config.py        # 确认生效值
 
 # ② 环境自检（设计器已登录、Chrome 装了 RPA 插件）
@@ -72,6 +73,9 @@ python scripts/publish_flow.py --list
 # ⑤ 网页流程还要看桥接
 python scripts/element_pick.py --status
 ```
+
+> ⚠️ `rpa_config.json` 里的 `defaults.robot_id` 是**旧机器**的平台 ID，换机后必然失效。
+> `--check` 会喊出来，但不会替你改——一律用下面的 `--robot-name`，别信这个默认值。
 
 **关键：用 `--robot-name`，不要抄旧 robotId。**
 
