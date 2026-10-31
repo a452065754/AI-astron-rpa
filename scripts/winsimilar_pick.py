@@ -245,7 +245,8 @@ def _do(args):
         return 0 if ok else 1
 
     if not args.element_name:
-        ap.error("写库必须给 --element-name")
+        print("✗ 写库必须给 --element-name")
+        return 2
     if not ok:
         print("\n✗ 自证没过，拒绝写库")
         return 1
