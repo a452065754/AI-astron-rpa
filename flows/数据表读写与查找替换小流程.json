@@ -1,0 +1,154 @@
+{
+  "name": "数据表读写与查找替换小流程",
+  "nl_examples": [
+    "把Excel读进数据表后追加一行、改个词再导出",
+    "数据表写入新行并查找替换",
+    "在数据表里加一行数据再导出JSON",
+    "数据表读写演示"
+  ],
+  "keywords": [
+    "数据表写入",
+    "数据表读取",
+    "查找替换数据表",
+    "追加行"
+  ],
+  "params": [
+    {
+      "name": "src_excel",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\订单.xlsx",
+      "describe": "源 Excel"
+    },
+    {
+      "name": "sheet_name",
+      "type": "Str",
+      "default": "Sheet1",
+      "describe": "读哪个工作表"
+    },
+    {
+      "name": "find_value",
+      "type": "Str",
+      "default": "茶几",
+      "describe": "要查找的值"
+    },
+    {
+      "name": "replace_value",
+      "type": "Str",
+      "default": "实木茶几",
+      "describe": "替换成的值"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_excel_out",
+      "describe": "导出目录"
+    },
+    {
+      "name": "out_name",
+      "type": "Str",
+      "default": "数据表改后",
+      "describe": "导出文件名（不含扩展名）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "DataTable.import_data_table_from_file",
+      "alias": "Excel读进数据表",
+      "out": {},
+      "inputs": {
+        "import_file_path": "$p:src_excel",
+        "sheet_name": "$p:sheet_name"
+      }
+    },
+    {
+      "atom": "DataTable.get_column_title",
+      "alias": "看A列表头",
+      "out": {
+        "column_title": "title_a"
+      },
+      "inputs": {
+        "col": "A"
+      }
+    },
+    {
+      "atom": "DataTable.write_data",
+      "alias": "追加第5行数据",
+      "out": {},
+      "inputs": {
+        "write_type": "row",
+        "row": "5",
+        "col": "A",
+        "data": "$json:[\"DD004\",\"床\",2,3998]",
+        "start_row": "5",
+        "start_col": "A",
+        "write_mode": "overwrite",
+        "cell_insert_shift": "down",
+        "row_insert_shift": "down",
+        "column_insert_shift": "right",
+        "append_position": "row"
+      }
+    },
+    {
+      "atom": "DataTable.find_and_replace",
+      "alias": "全表查找替换",
+      "out": {
+        "find_data_positions": "hits"
+      },
+      "inputs": {
+        "find_type": "table",
+        "col": "A",
+        "find_value": "$p:find_value",
+        "is_case_sensitive": false,
+        "is_replace": true,
+        "replace_value": "$p:replace_value"
+      }
+    },
+    {
+      "atom": "DataTable.read_data",
+      "alias": "读回第5行",
+      "out": {
+        "row_info": "row5"
+      },
+      "inputs": {
+        "read_type": "row",
+        "row": "5",
+        "col": "A",
+        "start_row": "5",
+        "start_col": "A",
+        "end_row": "5",
+        "end_col": "D",
+        "is_trim_spaces": true,
+        "is_replace_none": true
+      }
+    },
+    {
+      "atom": "DataTable.export_data_table_to_file",
+      "alias": "导出为JSON",
+      "out": {
+        "export_file_path": "exported"
+      },
+      "inputs": {
+        "export_dest_path": "$p:out_dir",
+        "export_file_name": "$p:out_name",
+        "export_file_type": "json",
+        "is_overwrite": true
+      }
+    },
+    {
+      "atom": "Report.print",
+      "alias": "打印结果",
+      "out": {},
+      "inputs": {
+        "report_type": "info",
+        "msg": [
+          "A列表头 ",
+          "$title_a",
+          " · 替换命中 ",
+          "$hits",
+          " · 第5行 ",
+          "$row5"
+        ]
+      }
+    }
+  ]
+}

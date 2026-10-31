@@ -1,0 +1,102 @@
+{
+  "name": "浏览器打开取标题小流程",
+  "nl_examples": [
+    "打开一个网页并读出它的标题和地址",
+    "用浏览器访问指定网址再刷新",
+    "打开网址获取当前URL和标题",
+    "浏览器打开刷新关闭"
+  ],
+  "keywords": [
+    "打开浏览器",
+    "获取网页标题",
+    "获取当前url",
+    "刷新网页"
+  ],
+  "params": [
+    {
+      "name": "url",
+      "type": "Str",
+      "default": "https://github.com/a452065754/AI-astron-rpa",
+      "describe": "要打开的网址"
+    },
+    {
+      "name": "browser_type",
+      "type": "Str",
+      "default": "chrome",
+      "describe": "浏览器类型（chrome / edge / firefox …）"
+    },
+    {
+      "name": "timeout",
+      "type": "Str",
+      "default": "20",
+      "describe": "打开超时秒数"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "BrowserSoftware.browser_open",
+      "alias": "打开浏览器",
+      "out": {
+        "web_open": "browser"
+      },
+      "inputs": {
+        "url": "$p:url",
+        "browser_type": "$p:browser_type",
+        "open_with_incognito": false,
+        "wait_load_success": true,
+        "timeout": "$p:timeout",
+        "timeout_handle_type": "execError"
+      }
+    },
+    {
+      "atom": "BrowserSoftware.get_current_url",
+      "alias": "取当前地址",
+      "out": {
+        "get_url": "cur_url"
+      },
+      "inputs": {
+        "browser_obj": "$browser"
+      }
+    },
+    {
+      "atom": "BrowserSoftware.get_current_title",
+      "alias": "取网页标题",
+      "out": {
+        "get_page_title": "cur_title"
+      },
+      "inputs": {
+        "browser_obj": "$browser"
+      }
+    },
+    {
+      "atom": "BrowserSoftware.web_refresh",
+      "alias": "刷新一次",
+      "out": {},
+      "inputs": {
+        "browser_obj": "$browser"
+      }
+    },
+    {
+      "atom": "Report.print",
+      "alias": "打印结果",
+      "out": {},
+      "inputs": {
+        "report_type": "info",
+        "msg": [
+          "标题：",
+          "$cur_title",
+          " · 地址：",
+          "$cur_url"
+        ]
+      }
+    },
+    {
+      "atom": "BrowserSoftware.browser_close",
+      "alias": "关闭浏览器",
+      "out": {},
+      "inputs": {
+        "browser_obj": "$browser"
+      }
+    }
+  ]
+}

@@ -1,0 +1,90 @@
+{
+  "name": "剪贴板与进程信息小流程",
+  "nl_examples": [
+    "把一段文字放进剪贴板再读出来",
+    "操作剪贴板并查进程PID",
+    "复制文本到剪贴板然后清空",
+    "剪贴板读写"
+  ],
+  "keywords": [
+    "剪贴板",
+    "复制文本",
+    "读取剪贴板",
+    "进程pid"
+  ],
+  "params": [
+    {
+      "name": "text",
+      "type": "Str",
+      "default": "星辰 RPA 剪贴板测试",
+      "describe": "要写进剪贴板的文字"
+    },
+    {
+      "name": "process_name",
+      "type": "Str",
+      "default": "explorer.exe",
+      "describe": "要查 PID 的进程名"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "System.copy_clip",
+      "alias": "写入剪贴板",
+      "out": {},
+      "inputs": {
+        "content_type": "msg",
+        "message": "$p:text",
+        "file_path": "",
+        "folder_path": ""
+      }
+    },
+    {
+      "atom": "System.paste_clip",
+      "alias": "从剪贴板读出",
+      "out": {
+        "output_content": "clip_text"
+      },
+      "inputs": {
+        "content_type": "msg",
+        "dst_path": "",
+        "state_type": "error",
+        "dst_file_name": "",
+        "dst_folder_name": ""
+      }
+    },
+    {
+      "atom": "System.get_pid",
+      "alias": "查进程PID",
+      "out": {
+        "match_proces_pid": "pids"
+      },
+      "inputs": {
+        "process_name": "$p:process_name",
+        "search_type": "exact",
+        "pid_type": "one"
+      }
+    },
+    {
+      "atom": "Report.print",
+      "alias": "打印读到的内容",
+      "out": {},
+      "inputs": {
+        "report_type": "info",
+        "msg": [
+          "剪贴板内容：",
+          "$clip_text",
+          " · ",
+          "$p:process_name",
+          " PID：",
+          "$pids"
+        ]
+      }
+    },
+    {
+      "atom": "System.clear_clip",
+      "alias": "清空剪贴板",
+      "out": {},
+      "inputs": {}
+    }
+  ]
+}

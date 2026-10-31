@@ -70,7 +70,7 @@ python scripts/ai_flow.py --spec flows/<流程>.json --stage publish --version 1
 │   └── mod_*.py              # Python 子流程实现（PDF 版面还原 / OCR / 文件夹整理 / Excel 拆表）
 ├── mcp/server.py             # MCP 服务（零依赖，stdio JSON-RPC）
 ├── skill/astron-rpa-flow/    # 技能包（AI 操作手册）
-├── flows/                    # 45 条流程规格（契约文件）
+├── flows/                    # 48 条流程规格（契约文件）
 ├── docs/                     # 交接清单、开发进度、部署与 MCP 文档、评审单
 └── demo/                     # 演示数据与实测产物
 ```
@@ -115,9 +115,12 @@ python scripts/ai_flow.py --spec flows/<流程>.json --stage publish --version 1
 | **列表高级操作** | 建/插/改/删/反转/打乱/交集/合并/剔除/清空（12 个列表原子） |
 | **文件夹重命名与移动** | IF 存在 → 改名 → 移动到目标目录 |
 | **Excel 生成空白模板** | 复制工作表 + 清空数据 + 只留表头 |
+| **浏览器打开取标题** | 打开网址取标题/URL 后刷新关闭（不需要拾取元素） |
+| **剪贴板与进程信息** | 剪贴板读写清空 + 查进程 PID |
+| **数据表读写与查找替换** | 数据表追加行 / 查找替换 / 读回 / 导出 JSON |
 | Excel 订单表导出 / 文本文件转存 / 网页元素点击 | 基础原子流程 |
 
-> 原子覆盖率：357 个原子中已用 **112 个（31.4%）**。`python scripts/coverage_report.py` 随时看缺口；
+> 原子覆盖率：357 个原子中已用 **123 个（34.5%）**。`python scripts/coverage_report.py` 随时看缺口；
 > `python scripts/atom_impl_check.py` 核对「字典里有但本机没实现」的原子（当前 39 个，IE 系整块缺失）。
 
 ## 文档
