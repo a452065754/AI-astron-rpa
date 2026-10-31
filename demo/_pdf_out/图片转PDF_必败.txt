@@ -1,0 +1,4 @@
+convert_img_to_pdf 抛异常，已进 Catch 分支。
+根因：astronverse/pdf/__init__.py 的 _handle_files_input() 处理完参数后没有 return，永远返回 None -> images_to_pdf(None) -> 直接 raise ValueError（图片文件列表不能为空）。
+实测三种入参（单个路径字符串 / 路径列表 / 路径列表的字符串形式）全部失败，
+所以这个原子当前版本完全不可用，不是参数填错。

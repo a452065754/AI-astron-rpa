@@ -1,0 +1,116 @@
+{
+  "name": "Excel已开工作簿与插图小流程",
+  "nl_examples": [
+    "获取已经打开的Excel文件",
+    "往Excel里插入一张图片",
+    "按文件名找到已打开的表格再操作",
+    "把图片放到表格指定位置"
+  ],
+  "keywords": [
+    "获取已打开Excel",
+    "插入图片",
+    "Excel插图",
+    "工作簿对象"
+  ],
+  "params": [
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:/AI-Workbench/10-Projects/星辰开源/demo/_excel_out",
+      "describe": "输出目录"
+    },
+    {
+      "name": "pic_path",
+      "type": "Str",
+      "default": "F:/AI-Workbench/10-Projects/星辰开源/demo/pdf_pages/page_1.png",
+      "describe": "要插入的图片"
+    },
+    {
+      "name": "wb_name",
+      "type": "Str",
+      "default": "图片插入测试",
+      "describe": "新建的工作簿名（get_excel 按这个名字找）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "Excel.create_excel",
+      "alias": "新建工作簿",
+      "out": {
+        "create_excel_obj": "wb",
+        "excel_path": "xl_path"
+      },
+      "inputs": {
+        "file_path": "$p:out_dir",
+        "file_name": "$p:wb_name",
+        "default_application": "Excel",
+        "visible_flag": false,
+        "exist_handle_type": "overwrite",
+        "password": ""
+      }
+    },
+    {
+      "atom": "Excel.get_excel",
+      "alias": "按文件名获取已打开的工作簿",
+      "out": {
+        "get_excel_obj": "got"
+      },
+      "inputs": {
+        "file_name": "$p:wb_name"
+      }
+    },
+    {
+      "atom": "Excel.insert_pic",
+      "alias": "插入图片到 B2",
+      "out": {},
+      "inputs": {
+        "excel": "$got",
+        "sheet_name": "Sheet1",
+        "insert_pos": "B2",
+        "pic_path": "$p:pic_path",
+        "pic_size_type": "auto",
+        "pic_height": 300,
+        "pic_width": 400,
+        "pic_scale": 1.0
+      }
+    },
+    {
+      "atom": "Excel.save_excel",
+      "alias": "另存为并关闭",
+      "out": {},
+      "inputs": {
+        "excel": "$got",
+        "save_type": "save_as",
+        "exist_handle_type": "overwrite",
+        "close_flag": true,
+        "file_path": "$p:out_dir",
+        "file_name": "图片插入测试_已插图"
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "写证据文件",
+      "out": {
+        "write_file_path": "evidence"
+      },
+      "inputs": {
+        "file_path": ["$p:out_dir", "/", "Excel已开工作簿与插图_结果.txt"],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": [
+          "新建工作簿路径 = ", "$xl_path", "\n",
+          "get_excel 按名字「", "$p:wb_name", "」取到对象并完成插图+另存，说明对象有效\n",
+          "插入图片 = ", "$p:pic_path", "\n",
+          "另存为 = ", "$p:out_dir", "/图片插入测试_已插图.xlsx\n",
+          "\n【重要·坑 146】insert_pic 插入的是「链接图片」不是「嵌入图片」。\n",
+          "解包 图片插入测试_已插图.xlsx 可见：xl/media 为空，xl/drawings/drawing1.xml 里是\n",
+          "  <a:blip r:link=\"rId1\"/>，_rels 指向 Target=\"file:///F:\\...\\page_1.png\" TargetMode=\"External\"\n",
+          "即图片只存了一个指向本机绝对路径的外部引用。后果：换机器/发给别人/源图挪走 -> 图片打不开或消失。\n",
+          "根因：core_win/worksheet.py 用的是 worksheet.Pictures().Insert(path)（COM 的「链接到文件」插入）。\n",
+          "正确做法：Shapes.AddPicture(path, LinkToFile=False, SaveWithDocument=True, ...)。\n",
+          "已用纯 COM 对照验证：AddPicture(False, True) 产出的 xlsx 里 xl/media/image1.png = 23746 字节，是真嵌入。\n"
+        ]
+      }
+    }
+  ]
+}

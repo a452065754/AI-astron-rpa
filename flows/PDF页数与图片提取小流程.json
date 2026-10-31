@@ -1,0 +1,147 @@
+{
+  "name": "PDF页数与图片提取小流程",
+  "nl_examples": [
+    "看看这个PDF有多少页",
+    "把PDF里的图片都提取出来",
+    "把图片合成一个PDF",
+    "提取PDF全部图片保存到文件夹"
+  ],
+  "keywords": [
+    "PDF页数",
+    "PDF提图",
+    "图片转PDF",
+    "PDF图片"
+  ],
+  "params": [
+    {
+      "name": "pdf_path",
+      "type": "Str",
+      "default": "F:/AI-Workbench/10-Projects/星辰开源/demo/20260914报废_已转正.pdf",
+      "describe": "源 PDF"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:/AI-Workbench/10-Projects/星辰开源/demo/_pdf_out",
+      "describe": "输出目录"
+    },
+    {
+      "name": "img_dir",
+      "type": "Str",
+      "default": "F:/AI-Workbench/10-Projects/星辰开源/demo/_pdf_out/imgs",
+      "describe": "提取图片的保存目录"
+    },
+    {
+      "name": "one_pic",
+      "type": "Str",
+      "default": "F:/AI-Workbench/10-Projects/星辰开源/demo/pdf_pages/page_1.png",
+      "describe": "用于图片转PDF测试的单张图片"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "PDF.get_pages_num",
+      "alias": "取 PDF 页数",
+      "out": {
+        "pdf_pages_num": "pages"
+      },
+      "inputs": {
+        "file_path": "$p:pdf_path",
+        "password": ""
+      }
+    },
+    {
+      "atom": "PDF.get_pdf_images",
+      "alias": "提取 PDF 中全部图片",
+      "out": {},
+      "inputs": {
+        "file_path": "$p:pdf_path",
+        "pwd": "",
+        "select_range": "all",
+        "page_range": "",
+        "image_type": "png",
+        "save_dir": "$p:img_dir",
+        "prefix": "pg",
+        "exist_handle_type": "overwrite"
+      }
+    },
+    {
+      "atom": "Code.Try",
+      "alias": "试图片转PDF（预期必败，坑 147）",
+      "out": {},
+      "inputs": {}
+    },
+    {
+      "atom": "PDF.convert_img_to_pdf",
+      "alias": "图片转 PDF（任何入参都失败）",
+      "out": {
+        "pdf_file_path": "img_pdf"
+      },
+      "inputs": {
+        "image_files": "$p:one_pic",
+        "save_dir": "$p:out_dir",
+        "new_file_name": "图片合成",
+        "layout_type": "single_page",
+        "new_pwd_flag": false,
+        "new_pwd": "",
+        "exist_handle_type": "overwrite"
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "若能转成功就写这行",
+      "out": {
+        "write_file_path": "img_pdf_ok"
+      },
+      "inputs": {
+        "file_path": ["$p:out_dir", "/", "图片转PDF_可用.txt"],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": ["生成的 PDF = ", "$img_pdf", "\n"]
+      }
+    },
+    {
+      "atom": "Code.Catch",
+      "alias": "捕获图片转PDF异常",
+      "out": {},
+      "inputs": {}
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "记录图片转PDF必败（坑 147）",
+      "out": {
+        "write_file_path": "img_pdf_err"
+      },
+      "inputs": {
+        "file_path": ["$p:out_dir", "/", "图片转PDF_必败.txt"],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": "convert_img_to_pdf 抛异常，已进 Catch 分支。\n根因：astronverse/pdf/__init__.py 的 _handle_files_input() 处理完参数后没有 return，永远返回 None -> images_to_pdf(None) -> 直接 raise ValueError（图片文件列表不能为空）。\n实测三种入参（单个路径字符串 / 路径列表 / 路径列表的字符串形式）全部失败，\n所以这个原子当前版本完全不可用，不是参数填错。\n"
+      }
+    },
+    {
+      "atom": "Code.TryEnd",
+      "alias": "结束 Try",
+      "out": {},
+      "inputs": {}
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "写证据文件",
+      "out": {
+        "write_file_path": "pdf_evidence"
+      },
+      "inputs": {
+        "file_path": ["$p:out_dir", "/", "PDF页数与提图_结果.txt"],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": [
+          "源 PDF = ", "$p:pdf_path", "\n",
+          "【页数 get_pages_num】= ", "$pages", "\n",
+          "【提图 get_pdf_images】保存目录 = ", "$p:img_dir", "（文件列表见同目录 imgs/）\n",
+          "【图片转PDF】见 图片转PDF_必败.txt（该原子当前版本必败，坑 147）\n"
+        ]
+      }
+    }
+  ]
+}

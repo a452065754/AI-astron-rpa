@@ -81,6 +81,30 @@ _OUT_WORDS = ("out", "save", "dest", "target", "export", "to_path", "dst")
 _OUT_WORDS_CN = ("输出", "保存", "另存", "目标")
 _IN_WORDS = ("file", "path", "src", "source", "input", "read")
 
+# 可执行程序：一律当输入，不测父目录可写（坑 149）
+_EXEC_EXT = (".exe", ".lnk", ".bat", ".cmd", ".com", ".msi", ".ps1")
+
+
+def _protected_dirs():
+    """系统保护目录（不要在里面建临时文件做可写探测，会卡住）。"""
+    out = []
+    for env in ("SystemRoot", "windir", "ProgramFiles", "ProgramFiles(x86)", "ProgramW6432"):
+        v = os.environ.get(env)
+        if v:
+            out.append(os.path.normcase(os.path.abspath(v)))
+    return out
+
+
+def _in_protected(p):
+    try:
+        rp = os.path.normcase(os.path.abspath(p))
+    except Exception:
+        return False
+    for root in _protected_dirs():
+        if rp == root or rp.startswith(root + os.sep):
+            return True
+    return False
+
 
 def _is_path(s):
     return isinstance(s, str) and bool(_WIN_PATH.match(s) or _UNC_PATH.match(s))
@@ -132,6 +156,13 @@ def classify(atom, key, value, params):
     if role:
         return role
     k = (key or "").lower()
+    # 可执行程序一律当「输入」（只读）：它是被启动的对象，流程不会往里写东西。
+    # 不这么判会掉进「输出目标」分支去测父目录可写性，遇到 C:/Windows/System32
+    # 会在里面创建临时文件，被 UAC/杀软扫描卡住几分钟（坑 149）。
+    if any(w in k for w in ("app_absolute", "app", "exe", "program", "software")):
+        return "in"
+    if isinstance(value, str) and os.path.splitext(value)[1].lower() in _EXEC_EXT:
+        return "in"
     if any(w in k for w in _OUT_WORDS):
         return "out"
     if "dir" in k or "folder" in k or "path_dir" in k:
@@ -149,6 +180,10 @@ def classify(atom, key, value, params):
 
 
 def writable_dir(d):
+    # 系统保护目录（System32 / Program Files）里建临时文件会被 UAC 和杀软扫描拖住，
+    # 实测能卡好几分钟（坑 149）。这里用权限位快速判断，绝不真写。
+    if _in_protected(d):
+        return False
     try:
         with tempfile.NamedTemporaryFile(dir=d, prefix=".pf_probe_", delete=True):
             return True
@@ -168,6 +203,9 @@ def probe_locked(path):
         with open(path, "r+b"):
             pass
     except PermissionError:
+        # 系统目录里的 exe/dll 普通账号本来就没有写权限，这不等于「被独占」（坑 149）
+        if _in_protected(d):
+            return False, ""
         return True, "以读写方式打开被拒（被其它进程独占，通常是 Word/Excel/WPS 正打开着）"
     except Exception:
         pass

@@ -1,0 +1,86 @@
+{
+  "name": "浏览器执行Js小流程",
+  "nl_examples": [
+    "在网页里跑一段JS拿标题",
+    "用JS统计页面上有多少个链接",
+    "执行JavaScript获取页面信息"
+  ],
+  "keywords": [
+    "执行JS",
+    "JavaScript",
+    "浏览器脚本",
+    "页面取值"
+  ],
+  "params": [
+    {
+      "name": "url",
+      "type": "Str",
+      "default": "http://127.0.0.1:8765/",
+      "describe": "本地测试页地址"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:/AI-Workbench/10-Projects/星辰开源/demo/_js_out",
+      "describe": "证据文件输出目录"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "BrowserSoftware.browser_open",
+      "alias": "打开本地测试页",
+      "out": {
+        "web_open": "browser"
+      },
+      "inputs": {
+        "url": "$p:url",
+        "browser_type": "chrome",
+        "timeout": 20,
+        "timeout_handle_type": "execError",
+        "wait_load_success": true,
+        "open_with_incognito": false
+      }
+    },
+    {
+      "atom": "BrowserScript.js_run",
+      "alias": "执行 JS 取标题与链接数",
+      "out": {
+        "program_script": "js_result"
+      },
+      "inputs": {
+        "browser_obj": "$browser",
+        "input_type": "content",
+        "content": "function main() { var links = document.querySelectorAll('a').length; return document.title + ' || links=' + links + ' || h1=' + (document.querySelector('h1') ? document.querySelector('h1').innerText : 'none'); }",
+        "file_path": "",
+        "params": "$json:[]",
+        "iframe_url": ""
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "写证据文件",
+      "out": {
+        "write_file_path": "js_evidence"
+      },
+      "inputs": {
+        "file_path": ["$p:out_dir", "/", "浏览器Js执行_结果.txt"],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": [
+          "页面 = ", "$p:url", "\n",
+          "【BrowserScript.js_run 返回】= ", "$js_result", "\n",
+          "\n说明：js_run 要求脚本里必须有 main 函数，引擎会在 content 后面追加 `return main()`，\n",
+          "所以直接写一句表达式（如 document.title）是不行的，会报「代码中必须包含main函数」。\n"
+        ]
+      }
+    },
+    {
+      "atom": "BrowserSoftware.browser_close",
+      "alias": "关闭浏览器",
+      "out": {},
+      "inputs": {
+        "browser_obj": "$browser"
+      }
+    }
+  ]
+}

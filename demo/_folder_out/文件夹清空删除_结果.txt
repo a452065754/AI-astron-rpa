@@ -1,0 +1,6 @@
+【folder_clear】目录 = F:\AI-Workbench\10-Projects\星辰开源\demo\_folder_out\清空测试 返回 = True
+  注意：实现用的是 send2trash —— 文件被移到回收站而不是物理删除，
+  目录本身保留（只清内容），且磁盘空间不会立即释放。
+【folder_delete】目录 = F:\AI-Workbench\10-Projects\星辰开源\demo\_folder_out\删除测试 返回 = True
+  delete_options=delete 时走 shutil.rmtree（物理删除）；选 trash 才进回收站。
+【folder_open】已调用，用资源管理器打开 F:\AI-Workbench\10-Projects\星辰开源\demo\_folder_out

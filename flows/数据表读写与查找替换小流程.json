@@ -149,6 +149,36 @@
           "$row5"
         ]
       }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "写证据文件",
+      "out": {
+        "write_file_path": "dt_rw_evidence"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/",
+          "数据表读写_结果.txt"
+        ],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": [
+          "A 列表头（读回）= ",
+          "$title_a",
+          "\n",
+          "查找替换命中数 = ",
+          "$hits",
+          "\n",
+          "第 5 行读回 = ",
+          "$row5",
+          "\n",
+          "导出文件 = ",
+          "$exported",
+          "\n"
+        ]
+      }
     }
   ]
 }

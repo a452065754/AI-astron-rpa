@@ -1,0 +1,1 @@
+右补齐（fill_type=right）抛异常，已进 Catch 分支。原因：total_length 字典声明为 Str，实现里左补齐用转好的 int、右补齐直接用原始字符串去切片 -> TypeError: slice indices must be integers。规避：改用左补齐，或传整数类型。

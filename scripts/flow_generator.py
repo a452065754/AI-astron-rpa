@@ -42,6 +42,13 @@ DEMO_DIR = r"F:\AI-Workbench\10-Projects\星辰开源\demo"
 DEMO_XLSX = DEMO_DIR + r"\订单.xlsx"
 DEMO_TXT = DEMO_DIR + r"\源文件.txt"
 
+# 字典声明多个输出、但 Python 实现只 `return` 一个值的原子（坑 145）。
+# 对这类原子：只按 spec 显式声明的输出生成**一个**变量；不声明就不解包。
+SINGLE_RETURN_ATOMS = {
+    "DataTable.copy_data",   # 声明 4 个（copied_cell/row/column/area），实现只 return 被复制的数据
+    "DataTable.read_data",   # 声明 4 个（cell/row/column/area_info），实现按 read_type 只 return 一个
+}
+
 
 # ----------------------------- 原子字典（真实 schema） -----------------------------
 def _parse_atom(raw):
@@ -733,8 +740,17 @@ def build_process_content(template, atom_dict, elements=None, robot_id=DEFAULT_R
                 it["value"] = _coerce_literals(it["value"], schema_ins.get(it["key"]) or {})
 
         # 输出：按 schema output 的 key 分配变量名（模板指定则用模板名）
+        #
+        # 特例（坑 145）：以下原子在字典里声明了多个输出，但实现只 `return` 一个值。
+        # 引擎按 outputList 的个数生成 `a,b,c,d = atom(...)`，于是那个值会被当成序列
+        # 拆成 N 份 —— 元素个数恰好等于 N 时不报错但语义全错（复制一行只拿到第 2 列），
+        # 个数不等时直接 ValueError。这类原子必须**只生成 1 个输出变量**。
+        out_keys = schema_outs
+        if atom_key in SINGLE_RETURN_ATOMS:
+            declared = [k for k in schema_outs if k in spec["out"]]
+            out_keys = declared[:1]          # 只保留 spec 显式声明的第一个；没声明就不解包
         output_list = []
-        for okey in schema_outs:
+        for okey in out_keys:
             vname = spec["out"].get(okey)
             if vname is None:
                 vname = f"{okey}_{node_id[-4:]}"

@@ -1,0 +1,91 @@
+{
+  "name": "软件启停与Cmd小流程",
+  "nl_examples": [
+    "打开一个程序再关掉",
+    "执行一条cmd命令看结果",
+    "查一下某个进程还在不在",
+    "用命令行做点事"
+  ],
+  "keywords": [
+    "打开程序",
+    "关闭程序",
+    "cmd命令",
+    "进程查询"
+  ],
+  "params": [
+    {
+      "name": "app",
+      "type": "Str",
+      "default": "C:/Windows/System32/charmap.exe",
+      "describe": "测试用程序（字符映射表，不会影响其它同名进程）"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:/AI-Workbench/10-Projects/星辰开源/demo/_sw_out",
+      "describe": "证据文件输出目录"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "Software.open",
+      "alias": "打开字符映射表",
+      "out": {
+        "software_open": "opened"
+      },
+      "inputs": {
+        "app_absolute_path": "$p:app",
+        "app_arguments": ""
+      }
+    },
+    {
+      "atom": "Software.cmd",
+      "alias": "查进程（应能看到）",
+      "out": {
+        "exec_cmd": "before"
+      },
+      "inputs": {
+        "cmd": "tasklist /FI \"IMAGENAME eq charmap.exe\" /NH"
+      }
+    },
+    {
+      "atom": "Software.close",
+      "alias": "关闭该程序",
+      "out": {},
+      "inputs": {
+        "app_absolute_path": "$p:app"
+      }
+    },
+    {
+      "atom": "Software.cmd",
+      "alias": "再查进程（应为空）",
+      "out": {
+        "exec_cmd": "after"
+      },
+      "inputs": {
+        "cmd": "tasklist /FI \"IMAGENAME eq charmap.exe\" /NH"
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "写证据文件",
+      "out": {
+        "write_file_path": "sw_evidence"
+      },
+      "inputs": {
+        "file_path": ["$p:out_dir", "/", "软件启停与Cmd_结果.txt"],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": [
+          "【Software.open】返回 = ", "$opened", "\n",
+          "【Software.cmd 关闭前】", "$before", "\n",
+          "【Software.close】已执行（内部是 taskkill /F /IM charmap.exe）\n",
+          "【Software.cmd 关闭后】", "$after", "\n",
+          "\n判读：关闭前 stdout 里应有 charmap.exe，关闭后应为「没有运行的任务」之类提示。\n",
+          "注意：Software.close 是按**进程名**强杀（taskkill /F /IM），不是按 PID，\n",
+          "所以拿 notepad.exe 之类常用程序做测试会把你正在用的同名窗口一起关掉。\n"
+        ]
+      }
+    }
+  ]
+}

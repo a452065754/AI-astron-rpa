@@ -1,0 +1,4 @@
+A 列表头（读回）= None
+查找替换命中数 = [(3, 'B')]
+第 5 行读回 = ['DD004', '床', 2, 3998]
+导出文件 = F:\AI-Workbench\10-Projects\星辰开源\demo\_excel_out\数据表改后.json

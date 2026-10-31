@@ -1,0 +1,8 @@
+【Software.open】返回 = C:\Windows\System32\charmap.exe
+【Software.cmd 关闭前】{'status': 0, 'stdout': '\ncharmap.exe                  30484 Console                    1     19,704 K\n', 'stderr': ''}
+【Software.close】已执行（内部是 taskkill /F /IM charmap.exe）
+【Software.cmd 关闭后】{'status': 0, 'stdout': '��Ϣ: û�����е�����ƥ��ָ����\u05fc��\n', 'stderr': ''}
+
+判读：关闭前 stdout 里应有 charmap.exe，关闭后应为「没有运行的任务」之类提示。
+注意：Software.close 是按**进程名**强杀（taskkill /F /IM），不是按 PID，
+所以拿 notepad.exe 之类常用程序做测试会把你正在用的同名窗口一起关掉。

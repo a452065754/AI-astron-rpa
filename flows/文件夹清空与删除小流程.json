@@ -1,0 +1,146 @@
+{
+  "name": "文件夹清空与删除小流程",
+  "nl_examples": [
+    "把这个文件夹清空",
+    "删掉这个文件夹",
+    "清空文件夹但保留文件夹本身",
+    "打开文件夹给我看"
+  ],
+  "keywords": [
+    "清空文件夹",
+    "删除文件夹",
+    "打开文件夹",
+    "回收站"
+  ],
+  "params": [
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:/AI-Workbench/10-Projects/星辰开源/demo/_folder_out",
+      "describe": "测试根目录"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "Folder.folder_create",
+      "alias": "建「清空测试」目录",
+      "out": {
+        "new_folder_path": "dir_clear"
+      },
+      "inputs": {
+        "target_path": "$p:out_dir",
+        "folder_name": "清空测试",
+        "exist_options": "skip"
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "往里放第 1 个文件",
+      "out": {
+        "write_file_path": "f1"
+      },
+      "inputs": {
+        "file_path": ["$dir_clear", "/", "a.txt"],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": "第一个文件\n"
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "往里放第 2 个文件",
+      "out": {
+        "write_file_path": "f2"
+      },
+      "inputs": {
+        "file_path": ["$dir_clear", "/", "b.txt"],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": "第二个文件\n"
+      }
+    },
+    {
+      "atom": "Folder.folder_clear",
+      "alias": "清空该目录（保留目录本身）",
+      "out": {
+        "clear_folder_result": "cleared"
+      },
+      "inputs": {
+        "folder_path": "$dir_clear"
+      }
+    },
+    {
+      "atom": "Folder.folder_create",
+      "alias": "建「删除测试」目录",
+      "out": {
+        "new_folder_path": "dir_del"
+      },
+      "inputs": {
+        "target_path": "$p:out_dir",
+        "folder_name": "删除测试",
+        "exist_options": "skip"
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "往删除测试目录放个文件",
+      "out": {
+        "write_file_path": "f3"
+      },
+      "inputs": {
+        "file_path": ["$dir_del", "/", "c.txt"],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": "待删目录里的文件\n"
+      }
+    },
+    {
+      "atom": "Folder.folder_delete",
+      "alias": "彻底删除该目录",
+      "out": {
+        "delete_folder_result": "deleted"
+      },
+      "inputs": {
+        "folder_path": "$dir_del",
+        "delete_options": "delete"
+      }
+    },
+    {
+      "atom": "Folder.folder_open",
+      "alias": "打开输出目录（会弹资源管理器）",
+      "out": {},
+      "inputs": {
+        "folder_path": "$p:out_dir"
+      }
+    },
+    {
+      "atom": "Report.print",
+      "alias": "打印汇总",
+      "out": {},
+      "inputs": {
+        "report_type": "info",
+        "msg": ["清空返回 ", "$cleared", " · 删除返回 ", "$deleted", " · 目录：", "$dir_clear"]
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "写证据文件",
+      "out": {
+        "write_file_path": "folder_evidence"
+      },
+      "inputs": {
+        "file_path": ["$p:out_dir", "/", "文件夹清空删除_结果.txt"],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": [
+          "【folder_clear】目录 = ", "$dir_clear", " 返回 = ", "$cleared", "\n",
+          "  注意：实现用的是 send2trash —— 文件被移到回收站而不是物理删除，\n",
+          "  目录本身保留（只清内容），且磁盘空间不会立即释放。\n",
+          "【folder_delete】目录 = ", "$dir_del", " 返回 = ", "$deleted", "\n",
+          "  delete_options=delete 时走 shutil.rmtree（物理删除）；选 trash 才进回收站。\n",
+          "【folder_open】已调用，用资源管理器打开 ", "$p:out_dir", "\n"
+        ]
+      }
+    }
+  ]
+}

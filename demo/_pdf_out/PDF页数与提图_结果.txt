@@ -1,0 +1,4 @@
+源 PDF = F:\AI-Workbench\10-Projects\星辰开源\demo\20260914报废_已转正.pdf
+【页数 get_pages_num】= 3
+【提图 get_pdf_images】保存目录 = F:\AI-Workbench\10-Projects\星辰开源\demo\_pdf_out\imgs（文件列表见同目录 imgs/）
+【图片转PDF】见 图片转PDF_必败.txt（该原子当前版本必败，坑 147）

@@ -1,0 +1,12 @@
+源表：F:\AI-Workbench\10-Projects\星辰开源\demo\订单.xlsx / Sheet1
+【复制行 copy_data】第 2 行 = ['DD001', '沙发', 1, 1999]
+【复制列 copy_data】D 列 = ['金额', 1999, 599, 1299]
+【按列筛选 filter=column】D 列 > 1000 = [1999, 1299]
+【按表筛选 filter=table】含 茶几 = [['茶几']]
+【导出文件】F:\AI-Workbench\10-Projects\星辰开源\demo\_dt_out\数据表复制筛选.json
+
+【重要】copy_data 与 read_data 在字典里各声明了 4 个输出（cell/row/column/area），
+但实现只 return 一个值。若按字典全量生成 `a,b,c,d = copy_data(...)`，
+返回的整行会被拆成 4 段（本表第2行恰好 4 列，不报错但变量全错位：
+row 变量拿到的是第 2 列「沙发」）；列数不是 4 时直接 ValueError。
+本流程已在 flow_generator 里对这两个原子做「只生成一个输出变量」的修正（坑 145）。

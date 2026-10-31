@@ -1,0 +1,326 @@
+{
+  "name": "数据类型转换与补齐小流程",
+  "nl_examples": [
+    "把字典转成文本再转回字典",
+    "字符串补齐到固定长度",
+    "取数字的绝对值",
+    "字典删掉一个键再看剩下的值",
+    "把 JSON 字符串转成对象"
+  ],
+  "keywords": [
+    "数据转换",
+    "类型转换",
+    "字典删除",
+    "字典取值",
+    "字符串补齐",
+    "绝对值"
+  ],
+  "params": [
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:/AI-Workbench/10-Projects/星辰开源/demo/_convert_out",
+      "describe": "证据文件输出目录"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "DictProcess.create_new_dict",
+      "alias": "建空字典",
+      "out": {
+        "created_new_dict_data": "d1"
+      },
+      "inputs": {
+        "dict_data": "$json:{}"
+      }
+    },
+    {
+      "atom": "DictProcess.set_value_to_dict",
+      "alias": "写入 甲=1",
+      "out": {
+        "inserted_dict_data": "d2"
+      },
+      "inputs": {
+        "dict_data": "$d1",
+        "dict_key": "甲",
+        "value": "1"
+      }
+    },
+    {
+      "atom": "DictProcess.set_value_to_dict",
+      "alias": "写入 乙=2（待删）",
+      "out": {
+        "inserted_dict_data": "d3"
+      },
+      "inputs": {
+        "dict_data": "$d2",
+        "dict_key": "乙",
+        "value": "2"
+      }
+    },
+    {
+      "atom": "DictProcess.set_value_to_dict",
+      "alias": "写入 丙=3",
+      "out": {
+        "inserted_dict_data": "d4"
+      },
+      "inputs": {
+        "dict_data": "$d3",
+        "dict_key": "丙",
+        "value": "3"
+      }
+    },
+    {
+      "atom": "DictProcess.delete_value_from_dict",
+      "alias": "删掉键 乙",
+      "out": {
+        "deleted_dict_data": "d_del"
+      },
+      "inputs": {
+        "dict_data": "$d4",
+        "dict_key": "乙"
+      }
+    },
+    {
+      "atom": "DictProcess.get_values_from_dict",
+      "alias": "取删后字典的所有值",
+      "out": {
+        "get_dict_values": "vals"
+      },
+      "inputs": {
+        "dict_data": "$d_del"
+      }
+    },
+    {
+      "atom": "DataConvertProcess.json_convertor",
+      "alias": "字典转 JSON 文本",
+      "out": {
+        "json_convert_data": "j_str"
+      },
+      "inputs": {
+        "input_data": "$d_del",
+        "convert_type": "json_to_str"
+      }
+    },
+    {
+      "atom": "DataConvertProcess.json_convertor",
+      "alias": "JSON 文本转回字典",
+      "out": {
+        "json_convert_data": "j_back"
+      },
+      "inputs": {
+        "input_data": "$j_str",
+        "convert_type": "str_to_json"
+      }
+    },
+    {
+      "atom": "DataConvertProcess.other_to_str",
+      "alias": "列表强转文本",
+      "out": {
+        "other_convert_str": "vals_str"
+      },
+      "inputs": {
+        "input_data": "$vals"
+      }
+    },
+    {
+      "atom": "DataConvertProcess.str_to_other",
+      "alias": "文本转整数（42.9 应截断为 42）",
+      "out": {
+        "str_convert_other": "n_int"
+      },
+      "inputs": {
+        "input_data": "42.9",
+        "convert_type": "str_to_int"
+      }
+    },
+    {
+      "atom": "DataConvertProcess.str_to_other",
+      "alias": "文本转浮点",
+      "out": {
+        "str_convert_other": "n_float"
+      },
+      "inputs": {
+        "input_data": "3.14",
+        "convert_type": "str_to_float"
+      }
+    },
+    {
+      "atom": "DataConvertProcess.str_to_other",
+      "alias": "文本转布尔",
+      "out": {
+        "str_convert_other": "n_bool"
+      },
+      "inputs": {
+        "input_data": "true",
+        "convert_type": "str_to_bool"
+      }
+    },
+    {
+      "atom": "DataConvertProcess.str_to_other",
+      "alias": "文本转列表",
+      "out": {
+        "str_convert_other": "n_list"
+      },
+      "inputs": {
+        "input_data": "[1, 2, 3]",
+        "convert_type": "str_to_list"
+      }
+    },
+    {
+      "atom": "DataConvertProcess.str_to_other",
+      "alias": "文本转字典",
+      "out": {
+        "str_convert_other": "n_dict"
+      },
+      "inputs": {
+        "input_data": "{'k': 'v'}",
+        "convert_type": "str_to_dict"
+      }
+    },
+    {
+      "atom": "DataConvertProcess.str_to_other",
+      "alias": "文本转元组",
+      "out": {
+        "str_convert_other": "n_tuple"
+      },
+      "inputs": {
+        "input_data": "(1, 2)",
+        "convert_type": "str_to_tuple"
+      }
+    },
+    {
+      "atom": "StringProcess.fill_string_to_length",
+      "alias": "左补齐 42 -> 6 位（可用）",
+      "out": {
+        "complete_string": "pad_l"
+      },
+      "inputs": {
+        "string_data": "42",
+        "add_str": "0",
+        "total_length": "6",
+        "fill_type": "left"
+      }
+    },
+    {
+      "atom": "MathProcess.get_absolute_number",
+      "alias": "取绝对值（文本负数）",
+      "out": {
+        "absolute_number": "abs1"
+      },
+      "inputs": {
+        "raw_number": "-123"
+      }
+    },
+    {
+      "atom": "MathProcess.get_absolute_number",
+      "alias": "取绝对值（文本负小数）",
+      "out": {
+        "absolute_number": "abs2"
+      },
+      "inputs": {
+        "raw_number": "-45.67"
+      }
+    },
+    {
+      "atom": "Code.Try",
+      "alias": "试右补齐（预期会崩，坑 144）",
+      "out": {},
+      "inputs": {}
+    },
+    {
+      "atom": "StringProcess.fill_string_to_length",
+      "alias": "右补齐 RPA -> 8 位（面板正常配置会崩）",
+      "out": {
+        "complete_string": "pad_r"
+      },
+      "inputs": {
+        "string_data": "RPA",
+        "add_str": "0",
+        "total_length": "8",
+        "fill_type": "right"
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "若右补齐没崩就写这行",
+      "out": {
+        "write_file_path": "right_ok_written"
+      },
+      "inputs": {
+        "file_path": ["$p:out_dir", "/", "右补齐_可用.txt"],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": ["右补齐结果 = ", "$pad_r", "\n"]
+      }
+    },
+    {
+      "atom": "Code.Catch",
+      "alias": "捕获右补齐异常",
+      "out": {},
+      "inputs": {}
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "记录右补齐崩溃（坑 144）",
+      "out": {
+        "write_file_path": "right_catch_written"
+      },
+      "inputs": {
+        "file_path": ["$p:out_dir", "/", "右补齐_崩溃.txt"],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": "右补齐（fill_type=right）抛异常，已进 Catch 分支。原因：total_length 字典声明为 Str，实现里左补齐用转好的 int、右补齐直接用原始字符串去切片 -> TypeError: slice indices must be integers。规避：改用左补齐，或传整数类型。\n"
+      }
+    },
+    {
+      "atom": "Code.TryEnd",
+      "alias": "结束 Try",
+      "out": {},
+      "inputs": {}
+    },
+    {
+      "atom": "Report.print",
+      "alias": "打印汇总",
+      "out": {},
+      "inputs": {
+        "report_type": "info",
+        "msg": [
+          "删键后字典：", "$d_del",
+          " · 剩下的值：", "$vals",
+          " · 回环一致：", "$j_back",
+          " · 左补齐：", "$pad_l",
+          " · 绝对值：", "$abs1", " / ", "$abs2"
+        ]
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "写证据文件",
+      "out": {
+        "write_file_path": "evidence_written"
+      },
+      "inputs": {
+        "file_path": ["$p:out_dir", "/", "数据类型转换_结果.txt"],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": [
+          "【字典删除】删键 乙 后 = ", "$d_del", "\n",
+          "【字典取值】剩余值列表 = ", "$vals", "\n",
+          "【JSON 转文本】= ", "$j_str", "\n",
+          "【文本转 JSON】= ", "$j_back", "\n",
+          "【其他转文本】列表→文本 = ", "$vals_str", "\n",
+          "【文本转整数】'42.9' -> ", "$n_int", "（注意：截断小数点，不是四舍五入）\n",
+          "【文本转浮点】'3.14' -> ", "$n_float", "\n",
+          "【文本转布尔】'true' -> ", "$n_bool", "\n",
+          "【文本转列表】'[1, 2, 3]' -> ", "$n_list", "\n",
+          "【文本转字典】\"{'k': 'v'}\" -> ", "$n_dict", "\n",
+          "【文本转元组】'(1, 2)' -> ", "$n_tuple", "\n",
+          "【左补齐】'42' 补 0 到 6 位 = ", "$pad_l", "\n",
+          "【绝对值】'-123' -> ", "$abs1", " ；'-45.67' -> ", "$abs2", "\n",
+          "【右补齐】见 右补齐_崩溃.txt（该分支在本机必崩，坑 144）\n"
+        ]
+      }
+    }
+  ]
+}

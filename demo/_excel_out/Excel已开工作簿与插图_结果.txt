@@ -1,0 +1,12 @@
+新建工作簿路径 = F:\AI-Workbench\10-Projects\星辰开源\demo\_excel_out\图片插入测试.xlsx
+get_excel 按名字「图片插入测试」取到对象并完成插图+另存，说明对象有效
+插入图片 = F:\AI-Workbench\10-Projects\星辰开源\demo\pdf_pages\page_1.png
+另存为 = F:\AI-Workbench\10-Projects\星辰开源\demo\_excel_out/图片插入测试_已插图.xlsx
+
+【重要·坑 146】insert_pic 插入的是「链接图片」不是「嵌入图片」。
+解包 图片插入测试_已插图.xlsx 可见：xl/media 为空，xl/drawings/drawing1.xml 里是
+  <a:blip r:link="rId1"/>，_rels 指向 Target="file:///F:\...\page_1.png" TargetMode="External"
+即图片只存了一个指向本机绝对路径的外部引用。后果：换机器/发给别人/源图挪走 -> 图片打不开或消失。
+根因：core_win/worksheet.py 用的是 worksheet.Pictures().Insert(path)（COM 的「链接到文件」插入）。
+正确做法：Shapes.AddPicture(path, LinkToFile=False, SaveWithDocument=True, ...)。
+已用纯 COM 对照验证：AddPicture(False, True) 产出的 xlsx 里 xl/media/image1.png = 23746 字节，是真嵌入。

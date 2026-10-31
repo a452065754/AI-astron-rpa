@@ -9,10 +9,10 @@
 
 | 指标 | 值 |
 | --- | --- |
-| 流程规格 | **66 条**（`flows/*.json`） |
-| 原子覆盖率 | **215 / 346 = 62.1%**（已剔除 11 个作废 key） |
-| 已全覆盖的域 | File 13/13 · Code 18/18 · Network 12/12 · **Docx 19/19** · ListProcess 15/15 · TimeProcess 6/6 · Encrypt 6/6 |
-| 机器自检 | 66/66 lint 通过 · 全部本地真跑 `SUCCESS` 并核对副作用 |
+| 流程规格 | **71 条**（`flows/*.json`） |
+| 原子覆盖率 | **235 / 346 = 67.9%**（已剔除 11 个作废 key） |
+| 已全覆盖的域 | **10 个**：Excel 35/35 · Docx 19/19 · Code 18/18 · File 13/13 · Network 12/12 · ListProcess 15/15 · Folder 9/9 · PDF 8/8 · TimeProcess 6/6 · Encrypt 6/6 · Software 3/3 |
+| 机器自检 | 71/71 lint 通过 · 全部本地真跑 `SUCCESS` 并核对副作用 |
 | 人工评审 | **0 条**（评审单在 `docs/reviews/`，待看） |
 | 已发布 | 1 条（早期验证） |
 
@@ -192,7 +192,7 @@ python scripts/element_pick.py --check <elementId>
 | **加解密与时间差** | 对称加解密往返 + 时间加减与时间差 |
 | Excel 订单表导出 / 文本文件转存 / 网页元素点击 | 基础原子流程 |
 
-> 原子覆盖率：346 个有效原子中已用 **215 个（62.1%）**。`python scripts/coverage_report.py` 随时看缺口；
+> 原子覆盖率：346 个有效原子中已用 **235 个（67.9%）**。`python scripts/coverage_report.py` 随时看缺口；
 > `python scripts/atom_impl_check.py` 核对「字典里有但本机没实现」的原子（当前 39 个，IE 系整块缺失）。
 
 ## 文档
