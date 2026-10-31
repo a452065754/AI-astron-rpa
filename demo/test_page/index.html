@@ -31,6 +31,17 @@
 
   <p id="status">初始状态</p>
 
+  <!-- 文件上传：给 upload_web_file 用 -->
+  <p>
+    <input type="file" id="fileInput" onchange="document.getElementById('upload-status').innerText='已选择：'+ (this.files[0] ? this.files[0].name : '');">
+    <span id="upload-status">尚未选择文件</span>
+  </p>
+
+  <!-- 文件下载：给 download_web_file 用 -->
+  <p>
+    <a id="dl" href="download_sample.csv" download="sample.csv">下载样例 CSV</a>
+  </p>
+
   <table id="tbl">
     <thead>
       <tr><th>编号</th><th>名称</th><th>数量</th></tr>

@@ -1,0 +1,183 @@
+{
+  "name": "系统打印与虚拟PDF小流程",
+  "nl_examples": [
+    "把这份 Word 打印到虚拟 PDF 打印机，看看有没有真的产出文件",
+    "调用系统打印原子，核对它的返回值可不可信",
+    "打印一份文档并对比打印前后的 PDF 文件数量",
+    "系统打印原子实测：虚拟打印机到底出不出文件"
+  ],
+  "keywords": [
+    "打印机打印",
+    "系统打印",
+    "虚拟打印机",
+    "打印PDF",
+    "打印状态"
+  ],
+  "params": [
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_printer_out",
+      "describe": "打印源与证据输出目录"
+    },
+    {
+      "name": "doc_name",
+      "type": "Str",
+      "default": "打印源文档",
+      "describe": "待打印的 Word 文件名（不带扩展名）"
+    },
+    {
+      "name": "printer_name",
+      "type": "Str",
+      "default": "导出为WPS PDF",
+      "describe": "打印机名称（默认用本机的 WPS 虚拟 PDF 打印机，不耗纸）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "Docx.create_docx",
+      "alias": "新建待打印的 Word",
+      "out": {
+        "doc_obj": "doc",
+        "doc_create_path": "doc_path"
+      },
+      "inputs": {
+        "file_path": "$p:out_dir",
+        "file_name": "$p:doc_name",
+        "default_application": "Default",
+        "visible_flag": false,
+        "exist_handle_type": "overwrite"
+      }
+    },
+    {
+      "atom": "Docx.insert_docx",
+      "alias": "写入要打印的内容",
+      "out": {},
+      "inputs": {
+        "doc": "$doc",
+        "text": "系统打印原子测试页：本页用于验证 System.printer 是否真的把文档送进了打印队列。",
+        "enter_flag": false,
+        "font_size": 12,
+        "bold_flag": false,
+        "italic_flag": false,
+        "underline_flag": 0,
+        "font_name": "宋体",
+        "font_color": "0,0,0"
+      }
+    },
+    {
+      "atom": "Docx.save_docx",
+      "alias": "保存并关闭（打印前必须释放占用）",
+      "out": {
+        "save_file_path": "saved_docx"
+      },
+      "inputs": {
+        "doc": "$doc",
+        "save_type": "save_as",
+        "file_path": "$p:out_dir",
+        "file_name": "$p:doc_name",
+        "exist_handle_type": "overwrite",
+        "close_flag": true
+      }
+    },
+    {
+      "atom": "File.get_file_list",
+      "alias": "打印前：列出目录里已有的 PDF/OFD",
+      "out": {
+        "file_list": "before_list"
+      },
+      "inputs": {
+        "folder_path": "$p:out_dir",
+        "traverse_subfolder": "no",
+        "tempfile_include": false,
+        "output_type": "list",
+        "excel_path": "$p:out_dir",
+        "state_type": "create",
+        "excel_name": "文件列表_打印前",
+        "sort_method": "none",
+        "sort_type": "ascending"
+      }
+    },
+    {
+      "atom": "System.printer",
+      "alias": "打印到虚拟 PDF 打印机",
+      "out": {
+        "printer_status": "printer_status"
+      },
+      "inputs": {
+        "file_type": "word",
+        "doc_app_type": "Default",
+        "xls_app_type": "Default",
+        "batch_print": "single",
+        "file_path": "$saved_docx",
+        "folder_path": "$p:out_dir",
+        "printer_type": "custom",
+        "printer_name": "$p:printer_name",
+        "paper_size": "A4",
+        "page_weight": 210,
+        "page_height": 297,
+        "print_num": 1,
+        "page": "",
+        "orientation_type": "vertical",
+        "scale": 100,
+        "margin_type": "default",
+        "left_margin": 10,
+        "top_margin": 9.5,
+        "right_margin": 10,
+        "bottom_margin": 9.5
+      }
+    },
+    {
+      "atom": "File.get_file_list",
+      "alias": "打印后：再列一次，比有没有新文件",
+      "out": {
+        "file_list": "after_list"
+      },
+      "inputs": {
+        "folder_path": "$p:out_dir",
+        "traverse_subfolder": "no",
+        "tempfile_include": false,
+        "output_type": "list",
+        "excel_path": "$p:out_dir",
+        "state_type": "create",
+        "excel_name": "文件列表_打印后",
+        "sort_method": "none",
+        "sort_type": "ascending"
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "写取证文件：返回值 vs 实际产出",
+      "out": {
+        "write_file_path": "evidence"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/打印取证.txt"
+        ],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": [
+          "【待打印文档】",
+          "$saved_docx",
+          "\n【打印机】",
+          "$p:printer_name",
+          "\n【System.printer 返回值】",
+          "$printer_status",
+          "\n【打印前文件列表】",
+          "$before_list",
+          "\n【打印后文件列表】",
+          "$after_list",
+          "\n\n【判读要点】\n",
+          "1) 返回值是 printer_status，实测为 [True] —— 但它只代表「调用没抛异常」，\n",
+          "   不代表打印任务真的进了队列。核对方式是看打印队列和产出目录。\n",
+          "2) 本机实测（2026-10-31）：返回 [True]，但 Get-PrintJob 作业数 = 0、\n",
+          "   目录里没有新 PDF —— WPS 虚拟打印机的输出由 WPS 客户端接管，\n",
+          "   无人值守场景下不可依赖；Microsoft Print to PDF 走 PORTPROMPT 会弹另存为框。\n",
+          "3) 结论：System.printer 的返回值不可作为证据，必须独立核对（队列/产出文件/纸张）。\n"
+        ]
+      }
+    }
+  ]
+}

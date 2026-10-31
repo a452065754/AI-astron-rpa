@@ -1,0 +1,22 @@
+【测试页】http://127.0.0.1:8765/
+【待上传文件】F:\AI-Workbench\10-Projects\星辰开源\demo\_browser_out/待上传附件.csv
+【upload_web_file 返回值】None
+【element_operation getText → 上传状态】尚未选择文件
+【element_operation getLink → 下载链接】http://127.0.0.1:8765/download_sample.csv
+【download_web_file 返回值】['F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_browser_out\\下载结果.csv.csv']
+
+【判读要点 1：上传】
+upload_web_file 返回值是 None，#upload-status 仍是「尚未选择文件」→ 上传**没有真正生效**。
+实测两种模式（2026-10-31，Chrome + 中文 Windows）：
+  simulate_flag=true  → 不抛错但静默无效（页面 file input 未被赋值）；
+  simulate_flag=false → 报「未弹出上传窗口」（10 秒内找不到 #32770/打开 对话框）。
+所以判断上传成功**必须看页面状态**，不能看返回值。
+
+【判读要点 2：下载】
+download_mode=click 会报「未弹出下载窗口」—— Chrome 默认「下载前不询问保存位置」，无窗口可操作；
+改用 download_mode=link 直接按 URL 取，实测成功。
+注意 file_name 传「下载结果.csv」会得到「下载结果.csv.csv」（原子自己又补了一次扩展名）。
+
+【判读要点 3：element_operation】
+字典声明 8 个输出、实现只 return 一个，按 8 个解包必错位；本流程已按单返回处理。
+getText / getLink 都正确取到了值，是本次上传未生效的**独立证据**。

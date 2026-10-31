@@ -47,6 +47,9 @@ DEMO_TXT = DEMO_DIR + r"\源文件.txt"
 SINGLE_RETURN_ATOMS = {
     "DataTable.copy_data",   # 声明 4 个（copied_cell/row/column/area），实现只 return 被复制的数据
     "DataTable.read_data",   # 声明 4 个（cell/row/column/area_info），实现按 read_type 只 return 一个
+    # 声明 8 个（get_ele_attr/value/html/link/text/position/selected/style），
+    # 实现按 get_type 只 return 一个值；按 8 个解包必然错位（复现包 A5）
+    "BrowserElement.element_operation",
 }
 
 
@@ -1562,6 +1565,16 @@ def main():
     # 模板声明了元素槽位时，才去拉元素库（按目标 robot 过滤）
     elements = None
     if any(n.get("elements") for n in tpl["nodes"]):
+        # 先补齐：规格里写的是「元素名」，库里没有就会在 validate 阶段被判归属失败。
+        # ensure_elements 是幂等的（同名复用），所以每次生成都跑一遍不会重复建元素。
+        # 不接这一步的后果：AI 生成网页流程必须停下来等人工去设计器点选（2026-10-31 实测）
+        if tpl.get("element_requirements") and not args.offline:
+            try:
+                got = ensure_elements(tpl, robot_id=args.robot_id)
+                if got:
+                    print(f"      元素就绪 {len(got)} 个：{list(got)}")
+            except Exception as e:  # noqa: BLE001
+                print(f"      ⚠️ 元素补齐失败（继续用库里已有的）：{e}")
         elements = load_elements(offline=args.offline, robot_id=args.robot_id)
         own = sum(1 for r in elements.values() if str(r.get("robot_id")) == str(args.robot_id))
         print(f"      元素库：{len(elements)}（目标 robot 名下 {own}）")
@@ -1588,6 +1601,9 @@ def main():
         "nl_examples": tpl["nl_examples"],
         "robot_id": args.robot_id,
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        # 流程参数必须一起带出去：publish_flow 靠它同步服务端 c_param，
+        # 少了这一步，节点里的 $p:xxx 在编译出的 main.py 里就是未定义变量（NameError）
+        "params": tpl.get("params") or [],
         "process_content": pc,
         "validation": res,
     }

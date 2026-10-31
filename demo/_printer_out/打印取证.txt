@@ -1,0 +1,13 @@
+【待打印文档】F:\AI-Workbench\10-Projects\星辰开源\demo\_printer_out\打印源文档.docx
+【打印机】导出为WPS PDF
+【System.printer 返回值】[True]
+【打印前文件列表】['F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_printer_out\\打印源文档.docx']
+【打印后文件列表】['F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_printer_out\\打印源文档.docx']
+
+【判读要点】
+1) 返回值是 printer_status，实测为 [True] —— 但它只代表「调用没抛异常」，
+   不代表打印任务真的进了队列。核对方式是看打印队列和产出目录。
+2) 本机实测（2026-10-31）：返回 [True]，但 Get-PrintJob 作业数 = 0、
+   目录里没有新 PDF —— WPS 虚拟打印机的输出由 WPS 客户端接管，
+   无人值守场景下不可依赖；Microsoft Print to PDF 走 PORTPROMPT 会弹另存为框。
+3) 结论：System.printer 的返回值不可作为证据，必须独立核对（队列/产出文件/纸张）。

@@ -550,6 +550,24 @@ def main():
             print(f"      回读内容无法解析：{e}")
 
     print(f"\n✅ 完成：robotId={rid}  processId={pid}")
+
+    # 同步流程参数（c_param）。
+    # 不做这步的后果：节点里的 $p:xxx 编译成 `xxx`，而 c_param 里没有默认值
+    # → 引擎生成的 main.py 直接 `NameError: name 'out_dir' is not defined`
+    # （2026-10-31 实测：新流程第一次跑就挂在这，参数是后补同步才通的）
+    flow_params = flow.get("params") or []
+    if flow_params:
+        try:
+            res = sync_params(cookie, rid, pid, flow_params)
+            print(f"   参数同步：新增 {res['added'] or '无'}"
+                  f" / 更新 {res['updated'] or '无'}"
+                  f" / 服务端多余 {res['extra_on_server'] or '无'}")
+        except Exception as e:  # noqa: BLE001
+            print(f"   ⚠️ 参数同步失败（流程能存但跑不通）：{e}")
+    else:
+        print("   ⚠️ 流程没有 params，或生成的 flow 文件里没带 params —— "
+              "节点若用了 $p:xxx，运行时会 NameError")
+
     print(f"   在设计器里打开机器人「{args.robot_name}」即可看到流程「{pname}」。")
     print(f"   如需清理：POST /api/robot/process/delete {{robotId, processId}}；"
           f"整个机器人：POST /api/robot/robot-design/delete-robot")

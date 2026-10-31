@@ -1,0 +1,235 @@
+{
+  "name": "网页上传下载与元素属性小流程",
+  "nl_examples": [
+    "在网页上上传一个文件，再点链接把文件下载下来",
+    "网页上传附件并下载另一个文件",
+    "读出网页元素的文本内容，顺便测上传下载",
+    "web 上传下载流程"
+  ],
+  "keywords": [
+    "网页上传",
+    "网页下载",
+    "上传附件",
+    "下载文件",
+    "元素属性",
+    "获取元素文本"
+  ],
+  "params": [
+    {
+      "name": "url",
+      "type": "Str",
+      "default": "http://127.0.0.1:8765/",
+      "describe": "测试页地址（本机 demo/test_page，含 file input 与下载链接）"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_browser_out",
+      "describe": "待上传文件与下载结果的存放目录"
+    }
+  ],
+  "element_requirements": [
+    {
+      "name": "测试页_上传文件框",
+      "kind": "web",
+      "pick": {
+        "url": "http://127.0.0.1:8765/",
+        "css": "#fileInput"
+      },
+      "note": "页面里的 <input type=file>，onchange 会把文件名写进 #upload-status"
+    },
+    {
+      "name": "测试页_上传状态文本",
+      "kind": "web",
+      "pick": {
+        "url": "http://127.0.0.1:8765/",
+        "css": "#upload-status"
+      },
+      "note": "上传成功后文本会变成「已选择：xxx.csv」，用它做上传成功的证据"
+    },
+    {
+      "name": "测试页_下载链接",
+      "kind": "web",
+      "pick": {
+        "url": "http://127.0.0.1:8765/",
+        "css": "#dl"
+      },
+      "note": "指向 download_sample.csv 的 <a download>"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "File.file_write",
+      "alias": "造一个待上传的本地文件",
+      "out": {
+        "write_file_path": "upload_file"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/待上传附件.csv"
+        ],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": [
+          "编号,品名,数量\nU01,上传测试,7\n"
+        ]
+      }
+    },
+    {
+      "atom": "BrowserSoftware.browser_open",
+      "alias": "打开测试页",
+      "out": {
+        "web_open": "web"
+      },
+      "inputs": {
+        "url": "$p:url",
+        "browser_type": "chrome",
+        "timeout": 20,
+        "timeout_handle_type": "execError",
+        "wait_load_success": true,
+        "open_with_incognito": false
+      }
+    },
+    {
+      "atom": "BrowserSoftware.upload_web_file",
+      "alias": "上传本地文件（模拟模式；两种模式的实测结论见取证文件）",
+      "out": {
+        "download_file": "uploaded"
+      },
+      "inputs": {
+        "browser_obj": "$web",
+        "element_data": "测试页_上传文件框",
+        "upload_path": "$upload_file",
+        "simulate_flag": true
+      },
+      "elements": {
+        "element_data": {
+          "kind": "web",
+          "name": "测试页_上传文件框"
+        }
+      }
+    },
+    {
+      "atom": "BrowserElement.element_operation",
+      "alias": "读上传状态文本（证明上传真的生效）",
+      "out": {
+        "get_ele_attr": "upload_text"
+      },
+      "inputs": {
+        "browser_obj": "$web",
+        "element_data": "测试页_上传状态文本",
+        "operation_type": "get",
+        "get_type": "getText",
+        "attribute_name": "",
+        "position": "webPageLeft",
+        "attribute_value": "",
+        "element_timeout": 10
+      },
+      "elements": {
+        "element_data": {
+          "kind": "web",
+          "name": "测试页_上传状态文本"
+        }
+      }
+    },
+    {
+      "atom": "BrowserElement.element_operation",
+      "alias": "读下载链接的 href（顺带验 getLink）",
+      "out": {
+        "get_ele_attr": "dl_link"
+      },
+      "inputs": {
+        "browser_obj": "$web",
+        "element_data": "测试页_下载链接",
+        "operation_type": "get",
+        "get_type": "getLink",
+        "attribute_name": "",
+        "position": "webPageLeft",
+        "attribute_value": "",
+        "element_timeout": 10
+      },
+      "elements": {
+        "element_data": {
+          "kind": "web",
+          "name": "测试页_下载链接"
+        }
+      }
+    },
+    {
+      "atom": "BrowserSoftware.download_web_file",
+      "alias": "按链接下载（click 模式需浏览器弹下载窗口，无人值守不可控）",
+      "out": {
+        "load_file": "downloaded"
+      },
+      "inputs": {
+        "browser_obj": "$web",
+        "element_data": "测试页_下载链接",
+        "download_mode": "link",
+        "link_str": "$dl_link",
+        "save_path": "$p:out_dir",
+        "custom_flag": true,
+        "file_name": "下载结果.csv",
+        "simulate_flag": false,
+        "is_wait": true,
+        "time_out": 30
+      },
+      "elements": {
+        "element_data": {
+          "kind": "web",
+          "name": "测试页_下载链接"
+        }
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "写取证文件",
+      "out": {
+        "write_file_path": "evidence"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/网页上传下载取证.txt"
+        ],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": [
+          "【测试页】",
+          "$p:url",
+          "\n【待上传文件】",
+          "$upload_file",
+          "\n【upload_web_file 返回值】",
+          "$uploaded",
+          "\n【element_operation getText → 上传状态】",
+          "$upload_text",
+          "\n【element_operation getLink → 下载链接】",
+          "$dl_link",
+          "\n【download_web_file 返回值】",
+          "$downloaded",
+          "\n\n【判读要点 1：上传】\n",
+          "upload_web_file 返回值是 None，#upload-status 仍是「尚未选择文件」→ 上传**没有真正生效**。\n",
+          "实测两种模式（2026-10-31，Chrome + 中文 Windows）：\n",
+          "  simulate_flag=true  → 不抛错但静默无效（页面 file input 未被赋值）；\n",
+          "  simulate_flag=false → 报「未弹出上传窗口」（10 秒内找不到 #32770/打开 对话框）。\n",
+          "所以判断上传成功**必须看页面状态**，不能看返回值。\n",
+          "\n【判读要点 2：下载】\n",
+          "download_mode=click 会报「未弹出下载窗口」—— Chrome 默认「下载前不询问保存位置」，无窗口可操作；\n",
+          "改用 download_mode=link 直接按 URL 取，实测成功。\n",
+          "注意 file_name 传「下载结果.csv」会得到「下载结果.csv.csv」（原子自己又补了一次扩展名）。\n",
+          "\n【判读要点 3：element_operation】\n",
+          "字典声明 8 个输出、实现只 return 一个，按 8 个解包必错位；本流程已按单返回处理。\n",
+          "getText / getLink 都正确取到了值，是本次上传未生效的**独立证据**。\n"
+        ]
+      }
+    },
+    {
+      "atom": "BrowserSoftware.browser_close",
+      "alias": "关闭浏览器",
+      "out": {},
+      "inputs": {
+        "browser_obj": "$web"
+      }
+    }
+  ]
+}
