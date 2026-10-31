@@ -1,0 +1,135 @@
+{
+  "name": "网页填表并截图存证",
+  "nl_examples": [
+    "打开网页填内容并截图",
+    "填表后截图确认",
+    "网页输入并留存截图",
+    "打开网页填内容点提交并截图"
+  ],
+  "keywords": [
+    "网页截图",
+    "填表存证",
+    "输入截图",
+    "提交并截图"
+  ],
+  "params": [
+    {
+      "name": "url",
+      "type": "Str",
+      "default": "https://www.baidu.com",
+      "describe": "要打开的网页地址"
+    },
+    {
+      "name": "text",
+      "type": "Str",
+      "default": "星辰RPA自动填写",
+      "describe": "要填入输入框的文字"
+    },
+    {
+      "name": "shot_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_web_out",
+      "describe": "截图存放目录（不存在会自动建）"
+    }
+  ],
+  "element_requirements": [
+    {
+      "name": "百度_搜索输入框",
+      "kind": "web",
+      "pick": {
+        "url": "https://www.baidu.com",
+        "css": "#chat-textarea"
+      },
+      "note": "百度首页可见搜索框；不能用 #kw（隐藏旧节点，坑 125）"
+    },
+    {
+      "name": "百度_搜索按钮",
+      "kind": "web",
+      "pick": {
+        "url": "https://www.baidu.com",
+        "css": "#chat-submit-button"
+      },
+      "note": "百度首页「百度一下」按钮；不能用 #su（隐藏旧节点，坑 125）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "BrowserSoftware.browser_open",
+      "alias": "打开浏览器",
+      "out": {
+        "web_open": "web"
+      },
+      "inputs": {
+        "url": "$p:url",
+        "browser_type": "chrome",
+        "timeout": 20,
+        "timeout_handle_type": "execError",
+        "wait_load_success": true,
+        "open_with_incognito": false
+      }
+    },
+    {
+      "atom": "BrowserElement.input",
+      "alias": "填写输入框",
+      "out": {
+        "form_input": "filled"
+      },
+      "inputs": {
+        "browser_obj": "$web",
+        "fill_type": "text",
+        "fill_input": "$p:text",
+        "fill_input_credential": "",
+        "element_timeout": 10,
+        "input_type": "overwrite",
+        "simulate_flag": false,
+        "scroll_into_center": true
+      },
+      "elements": {
+        "element_data": {
+          "kind": "web",
+          "name": "百度_搜索输入框"
+        }
+      }
+    },
+    {
+      "atom": "BrowserElement.click",
+      "alias": "提交搜索",
+      "out": {},
+      "inputs": {
+        "browser_obj": "$web",
+        "element_timeout": 10,
+        "button_type": "click",
+        "simulate_flag": true,
+        "scroll_into_center": true
+      },
+      "elements": {
+        "element_data": {
+          "kind": "web",
+          "name": "百度_搜索按钮"
+        }
+      }
+    },
+    {
+      "atom": "BrowserSoftware.screenshot",
+      "alias": "截取可见区域存证",
+      "out": {
+        "web_screen": "shot_path"
+      },
+      "inputs": {
+        "browser_obj": "$web",
+        "shot_range": "visual",
+        "image_path": "$p:shot_dir",
+        "image_name": "填表结果",
+        "page_timeout": 10
+      }
+    },
+    {
+      "atom": "BrowserSoftware.browser_close",
+      "alias": "关闭浏览器",
+      "out": {},
+      "inputs": {
+        "browser_obj": "$web"
+      }
+    }
+  ]
+}

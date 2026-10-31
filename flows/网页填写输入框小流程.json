@@ -4,26 +4,39 @@
     "打开网页在输入框里填内容",
     "在网页表单里输入文字",
     "web 输入流程",
-    "自动填写网页输入框"
+    "自动填写网页输入框",
+    "在百度搜索框里输入关键词"
   ],
   "keywords": [
     "网页输入",
     "填写输入框",
     "网页填表",
-    "自动填写"
+    "自动填写",
+    "搜索框"
   ],
   "params": [
     {
       "name": "url",
       "type": "Str",
-      "default": "http://192.168.76.130:8899/test.html",
+      "default": "https://www.baidu.com",
       "describe": "要打开的网页地址"
     },
     {
       "name": "text",
       "type": "Str",
-      "default": "测试输入内容",
+      "default": "星辰RPA",
       "describe": "要填入输入框的文字"
+    }
+  ],
+  "element_requirements": [
+    {
+      "name": "百度_搜索输入框",
+      "kind": "web",
+      "pick": {
+        "url": "https://www.baidu.com",
+        "css": "#chat-textarea"
+      },
+      "note": "百度首页的可见搜索框。注意不能用 #kw —— 那是站点保留的隐藏旧节点（坑 125）"
     }
   ],
   "nodes": [
@@ -59,7 +72,10 @@
         "scroll_into_center": true
       },
       "elements": {
-        "element_data": "web"
+        "element_data": {
+          "kind": "web",
+          "name": "百度_搜索输入框"
+        }
       }
     },
     {

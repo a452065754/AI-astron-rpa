@@ -1,9 +1,10 @@
 {
   "name": "网页元素点击小流程",
   "nl_examples": [
-    "打开京东点一下商品",
+    "打开网页点一下按钮",
     "在网页上点某个元素",
-    "web 点击流程"
+    "web 点击流程",
+    "自动点搜索按钮"
   ],
   "keywords": [
     "网页",
@@ -17,8 +18,19 @@
     {
       "name": "url",
       "type": "Str",
-      "default": "http://192.168.76.130:8899/test.html",
+      "default": "https://www.baidu.com",
       "describe": "要打开的网页地址"
+    }
+  ],
+  "element_requirements": [
+    {
+      "name": "百度_搜索按钮",
+      "kind": "web",
+      "pick": {
+        "url": "https://www.baidu.com",
+        "css": "#chat-submit-button"
+      },
+      "note": "百度首页的「百度一下」按钮。不能用 #su —— 那是隐藏旧节点（坑 125）"
     }
   ],
   "nodes": [
@@ -45,11 +57,14 @@
         "browser_obj": "$web",
         "element_timeout": 10,
         "button_type": "click",
-        "simulate_flag": false,
+        "simulate_flag": true,
         "scroll_into_center": true
       },
       "elements": {
-        "element_data": "web"
+        "element_data": {
+          "kind": "web",
+          "name": "百度_搜索按钮"
+        }
       }
     },
     {

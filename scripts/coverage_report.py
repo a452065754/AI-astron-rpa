@@ -154,7 +154,8 @@ def main():
     print("=" * 66)
     print("流程规格 %d 条 · 原子总数 %d · 已用 %d · 覆盖率 %.1f%%"
           % (nflows, total, used_n, used_n * 100.0 / total))
-    print("零元素可跑 %d 个（其余 %d 个需要拾取界面元素）" % (zero_elem, total - zero_elem))
+    print("零元素可跑 %d 个（其余 %d 个需要界面元素）" % (zero_elem, total - zero_elem))
+    print("  ↳ 需要元素的不再是阻塞项：element_pick.py 可自动拾取并写库（见 README「元素自动拾取」）")
     print()
     print("%-22s %6s %6s %6s  %s" % ("域", "原子", "已用", "未用", "说明"))
     print("-" * 66)

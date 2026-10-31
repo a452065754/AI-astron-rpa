@@ -51,6 +51,50 @@ python scripts/ai_flow.py --spec flows/<流程>.json --stage publish --version 1
 
 详见 [技能包与 MCP](docs/MCP与技能包.md)。
 
+## 元素自动拾取（网页流程不再需要人工点选）
+
+网页元素的定位**完全交给设计器自带的浏览器插件**（`127.0.0.1:9082/browser/transition`），
+所以「元素能不能被找到」只取决于 `path` 对象，跟「谁生成它」无关。插件里那个
+`formatElementInfo()` 正是人工拾取时产出的结构，它对外暴露成动作 `elementFromSelect`
+——**给一个 cssSelector，还你一份完整元素定义**。于是「人工点选」被降维成「给个选择器」。
+
+```bash
+# 看一眼桥接与元素库现状
+python scripts/element_pick.py --status
+
+# 只探测，不写库（安全，建议先跑）
+python scripts/element_pick.py --probe "#chat-textarea" --url https://www.baidu.com
+
+# 拾取并写入元素库（会自动开浏览器、等页面渲染、卡可见性、写完立刻回查定位）
+python scripts/element_pick.py --css "#chat-textarea" --name 百度_搜索输入框 \
+    --url https://www.baidu.com --robot-id <该流程的机器人id>
+
+# 校验已有元素当前还能不能命中（只读）
+python scripts/element_pick.py --check <elementId>
+```
+
+更好的用法是**在规格里声明元素要求**，让流水线自己补齐（幂等，已有就复用）：
+
+```json
+"element_requirements": [
+  {"name": "百度_搜索输入框", "kind": "web",
+   "pick": {"url": "https://www.baidu.com", "css": "#chat-textarea"}}
+]
+```
+
+然后照常 `python scripts/ai_flow.py --spec flows/xxx.json --robot-id <id>`，
+`[2/6]` 步骤会先把缺的元素拾好再往下走。
+
+**三个必知坑**（详见 `docs/开发进度.md` 坑 125~129）：
+
+1. **别用隐藏节点**。现代站点普遍把旧版 DOM 留成隐藏节点（百度首页的 `#kw`/`#su` 就是），
+   它们的 rect 是 `width:8,height:8` 但 `right:0,bottom:0`。脚本已按 `right-left>0` 卡死，
+   命中不可见元素直接拒绝落库。
+2. **元素按机器人隔离**。本项目一条流程一个同名机器人，元素必须挂在该流程自己的机器人下，
+   否则运行时报 `Failed to get element data ... empty response`。
+3. **网页点击用 `simulate_flag: true`**。默认的 JS 合成点击在百度这类站点上「返回成功但页面不动」，
+   系统级点击才真的生效。
+
 ## 目录结构
 
 ```
@@ -65,12 +109,13 @@ python scripts/ai_flow.py --spec flows/<流程>.json --stage publish --version 1
 │   ├── nl_params.py          # 从自然语言抽具体参数（路径/页码/输出名/批量识别）
 │   ├── self_heal.py          # 失败自愈（只做"改了不会更糟"的事，最多 2 轮）
 │   ├── preflight.py          # 运行前预检（路径/占用/网关）
+│   ├── element_pick.py       # 元素自动拾取（调浏览器插件现场取，写入元素库）
 │   ├── publish_flow.py       # 落库、发布、登记 openapi
 │   ├── make_module.py        # 本地 .py → 平台 Python 子流程模块
 │   └── mod_*.py              # Python 子流程实现（PDF 版面还原 / OCR / 文件夹整理 / Excel 拆表）
 ├── mcp/server.py             # MCP 服务（零依赖，stdio JSON-RPC）
 ├── skill/astron-rpa-flow/    # 技能包（AI 操作手册）
-├── flows/                    # 50 条流程规格（契约文件）
+├── flows/                    # 51 条流程规格（契约文件）
 ├── docs/                     # 交接清单、开发进度、部署与 MCP 文档、评审单
 └── demo/                     # 演示数据与实测产物
 ```
@@ -94,7 +139,9 @@ python scripts/ai_flow.py --spec flows/<流程>.json --stage publish --version 1
 | **Excel 查找替换** | 全表查找替换，另存不动源文件 |
 | **文件批量重命名** | 按序号统一改名 |
 | **HTTP 请求** | 调用接口并把响应存成文件 |
-| **网页填写输入框** | 打开网页填写指定输入框（需先拾取元素） |
+| **网页填写输入框** | 打开网页填写指定输入框（元素自动拾取，无需人工点） |
+| **网页元素点击** | 打开网页点击指定元素（元素自动拾取，系统级点击） |
+| **网页填表并截图存证** | 填表 → 提交 → 截图留证 → 关窗（全链路可核验） |
 | **Excel 统计行列** | 读工作表名、已用行数、已用列数并打印 |
 | **Excel 写公式加格式** | 公式向下填充（自动调整相对引用）+ 表头加粗居中 + 列宽自适应 |
 | **Excel 工作表管理** | 新增页签、改名、写标题后另存 |
@@ -122,7 +169,7 @@ python scripts/ai_flow.py --spec flows/<流程>.json --stage publish --version 1
 | **加解密与时间差** | 对称加解密往返 + 时间加减与时间差 |
 | Excel 订单表导出 / 文本文件转存 / 网页元素点击 | 基础原子流程 |
 
-> 原子覆盖率：357 个原子中已用 **130 个（36.4%）**。`python scripts/coverage_report.py` 随时看缺口；
+> 原子覆盖率：357 个原子中已用 **131 个（36.7%）**。`python scripts/coverage_report.py` 随时看缺口；
 > `python scripts/atom_impl_check.py` 核对「字典里有但本机没实现」的原子（当前 39 个，IE 系整块缺失）。
 
 ## 文档

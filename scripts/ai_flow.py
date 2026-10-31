@@ -405,6 +405,8 @@ def main():
     ap.add_argument("--offline", action="store_true", help="用本地缓存原子字典（不连 .130）")
     ap.add_argument("--skip-batch-check", action="store_true",
                     help="话里是批量意图时也继续（默认拦下，因为单文件流程只会处理一个文件）")
+    ap.add_argument("--skip-element-pick", action="store_true",
+                    help="不自动拾取元素（规格里的 element_requirements 只检查不创建）")
     ap.add_argument("--no-nl-params", action="store_true",
                     help="不从自然语言里抽参数（全部用规格默认值）")
     args = ap.parse_args()
@@ -474,6 +476,18 @@ def main():
     # ---------- 2. 真实 schema + 元素库 ----------
     print("[2/6] 加载原子字典与元素库（.130 实时）...")
     atom_dict = fg.load_atom_dict(offline=args.offline)
+
+    # 规格声明了 element_requirements 就先补齐元素（缺什么拾什么，幂等）。
+    # 这一步让「网页流程」不再需要人进设计器点元素——AI 用一条命令就能拿到。
+    if spec.get("element_requirements") and not args.skip_element_pick:
+        print("      检查规格声明的元素要求...")
+        try:
+            fg.ensure_elements(spec, robot_id=robot_id, auto_pick=not args.offline)
+        except Exception as e:
+            print(f"      ❌ 元素补齐失败：{e}")
+            print("      可先单独跑：python element_pick.py --status")
+            return 2
+
     elements = None
     try:
         elements = fg.load_elements(offline=args.offline, robot_id=robot_id)

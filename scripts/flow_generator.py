@@ -690,12 +690,15 @@ def build_process_content(template, atom_dict, elements=None, robot_id=DEFAULT_R
         elem_slots = spec.get("elements") or {}
         for pkey, p in schema_ins.items():
             if pkey in elem_slots:
-                kind = elem_slots[pkey]
-                sample = samples.get(kind)
+                slot = elem_slots[pkey]
+                sample = pick_element_by_slot(slot, elements, robot_id, samples=samples)
                 if not sample:
+                    kind = slot if isinstance(slot, str) else (slot.get("kind") or "web")
+                    name = "" if isinstance(slot, str) else (slot.get("name") or "")
                     raise KeyError(
-                        f"第 {i + 1} 个节点 {atom_key}.{pkey} 需要{KIND_CN.get(kind, kind)}，"
-                        f"但目标 robot {robot_id} 的元素库里没有（先在设计器录制）")
+                        f"第 {i + 1} 个节点 {atom_key}.{pkey} 需要{KIND_CN.get(kind, kind)}"
+                        + (f"「{name}」" if name else "")
+                        + f"，但目标 robot {robot_id} 的元素库里没有（用 element_pick.py 拾取）")
                 input_list.append({"key": pkey, "value": [{
                     "type": "element", "value": sample["element_name"], "data": sample["element_id"]}]})
             elif pkey in spec["inputs"]:
@@ -1068,71 +1071,160 @@ def pick_element_kind(p):
     return None
 
 
-def load_elements(offline=False, robot_id=None):
-    """拉 c_element 真实元素库 → {element_id: 精简记录}（带 web/uia/cv 分类）。
+def _rec_from_element_obj(eid, name, robot_id, obj):
+    """element_data(dict) → 精简记录。web/uia/cv 共用同一套字段。"""
+    if not isinstance(obj, dict):
+        return None
+    # path 结构不统一：web/uia 是 dict，个别（批量/图像）是 list，统一兜底
+    path = obj.get("path")
+    if not isinstance(path, dict):
+        path = {}
+    xp = path.get("xpath")
+    xp = unwrap_special(xp) if isinstance(xp, dict) else (xp if isinstance(xp, str) else "")
+    return {
+        "element_id": eid,
+        "element_name": name,
+        "robot_id": robot_id,
+        "kind": str(obj.get("type")),
+        "app": obj.get("app"),
+        "check_type": path.get("checkType"),
+        "tag": path.get("tag"),
+        "xpath": (xp or "")[:200],
+    }
 
-    **元素核对是锦上添花，不该阻塞主链路**：SQL 通道没开（迁移后的默认状态）时，
-    有本地缓存就用缓存，没有就返回空字典 —— 后续 `validate(elements=None)` 会自动
-    跳过元素归属检查。
+
+def _api_post(path, params=None):
+    """最小 HTTP 客户端（只用 urllib，不引入 requests，便于换机迁移）。
+
+    鉴权走设计器本机 cookie 文件（`%APPDATA%/astron-rpa/.cookie.json`），
+    与 publish_flow.load_session 同一来源，不重复登录。
+    """
+    import urllib.parse
+    import urllib.request
+
+    cookie_file = cfg.cookie_file()
+    if not os.path.exists(cookie_file):
+        raise RuntimeError("找不到设计器 cookie 文件：{}".format(cookie_file))
+    with open(cookie_file, "r", encoding="utf-8") as f:
+        ck = json.load(f)
+    host = cfg.host_port()
+    rec = ck.get(host) or ck.get("{}.SESSION".format(host))
+    if not rec:
+        raise RuntimeError("cookie 里没有 {} 的会话".format(host))
+    val = rec["SESSION"]["key_value"]
+    cookie = val if val.startswith("SESSION=") else "SESSION={}".format(val)
+
+    url = "http://{}{}".format(cfg.load()["gateway"]["host"], path)
+    if params:
+        url += "?" + urllib.parse.urlencode(params)
+    req = urllib.request.Request(
+        url, data=b"{}", headers={"Content-Type": "application/json", "Cookie": cookie}
+    )
+    with urllib.request.urlopen(req, timeout=20) as r:
+        return json.loads(r.read().decode("utf-8"))
+
+
+def _load_elements_api(robot_id):
+    """用官方 HTTP 接口拉元素库（不需要 SQL 通道，迁移友好）。"""
+    res = _api_post("/api/robot/element/all", {"robotId": robot_id, "elementType": "common"})
+    if res.get("code") != "000000":
+        raise RuntimeError("读元素库失败：{} {}".format(res.get("code"), res.get("message")))
+
+    out = {}
+    for g in res.get("data") or []:
+        for e in g.get("elements") or []:
+            eid = e.get("id")
+            if not eid:
+                continue
+            d = _api_post("/api/robot/element/detail", {"robotId": robot_id, "elementId": eid})
+            if d.get("code") != "000000" or not d.get("data"):
+                continue
+            raw = d["data"].get("elementData")
+            if not raw:
+                continue
+            try:
+                obj = json.loads(raw)
+            except Exception:
+                continue
+            rec = _rec_from_element_obj(eid, e.get("name"), robot_id, obj)
+            if rec:
+                out[eid] = rec
+    return out
+
+
+def load_elements(offline=False, robot_id=None):
+    """拉真实元素库 → {element_id: 精简记录}（带 web/uia/cv 分类）。
+
+    取数顺序（前一个失败才退到下一个）：
+
+      1. **官方 HTTP 接口**（首选）。只要设计器登录着就能用，不依赖 SQL 通道，
+         迁移到新环境时行为不变。
+      2. `c_element` SQL（`db.enabled=true` 时才走；老环境/排查用）。
+      3. 本地缓存 `docs/element_cache.json`（纯离线兜底）。
+
+    **元素核对是锦上添花，不该阻塞主链路**：三条路都拿不到就返回空字典，
+    后续 `validate(elements=None)` 会自动跳过元素归属检查。
     """
     if offline and os.path.exists(ELEMENT_CACHE):
         with open(ELEMENT_CACHE, "r", encoding="utf-8") as f:
             return json.load(f)
-    if not cfg.db_conf():
-        if os.path.exists(ELEMENT_CACHE):
-            with open(ELEMENT_CACHE, "r", encoding="utf-8") as f:
-                cache = json.load(f)
-            print(f"      · 元素库用本地缓存（{len(cache)} 个，db.enabled=false 不连库）")
-            return cache
-        print("      · 元素库跳过（db.enabled=false 且无缓存；不影响结构校验）")
-        return {}
-    db = ServerDb()
-    try:
-        rows = db.sql_rows("SELECT element_id, element_name, robot_id, element_data FROM c_element")
-    finally:
-        db.close()
 
-    out = {}
-    for r in rows:
-        if len(r) < 4:
-            continue
-        raw = "\t".join(r[3:])   # element_data 若含 tab，sql_rows 会切列，这里拼回
-        obj = None
-        for attempt in (raw, raw.replace("\\\\", "\\")):
-            try:
-                obj = json.loads(attempt)
-                break
-            except Exception:
+    # 1) HTTP 接口。**注意：空字典 ≠ 失败**——新机器人本来就可能有 0 个元素，
+    #    这时若回落到本地缓存，会把别的机器人的元素当成自己的（坑 129，实测踩到）。
+    #    所以这里用返回值区分「接口成功但为空」与「接口不可用」。
+    if robot_id:
+        try:
+            out = _load_elements_api(robot_id)
+            print(f"      · 元素库经 HTTP 接口拉到 {len(out)} 个")
+            os.makedirs(os.path.dirname(ELEMENT_CACHE), exist_ok=True)
+            with open(ELEMENT_CACHE, "w", encoding="utf-8") as f:
+                json.dump(out, f, ensure_ascii=False, indent=2)
+            return out
+        except Exception as e:
+            print(f"      · HTTP 拉元素库失败（{e}），继续降级")
+
+    # 2) SQL 通道
+    if cfg.db_conf():
+        db = ServerDb()
+        try:
+            rows = db.sql_rows("SELECT element_id, element_name, robot_id, element_data FROM c_element")
+        finally:
+            db.close()
+
+        out = {}
+        for r in rows:
+            if len(r) < 4:
                 continue
-        if not isinstance(obj, dict):
-            continue
-        # path 结构不统一：web/uia 是 dict，个别（批量/图像）是 list，统一兜底
-        path = obj.get("path")
-        if not isinstance(path, dict):
-            path = {}
-        xp = path.get("xpath")
-        xp = unwrap_special(xp) if isinstance(xp, dict) else (xp if isinstance(xp, str) else "")
-        eid = r[0]
-        rec = {
-            "element_id": eid,
-            "element_name": r[1],
-            "robot_id": r[2],
-            "kind": str(obj.get("type")),
-            "app": obj.get("app"),
-            "check_type": path.get("checkType"),
-            "tag": path.get("tag"),
-            "xpath": (xp or "")[:200],
-        }
-        # 同一 element_id 多行（按 robot 复制）：优先保留目标 robot 的那份
-        old = out.get(eid)
-        if old is None or (robot_id and str(rec["robot_id"]) == str(robot_id)
-                           and str(old.get("robot_id")) != str(robot_id)):
-            out[eid] = rec
+            raw = "\t".join(r[3:])   # element_data 若含 tab，sql_rows 会切列，这里拼回
+            obj = None
+            for attempt in (raw, raw.replace("\\\\", "\\")):
+                try:
+                    obj = json.loads(attempt)
+                    break
+                except Exception:
+                    continue
+            rec = _rec_from_element_obj(r[0], r[1], r[2], obj)
+            if not rec:
+                continue
+            # 同一 element_id 多行（按 robot 复制）：优先保留目标 robot 的那份
+            old = out.get(r[0])
+            if old is None or (robot_id and str(rec["robot_id"]) == str(robot_id)
+                               and str(old.get("robot_id")) != str(robot_id)):
+                out[r[0]] = rec
 
-    os.makedirs(os.path.dirname(ELEMENT_CACHE), exist_ok=True)
-    with open(ELEMENT_CACHE, "w", encoding="utf-8") as f:
-        json.dump(out, f, ensure_ascii=False, indent=2)
-    return out
+        os.makedirs(os.path.dirname(ELEMENT_CACHE), exist_ok=True)
+        with open(ELEMENT_CACHE, "w", encoding="utf-8") as f:
+            json.dump(out, f, ensure_ascii=False, indent=2)
+        return out
+
+    # 3) 本地缓存
+    if os.path.exists(ELEMENT_CACHE):
+        with open(ELEMENT_CACHE, "r", encoding="utf-8") as f:
+            cache = json.load(f)
+        print(f"      · 元素库用本地缓存（{len(cache)} 个）")
+        return cache
+    print("      · 元素库跳过（HTTP 与 SQL 都不可用，且无缓存；不影响结构校验）")
+    return {}
 
 
 def pick_samples(elements, robot_id=None, strict=False):
@@ -1157,6 +1249,109 @@ def pick_samples(elements, robot_id=None, strict=False):
         if kind not in best or score > best[kind][0]:
             best[kind] = (score, rec)
     return {k: v[1] for k, v in best.items()}
+
+
+def ensure_elements(template, robot_id=None, auto_pick=True):
+    """按规格里的 `element_requirements` 把缺的元素补齐，返回 {名字: element_id}。
+
+    ## 为什么要有这一步
+
+    网页流程的元素是**绑定到页面**的，不可能预置。以前的做法是「人在设计器里点一下」，
+    AI 到这一步就得停。现在规格自己声明「要什么元素、从哪取」：
+
+        "element_requirements": [
+          {"name": "百度_搜索输入框", "kind": "web",
+           "pick": {"url": "https://www.baidu.com", "css": "#chat-textarea"}}
+        ]
+
+    生成流程前先跑一遍本函数：库里已有同名元素就复用（幂等，不重复建），
+    没有就让 `element_pick.ensure_element` 打开浏览器现场拾取并写库。
+
+    auto_pick=False 时只检查不创建，缺了就报错——适合「元素必须由人工确认」的场景。
+    """
+    reqs = template.get("element_requirements") or []
+    if not reqs:
+        return {}
+
+    robot_id = robot_id or DEFAULT_ROBOT_ID
+    have = {r.get("element_name") for r in load_elements(robot_id=robot_id).values()}
+    result = {}
+
+    for req in reqs:
+        name = req.get("name")
+        if not name:
+            continue
+        if name in have:
+            result[name] = None      # 交给后面按名字解析真实 id
+            print(f"      · 元素「{name}」已在库中，复用")
+            continue
+
+        pick = req.get("pick") or {}
+        if not pick:
+            raise KeyError(f"元素「{name}」不在库中，且规格没给 pick（url/css），无法自动拾取")
+        if not auto_pick:
+            raise KeyError(f"元素「{name}」不在库中，且当前不允许自动拾取（auto_pick=False）")
+
+        import element_pick as EP
+
+        print(f"      · 元素「{name}」缺失，自动拾取：{pick.get('css') or pick.get('xpath')} @ {pick.get('url')}")
+        got = EP.ensure_element(
+            robot_id=robot_id,
+            name=name,
+            url=pick.get("url"),
+            selector=pick.get("css") or pick.get("xpath"),
+            by="xpath" if pick.get("xpath") and not pick.get("css") else "css",
+        )
+        print(f"      · 已{'新建' if got['created'] else '复用'}元素「{name}」id={got['element_id']}")
+        result[name] = got["element_id"]
+        have.add(name)
+
+    return result
+
+
+def pick_element_by_slot(slot, elements, robot_id=None, samples=None):
+    """按规格里的「元素槽位」取一个真实元素。返回精简记录或 None。
+
+    槽位支持两种写法（向后兼容）：
+
+        "elements": {"element_data": "web"}
+            → 老写法：按种类随便挑一个（pick_samples 的打分结果）
+
+        "elements": {"element_data": {"kind": "web", "name": "百度_搜索输入框"}}
+            → 新写法：按名字精确取。**网页流程必须用这个**，否则库里元素一多，
+              打分挑选会挑到别的站点的元素，运行时定位必然失败。
+
+    为什么要有新写法：元素是按页面绑定的，不是按种类绑定的。「随便一个 web 元素」
+    在元素库只有 1 个时能跑通，有 13 个时就是随机炸弹（坑 126）。
+    """
+    if isinstance(slot, str):
+        if samples is None:
+            samples = pick_samples(elements or {}, robot_id=robot_id, strict=True)
+        return samples.get(slot)
+
+    if not isinstance(slot, dict):
+        return None
+
+    name = slot.get("name")
+    kind = slot.get("kind")
+    if not name:
+        # 只给了 kind：退回按种类挑
+        if samples is None:
+            samples = pick_samples(elements or {}, robot_id=robot_id, strict=True)
+        return samples.get(kind or "web")
+
+    cands = [r for r in (elements or {}).values() if r.get("element_name") == name]
+    if kind:
+        cands = [r for r in cands if r.get("kind") == kind] or cands
+    if not cands:
+        return None
+
+    # 同名的多条时优先目标 robot 名下、且带 xpath 的
+    def score(r):
+        s = 4 if (robot_id and str(r.get("robot_id")) == str(robot_id)) else 0
+        return s + (2 if r.get("xpath") else 0)
+
+    return sorted(cands, key=score, reverse=True)[0]
 
 
 def _check_pick_atoms(atoms, elements, samples, robot_id):

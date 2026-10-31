@@ -152,6 +152,34 @@ def lint(spec, atoms):
         pnames.append(n)
     pset = set(pnames)
 
+    # ---------- 元素要求（网页流程专用） ----------
+    # 规格可声明 element_requirements，生成时由 element_pick 自动补齐元素（坑 126）。
+    # 校验重点：声明的名字与节点里引用的名字必须对得上，否则生成阶段才会炸。
+    req_names = set()
+    for i, req in enumerate(spec.get("element_requirements") or [], 1):
+        if not isinstance(req, dict):
+            err("第 %d 条 element_requirements 不是对象" % i,
+                '形如 {"name":"百度_搜索输入框","kind":"web","pick":{"url":"...","css":"..."}}')
+            continue
+        rn = req.get("name")
+        if not rn:
+            err("第 %d 条 element_requirements 没有 name" % i, "元素必须有名，生成器按名字取")
+            continue
+        if rn in req_names:
+            err("element_requirements 里元素名重复：%s" % rn, "删掉重复的那条")
+        req_names.add(rn)
+        kind = req.get("kind")
+        if kind and kind not in ("web", "uia", "cv"):
+            err("元素「%s」的 kind 非法：%r" % (rn, kind), "只能是 web / uia / cv")
+        pick = req.get("pick") or {}
+        if not pick:
+            warn("元素「%s」没给 pick" % rn,
+                 "库里已有同名元素时能用；缺了就生成失败。建议补 pick:{url,css}")
+        elif not (pick.get("css") or pick.get("xpath")):
+            err("元素「%s」的 pick 没给 css 或 xpath" % rn, "至少给一个选择器")
+        elif not pick.get("url"):
+            warn("元素「%s」的 pick 没给 url" % rn, "会退化成用当前活动标签页拾取")
+
     # ---------- 逐节点 ----------
     produced = set()      # 上游已产出的变量名
     loop_stack = []       # (atom, 节点序号)
@@ -186,6 +214,26 @@ def lint(spec, atoms):
         outs_schema = {p.get("key") for p in (atom.get("outputList") or []) if isinstance(p, dict)}
         inputs = node.get("inputs") or {}
         elem_slots = node.get("elements") or {}
+
+        # 槽位写法的两种形态都要能识别：
+        #   "web"                        → 按种类挑（老写法，元素库有多个时不可控）
+        #   {"kind":"web","name":"..."}  → 按名字精确取（网页流程必须用这个，坑 126）
+        for pk, slot in elem_slots.items():
+            if isinstance(slot, str):
+                if slot not in ("web", "uia", "cv", "batch"):
+                    err("%s：元素槽位 %s 的取值非法 %r" % (where, pk, slot),
+                        "只能是 web / uia / cv，或 {kind,name} 对象")
+                continue
+            if not isinstance(slot, dict):
+                err("%s：元素槽位 %s 不是字符串也不是对象" % (where, pk), "改回 \"web\" 或 {kind,name}")
+                continue
+            sn = slot.get("name")
+            if not sn:
+                warn("%s：元素槽位 %s 只给了 kind" % (where, pk),
+                     "按种类挑元素在库里有多个时不可控，建议写死 name")
+            elif req_names and sn not in req_names:
+                err("%s：元素槽位 %s 引用的「%s」不在 element_requirements 里" % (where, pk, sn),
+                    "在顶层 element_requirements 里声明它（含 pick 信息），生成时才会自动拾取")
 
         # 必填 / 多余
         # 注意三条豁免（否则会把正常规格误判成错误）：

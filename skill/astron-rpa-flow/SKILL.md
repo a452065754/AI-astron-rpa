@@ -102,6 +102,41 @@ IE 系 36 个整块缺失（`astronverse.iebrowser` 没装）、`DataTable.sort_
 
 引用规则：`$p:参数名` = 流程参数、`$变量名` = 上游节点产出、`$json:[...]` = 复杂参数（可内含 `$var:`/`$p:`）。
 
+#### 网页流程：元素不用人点，你自己去拾（**别让用户手动点**）
+
+用户问「拾取元素这个要我来做吗」时，答案是**不用**。`scripts/element_pick.py` 会打开浏览器、
+调设计器自带的插件现场取元素、写进元素库、再回查一次定位。你只需要知道**页面地址 + 一个 cssSelector**。
+
+```bash
+python scripts/element_pick.py --status                       # 桥接是否通 + 元素库有什么
+python scripts/element_pick.py --probe "<css>" --url <url>    # 只探测，先确认命中且可见
+python scripts/element_pick.py --css "<css>" --name <名字> --url <url> --robot-id <id>
+python scripts/element_pick.py --check <elementId>            # 只读校验
+```
+
+**更好的做法**：别手敲命令，直接在规格里声明，让流水线自己补：
+
+```json
+"element_requirements": [
+  {"name": "百度_搜索输入框", "kind": "web",
+   "pick": {"url": "https://www.baidu.com", "css": "#chat-textarea"}}
+]
+```
+
+节点槽位按名字引用：`"elements": {"element_data": {"kind": "web", "name": "百度_搜索输入框"}}`。
+`ai_flow.py` 在 `[2/6]` 会把缺的元素拾好再往下走（幂等，同名已存在就复用）。
+
+四条硬规矩（都是实测踩出来的）：
+
+1. **元素必须挂在该流程自己的机器人下**。本项目一条流程一个同名机器人，
+   借别人的会报 `Failed to get element data ... empty response`。
+2. **选择器要挑可见节点**。现代站点会把旧版 DOM 留成隐藏节点（百度首页的 `#kw`/`#su` 就是），
+   `querySelector` 第一个命中的常常正是它。脚本已用 `right-left>0` 卡死并拒绝落库，
+   所以「命中但存不进去」时**换选择器，不要加 `--allow-hidden` 绕过**。
+3. **点击类节点写 `"simulate_flag": true`**。默认的 JS 合成点击在百度这类站点上
+   「原子返回 SUCCESS 但页面不动」，系统级点击才生效。
+4. **别自己编 cssSelector 就落库**。先 `--probe` 看 `可见=是`、命中数=1，再写。
+
 #### 第 3 步：必须过 lint（**不要跳过**）
 
 ```bash
