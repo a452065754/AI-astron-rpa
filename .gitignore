@@ -29,6 +29,15 @@ flows/_archive/
 # 网页流程的截图存证产物（每次运行都会覆盖，不入库）
 demo/_web_out/
 
+# 本机运行产出的截图一律不入库：全屏截图会带桌面/其它窗口内容，属隐私
+demo/_sys_out/*.png
+demo/_sys_out/*.jpg
+demo/_browser_out/*.png
+demo/_browser_out/*.jpg
+demo/_excel_out/*.png
+demo/_code_out/*.png
+demo/_probe/*.png
+
 # ============ 临时 / 锁文件 ============
 .dsh-tmp-*.py
 ~$*

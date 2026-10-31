@@ -54,6 +54,32 @@
     <input type="range" id="slider" min="0" max="100" value="10" style="width:220px;">
   </p>
 
+  <!-- 自定义滑块：给 slider_hover 用（需要能单独拾取的 thumb + 轨道） -->
+  <p>
+    <span id="track" style="display:inline-block;width:300px;height:24px;background:#ddd;position:relative;vertical-align:middle;">
+      <span id="thumb" style="display:block;width:24px;height:24px;background:#333;position:absolute;left:0;top:0;cursor:pointer;"></span>
+    </span>
+    <span>滑块值：<span id="slider-val">0</span></span>
+  </p>
+  <script>
+    (function () {
+      var dragging = false;
+      var track = document.getElementById('track');
+      var thumb = document.getElementById('thumb');
+      var out = document.getElementById('slider-val');
+      thumb.addEventListener('mousedown', function () { dragging = true; });
+      document.addEventListener('mouseup', function () { dragging = false; });
+      document.addEventListener('mousemove', function (e) {
+        if (!dragging) return;
+        var r = track.getBoundingClientRect();
+        var max = r.width - thumb.offsetWidth;
+        var x = Math.max(0, Math.min(e.clientX - r.left - thumb.offsetWidth / 2, max));
+        thumb.style.left = x + 'px';
+        out.innerText = String(Math.round((x / max) * 100));
+      });
+    })();
+  </script>
+
   <div style="height: 1200px; background: linear-gradient(#fff,#ddd);">（滚动占位区，往下滚才能看到底部）</div>
 
   <div id="bottom">页面底部标记 BOTTOM-MARK</div>

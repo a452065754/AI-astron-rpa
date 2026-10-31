@@ -1301,6 +1301,7 @@ def ensure_elements(template, robot_id=None, auto_pick=True):
             url=pick.get("url"),
             selector=pick.get("css") or pick.get("xpath"),
             by="xpath" if pick.get("xpath") and not pick.get("css") else "css",
+            batch=req.get("batch"),
         )
         print(f"      · 已{'新建' if got['created'] else '复用'}元素「{name}」id={got['element_id']}")
         result[name] = got["element_id"]

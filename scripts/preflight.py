@@ -67,6 +67,14 @@ ROLE_BY_INPUT = {
     ("PDF.get_pdf_text", "file_path"): "in",
     ("PDF.convert_pdf_to_img", "file_path"): "in",
     ("PDF.convert_pdf_to_img", "output_folder"): "outdir",
+    # 导出/截图的落点是「要新建的文件」，文件此刻不存在才是正常的。
+    # 漏了这些会误报「输入路径不存在」，把好好的流程挡在落库前（踩过一次）。
+    ("BrowserElement.data_batch", "excel_path"): "out",
+    ("BrowserElement.get_table", "excel_path"): "out",
+    ("Excel.export_excel", "excel_path"): "out",
+    ("DataTable.export_data_table_to_file", "file_path"): "out",
+    ("System.screen_shot", "png_path"): "outdir",
+    ("File.file_create", "dst_path"): "outdir",
 }
 
 _OUT_WORDS = ("out", "save", "dest", "target", "export", "to_path", "dst")

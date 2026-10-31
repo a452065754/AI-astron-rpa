@@ -346,8 +346,14 @@ def _wrap_attr_values(path_dirs):
     return out
 
 
-def build_element_data(info, page_url, page_title, app=DEFAULT_BROWSER):
-    """把插件返回值组装成 c_element.element_data 的完整 JSON（dict）。"""
+def build_element_data(info, page_url, page_title, app=DEFAULT_BROWSER, batch=None):
+    """把插件返回值组装成 c_element.element_data 的完整 JSON（dict）。
+
+    batch 非空时产出「批量抓取（BATCH）」结构 —— 这是 `BrowserElement.data_batch`
+    的唯一识别方式：它读 `path.produceType`（table/similar）决定抓取方式，
+    缺这个字段会直接 KeyError。人工拾取时由设计器写入，脚本化则靠
+    `tableDataBatch` 的返回值（它本身就带 produceType/values）+ 这里补齐标识。
+    """
     path = {
         "matchTypes": info.get("matchTypes") or [],
         # 保留插件给的 checkType：有 pathDirs 时它是 visualization，
@@ -365,6 +371,13 @@ def build_element_data(info, page_url, page_title, app=DEFAULT_BROWSER):
         "isFrame": bool(info.get("isFrame")),
         "frameId": info.get("frameId") or 0,
     }
+    if batch:
+        path["picker_type"] = "BATCH"
+        path["isTable"] = bool(batch.get("isTable"))
+        path["produceType"] = batch.get("produceType") or "table"
+        # values 只是设计器里的「抓取预览」；运行时 data_batch 会重新抓。
+        # 但设计器打开元素时会用它渲染预览，缺了会显示成空表。
+        path["values"] = batch.get("values") or []
     return {
         "version": "1",
         "type": "web",
@@ -381,7 +394,7 @@ def build_element_data(info, page_url, page_title, app=DEFAULT_BROWSER):
                 "checked": True,
             }
         ],
-        "picker_type": "ELEMENT",
+        "picker_type": "BATCH" if batch else "ELEMENT",
     }
 
 
@@ -616,6 +629,31 @@ def cmd_probe(args):
     return 0
 
 
+def to_batch_info(info, timeout=20):
+    """把单元素拾取结果升级成「批量抓取」结构（供 data_batch 使用）。
+
+    走的是设计器拾取器内部同款链路（`picker/engines/web_picker.py`）：
+      elementIsTable  → 确认是不是表格
+      tableDataBatch  → 拿整表数据，返回里自带 produceType/values
+
+    `elementFromSelect` 拿到的 path 只有定位信息、没有 `produceType`，
+    直接喂给 `data_batch` 会 KeyError —— 这就是「数据抓取」过去只能靠
+    人工在设计器里点一遍的原因。
+    """
+    is_table = bridge("elementIsTable", info, timeout=timeout)
+    if not isinstance(is_table, dict) or not is_table.get("isTable"):
+        raise RuntimeError(
+            "该选择器命中的不是表格（elementIsTable 返回 {!r}），"
+            "不能按 --batch table 落库".format(is_table)
+        )
+    tdb = bridge("tableDataBatch", is_table, timeout=timeout)
+    if not isinstance(tdb, dict):
+        raise RuntimeError("tableDataBatch 返回异常：{!r}".format(tdb))
+    merged = dict(info)
+    merged.update(tdb)  # 用插件给的整表结构覆盖定位信息（更完整）
+    return merged, tdb
+
+
 def cmd_create(args):
     if args.url:
         if args.no_open:
@@ -647,7 +685,18 @@ def cmd_create(args):
             )
         )
 
-    ed = build_element_data(info, u, t, app=args.browser)
+    batch = None
+    if getattr(args, "batch", None) == "table":
+        print("· 按表格批量抓取结构落库（调 elementIsTable + tableDataBatch）…")
+        info, batch = to_batch_info(info)
+        print(
+            "  表格识别成功：produceType={} 列数={}".format(
+                batch.get("produceType"),
+                len(batch.get("values") or []),
+            )
+        )
+
+    ed = build_element_data(info, u, t, app=args.browser, batch=batch)
     group = args.group
     ensure_group(args.robot_id, group)
 
@@ -701,11 +750,13 @@ def wait_selector(selector, by="css", timeout=25, interval=0.6):
 
 
 def ensure_element(robot_id, name, url, selector, by="css", group=DEFAULT_GROUP,
-                   visible=True, force=False, verify=True):
+                   visible=True, force=False, verify=True, batch=None):
     """幂等入口：库里已有同名元素就直接返回，没有才去拾取。
 
     这是给 `flow_generator.ensure_elements` 用的——流程规格里声明「这个节点要哪个
     元素、元素怎么从页面取」，生成时自动补齐，人不用进设计器点。
+
+    `batch="table"` 时按「批量抓取」结构落库（`BrowserElement.data_batch` 专用）。
 
     返回 `{"element_id", "element_name", "created": bool}`。
     """
@@ -744,12 +795,18 @@ def ensure_element(robot_id, name, url, selector, by="css", group=DEFAULT_GROUP,
     if visible and not rect_visible(info.get("rect") or {}):
         raise RuntimeError("命中的元素不可见（rect 全 0），拒绝落库：{}".format(selector))
 
+    batch_info = None
+    if batch == "table":
+        info, batch_info = to_batch_info(info)
+
     ensure_group(robot_id, group)
     try:
         title = bridge("getTitle", timeout=5)
     except Exception:
         title = ""
-    eid = create_element(robot_id, group, name, build_element_data(info, url, title))
+    eid = create_element(
+        robot_id, group, name, build_element_data(info, url, title, batch=batch_info)
+    )
     if verify:
         ok, msg = check_element(robot_id, eid, verbose=False)
         if not ok:
@@ -785,6 +842,12 @@ def main():
     ap.add_argument("--force", action="store_true", help="选择器命中多个时仍取第一个")
     ap.add_argument("--allow-hidden", action="store_true", help="允许落库不可见元素（默认拒绝）")
     ap.add_argument("--check", metavar="ELEMENT_ID", help="校验已有元素当前能否命中（只读）")
+    ap.add_argument(
+        "--batch",
+        choices=["table"],
+        help="按「批量抓取」结构落库（表格型）。data_batch 必须用这种元素，"
+        "普通元素缺 produceType 会 KeyError。配合 --css 使用",
+    )
     ap.add_argument("--delete", metavar="ELEMENT_ID", help="删除元素")
     args = ap.parse_args()
 

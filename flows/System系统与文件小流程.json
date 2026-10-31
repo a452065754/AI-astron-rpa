@@ -1,0 +1,299 @@
+{
+  "name": "System系统与文件小流程",
+  "nl_examples": [
+    "建个文件、查它存不存在、看编码、搜一下，再截个屏，跑条命令并杀掉一个进程",
+    "系统原子演示：文件创建/存在判断/等待/编码/查找 + 截屏 + 运行命令 + 终止进程",
+    "看看文件在不在、什么编码、能不能搜到，顺手截图和跑命令",
+    "System 与 File 域原子综合演示"
+  ],
+  "keywords": [
+    "创建文件",
+    "文件是否存在",
+    "等待文件",
+    "文件编码",
+    "查找文件",
+    "屏幕截图",
+    "运行命令",
+    "终止进程",
+    "系统原子"
+  ],
+  "params": [
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_sys_out",
+      "describe": "输出目录（存放创建的文件、截图、证据文件）"
+    },
+    {
+      "name": "process_name",
+      "type": "Str",
+      "default": "PING.EXE",
+      "describe": "要终止的进程名（流程内会先起一个 ping）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "File.file_create",
+      "alias": "创建文件",
+      "out": {
+        "new_file_path": "created"
+      },
+      "inputs": {
+        "dst_path": "$p:out_dir",
+        "file_name": "sys_created.txt",
+        "exist_options": "overwrite"
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "写入内容（让文件有内容可测编码）",
+      "out": {
+        "write_file_path": "written"
+      },
+      "inputs": {
+        "file_path": "$created",
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": [
+          "RPA 系统原子测试内容：文件创建 -> 存在判断 -> 编码识别 -> 查找\n"
+        ]
+      }
+    },
+    {
+      "atom": "File.file_exist",
+      "alias": "IF文件存在（存在分支）",
+      "inputs": {
+        "file_path": "$created",
+        "exist_type": "exist"
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "存在时写证明文件",
+      "out": {
+        "write_file_path": "exist_proof"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/存在证明.txt"
+        ],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": "文件存在 → 块内节点执行了"
+      }
+    },
+    {
+      "atom": "Code.IfEnd",
+      "alias": "存在分支结束",
+      "inputs": {}
+    },
+    {
+      "atom": "File.file_exist",
+      "alias": "IF文件不存在（判 not_exist，文件其实存在→应跳过块）",
+      "inputs": {
+        "file_path": "$created",
+        "exist_type": "not_exist"
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "不该执行（不存在时写）",
+      "out": {
+        "write_file_path": "not_exist_should_skip"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/不该执行.txt"
+        ],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": "如果你看到这个文件，说明 IF 判断错了"
+      }
+    },
+    {
+      "atom": "Code.IfEnd",
+      "alias": "不存在分支结束",
+      "inputs": {}
+    },
+    {
+      "atom": "File.file_wait_status",
+      "alias": "等待文件已创建",
+      "out": {
+        "wait_file_result": "wait_res"
+      },
+      "inputs": {
+        "file_path": "$created",
+        "status_type": "created",
+        "wait_time": 5
+      }
+    },
+    {
+      "atom": "File.get_file_encoding_type",
+      "alias": "获取文件编码类型",
+      "out": {
+        "file_encoding_type": "enc"
+      },
+      "inputs": {
+        "file_path": "$created"
+      }
+    },
+    {
+      "atom": "File.file_search",
+      "alias": "模糊查找文件",
+      "out": {
+        "find_file_result": "found"
+      },
+      "inputs": {
+        "folder_path": "$p:out_dir",
+        "find_type": "fuzzy",
+        "search_pattern": "sys_created",
+        "traverse_subfolder": "no"
+      }
+    },
+    {
+      "atom": "System.screen_shot",
+      "alias": "全屏截图",
+      "out": {
+        "screenshot_path": "shot"
+      },
+      "inputs": {
+        "png_path": "$p:out_dir",
+        "state_type": "create",
+        "png_name": "系统截图",
+        "screen_type": "full",
+        "top_left_x": 0,
+        "top_left_y": 0,
+        "bottom_right_x": 0,
+        "bottom_right_y": 0
+      }
+    },
+    {
+      "atom": "System.run_command",
+      "alias": "运行命令（复制文件，产生真实副作用）",
+      "out": {
+        "process_out": "cmd_ok"
+      },
+      "inputs": {
+        "command": "cmd",
+        "cmd_type": "normal",
+        "run_type": "complete",
+        "params": [
+          "/c copy /y \"",
+          "$created",
+          "\" \"",
+          "$p:out_dir",
+          "/run_copy_out.txt\""
+        ],
+        "work_dir": "$p:out_dir",
+        "wait_time": 20
+      }
+    },
+    {
+      "atom": "System.run_command",
+      "alias": "运行命令（后台起一个 ping 供杀）",
+      "out": {
+        "process_out": "ping_started"
+      },
+      "inputs": {
+        "command": "cmd",
+        "cmd_type": "normal",
+        "run_type": "continue",
+        "params": [
+          "/c ping -n 60 127.0.0.1"
+        ]
+      }
+    },
+    {
+      "atom": "System.run_command",
+      "alias": "运行命令（complete 模式阻塞 2 秒，兼作延时等 ping 起来）",
+      "out": {
+        "process_out": "delay_ok"
+      },
+      "inputs": {
+        "command": "cmd",
+        "cmd_type": "normal",
+        "run_type": "complete",
+        "params": [
+          "/c ping -n 3 127.0.0.1"
+        ],
+        "wait_time": 15
+      }
+    },
+    {
+      "atom": "System.get_pid",
+      "alias": "查 ping 进程 PID（杀之前）",
+      "out": {
+        "match_proces_pid": "pids_before"
+      },
+      "inputs": {
+        "process_name": "$p:process_name",
+        "search_type": "exact",
+        "pid_type": "all"
+      }
+    },
+    {
+      "atom": "System.terminate_process",
+      "alias": "按进程名终止 ping",
+      "out": {
+        "termination_process": "term_res"
+      },
+      "inputs": {
+        "termination_type": "name",
+        "pid": 0,
+        "process_name": "$p:process_name",
+        "time_out": 3
+      }
+    },
+    {
+      "atom": "System.get_pid",
+      "alias": "再查 ping 进程 PID（杀之后）",
+      "out": {
+        "match_proces_pid": "pids_after"
+      },
+      "inputs": {
+        "process_name": "$p:process_name",
+        "search_type": "exact",
+        "pid_type": "all"
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "结果写成证据文件",
+      "out": {
+        "write_file_path": "report"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/系统与文件_结果.txt"
+        ],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": [
+          "创建的文件：",
+          "$created",
+          "\n等待文件状态：",
+          "$wait_res",
+          "\n文件编码：",
+          "$enc",
+          "\n模糊查找结果：",
+          "$found",
+          "\n截图路径：",
+          "$shot",
+          "\ncopy 命令返回：",
+          "$cmd_ok",
+          "\n延时命令返回：",
+          "$delay_ok",
+          "\n杀之前 ping PID：",
+          "$pids_before",
+          "\n终止进程返回：",
+          "$term_res",
+          "\n杀之后 ping PID：",
+          "$pids_after"
+        ]
+      }
+    }
+  ]
+}

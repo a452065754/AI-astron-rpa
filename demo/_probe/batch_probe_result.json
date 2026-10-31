@@ -1,0 +1,128 @@
+{
+ "pick_info": {
+  "cssSelector": "#tbl",
+  "checkType": "visualization",
+  "filterVisible": true,
+  "url": "http://127.0.0.1:8765/",
+  "domain": "127.0.0.1:8765",
+  "matchTypes": [],
+  "xpath": "//table[@id=\"tbl\"]",
+  "pathDirs": [
+   {
+    "tag": "table",
+    "checked": true,
+    "value": "table",
+    "attrs": [
+     {
+      "name": "id",
+      "value": "tbl",
+      "checked": true,
+      "type": 0
+     }
+    ]
+   }
+  ],
+  "rect": {
+   "left": 24,
+   "top": 203,
+   "width": 188,
+   "height": 137,
+   "right": 212,
+   "bottom": 340,
+   "x": 24,
+   "y": 203
+  },
+  "tag": "表格",
+  "text": ""
+ },
+ "elementIsTable": {
+  "isTable": true,
+  "cssSelector": "#tbl",
+  "checkType": "visualization",
+  "filterVisible": true,
+  "url": "http://127.0.0.1:8765/",
+  "domain": "127.0.0.1:8765",
+  "matchTypes": [],
+  "xpath": "//table[@id=\"tbl\"]",
+  "pathDirs": [
+   {
+    "tag": "table",
+    "checked": true,
+    "value": "table",
+    "attrs": [
+     {
+      "name": "id",
+      "value": "tbl",
+      "checked": true,
+      "type": 0
+     }
+    ]
+   }
+  ],
+  "rect": {
+   "left": 24,
+   "top": 203,
+   "width": 188,
+   "height": 137,
+   "right": 212,
+   "bottom": 340,
+   "x": 24,
+   "y": 203
+  },
+  "tag": "表格",
+  "text": ""
+ },
+ "tableDataBatch": {
+  "isTable": true,
+  "cssSelector": "#tbl",
+  "checkType": "visualization",
+  "filterVisible": true,
+  "url": "http://127.0.0.1:8765/",
+  "domain": "127.0.0.1:8765",
+  "matchTypes": [],
+  "xpath": "//table[@id=\"tbl\"]",
+  "pathDirs": [
+   {
+    "tag": "table",
+    "checked": true,
+    "value": "table",
+    "attrs": [
+     {
+      "name": "id",
+      "value": "tbl",
+      "checked": true,
+      "type": 0
+     }
+    ]
+   }
+  ],
+  "text": "",
+  "values": [
+   {
+    "title": "编号",
+    "value": [
+     "R01",
+     "R02",
+     "R03"
+    ]
+   },
+   {
+    "title": "名称",
+    "value": [
+     "沙发",
+     "茶几",
+     "电视柜"
+    ]
+   },
+   {
+    "title": "数量",
+    "value": [
+     "1",
+     "2",
+     "3"
+    ]
+   }
+  ],
+  "produceType": "table"
+ }
+}

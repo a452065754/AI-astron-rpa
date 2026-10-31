@@ -1,0 +1,4 @@
+目标百分比：80
+拖拽前截图：F:\AI-Workbench\10-Projects\星辰开源\demo\_browser_out\滑块拖拽前.jpg
+拖拽后截图：F:\AI-Workbench\10-Projects\星辰开源\demo\_browser_out\滑块拖拽后.jpg
+（对比两张图里滑块 thumb 位置与右侧「滑块值」数字即可确认拖拽生效）

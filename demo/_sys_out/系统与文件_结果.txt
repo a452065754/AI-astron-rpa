@@ -1,0 +1,10 @@
+创建的文件：F:\AI-Workbench\10-Projects\星辰开源\demo\_sys_out\sys_created.txt
+等待文件状态：True
+文件编码：utf_8
+模糊查找结果：['F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_sys_out\\sys_created.txt']
+截图路径：F:\AI-Workbench\10-Projects\星辰开源\demo\_sys_out\系统截图.png
+copy 命令返回：True
+延时命令返回：True
+杀之前 ping PID：[4288]
+终止进程返回：True
+杀之后 ping PID：[]

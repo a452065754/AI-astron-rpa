@@ -1,0 +1,163 @@
+{
+  "name": "网页滑块拖拽小流程",
+  "nl_examples": [
+    "把网页上的滑块拖到 80% 的位置，再看一眼滑块值",
+    "滑块拖拽：拖动验证码/进度条那种滑块",
+    "拖动页面滑块并验证结果",
+    "网页滑块拖动演示"
+  ],
+  "keywords": [
+    "滑块拖拽",
+    "拖动滑块",
+    "滑块验证",
+    "进度条拖动",
+    "slider",
+    "滑动"
+  ],
+  "params": [
+    {
+      "name": "url",
+      "type": "Str",
+      "default": "http://127.0.0.1:8765/",
+      "describe": "测试页地址"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_browser_out",
+      "describe": "证据输出目录"
+    },
+    {
+      "name": "percent",
+      "type": "Str",
+      "default": "80",
+      "describe": "拖到轨道的百分之多少（0-100）"
+    }
+  ],
+  "element_requirements": [
+    {
+      "name": "测试页_滑块",
+      "kind": "web",
+      "pick": {
+        "url": "http://127.0.0.1:8765/",
+        "css": "#thumb"
+      }
+    },
+    {
+      "name": "测试页_滑轨",
+      "kind": "web",
+      "pick": {
+        "url": "http://127.0.0.1:8765/",
+        "css": "#track"
+      }
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "BrowserSoftware.browser_open",
+      "alias": "打开测试页",
+      "out": {
+        "web_open": "web"
+      },
+      "inputs": {
+        "url": "$p:url",
+        "browser_type": "chrome",
+        "timeout": 25,
+        "timeout_handle_type": "execError",
+        "wait_load_success": true,
+        "open_with_incognito": false
+      }
+    },
+    {
+      "atom": "BrowserSoftware.web_refresh",
+      "alias": "刷新页面（把滑块复位到初始位置）",
+      "out": {},
+      "inputs": {
+        "browser_obj": "$web"
+      }
+    },
+    {
+      "atom": "BrowserElement.screenshot",
+      "alias": "拖拽前元素截图",
+      "out": {
+        "xpath_shot": "shot_before"
+      },
+      "inputs": {
+        "browser_obj": "$web",
+        "file_path": "$p:out_dir",
+        "image_name": "滑块拖拽前",
+        "element_timeout": 10
+      },
+      "elements": {
+        "element_data": {
+          "kind": "web",
+          "name": "测试页_滑轨"
+        }
+      }
+    },
+    {
+      "atom": "BrowserElement.slider_hover",
+      "alias": "拖动滑块到指定百分比",
+      "inputs": {
+        "browser_obj": "$web",
+        "percent_value": "$p:percent",
+        "drag_direction": "right",
+        "drag_type": "start",
+        "duration": 0.6
+      },
+      "elements": {
+        "element_slider": {
+          "kind": "web",
+          "name": "测试页_滑块"
+        },
+        "element_progress": {
+          "kind": "web",
+          "name": "测试页_滑轨"
+        }
+      }
+    },
+    {
+      "atom": "BrowserElement.screenshot",
+      "alias": "拖拽后元素截图",
+      "out": {
+        "xpath_shot": "shot_after"
+      },
+      "inputs": {
+        "browser_obj": "$web",
+        "file_path": "$p:out_dir",
+        "image_name": "滑块拖拽后",
+        "element_timeout": 10
+      },
+      "elements": {
+        "element_data": {
+          "kind": "web",
+          "name": "测试页_滑轨"
+        }
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "结果写成证据文件",
+      "out": {
+        "write_file_path": "report"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/滑块拖拽_结果.txt"
+        ],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": [
+          "目标百分比：",
+          "$p:percent",
+          "\n拖拽前截图：",
+          "$shot_before",
+          "\n拖拽后截图：",
+          "$shot_after",
+          "\n（对比两张图里滑块 thumb 位置与右侧「滑块值」数字即可确认拖拽生效）"
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,120 @@
+{
+  "name": "网页数据抓取小流程",
+  "nl_examples": [
+    "打开测试页把整张表格抓下来并存成 Excel",
+    "数据抓取：一次把网页表格全部取出来",
+    "抓取网页表格数据并导出 Excel",
+    "网页批量数据抓取演示"
+  ],
+  "keywords": [
+    "数据抓取",
+    "网页表格抓取",
+    "批量抓取",
+    "抓取表格",
+    "表格导出excel",
+    "data_batch"
+  ],
+  "params": [
+    {
+      "name": "url",
+      "type": "Str",
+      "default": "http://127.0.0.1:8765/",
+      "describe": "测试页地址"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_browser_out",
+      "describe": "Excel 与证据输出目录"
+    },
+    {
+      "name": "excel_name",
+      "type": "Str",
+      "default": "数据抓取结果.xlsx",
+      "describe": "抓取结果 Excel 文件名"
+    }
+  ],
+  "element_requirements": [
+    {
+      "name": "测试页_表格_批量",
+      "kind": "web",
+      "batch": "table",
+      "pick": {
+        "url": "http://127.0.0.1:8765/",
+        "css": "#tbl"
+      }
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "BrowserSoftware.browser_open",
+      "alias": "打开测试页",
+      "out": {
+        "web_open": "web"
+      },
+      "inputs": {
+        "url": "$p:url",
+        "browser_type": "chrome",
+        "timeout": 25,
+        "timeout_handle_type": "execError",
+        "wait_load_success": true,
+        "open_with_incognito": false
+      }
+    },
+    {
+      "atom": "BrowserElement.data_batch",
+      "alias": "数据抓取（整表 + 导出 Excel）",
+      "out": {
+        "table_pick": "batch_data_out",
+        "table_path": "batch_path"
+      },
+      "inputs": {
+        "browser_obj": "$web",
+        "multi_page": false,
+        "page_count": 1,
+        "page_interval": 1,
+        "simulate_flag": true,
+        "button_type": "click",
+        "to_excel": true,
+        "excel_path": [
+          "$p:out_dir",
+          "/",
+          "$p:excel_name"
+        ],
+        "element_timeout": 15,
+        "output_type": "row",
+        "output_head": true,
+        "output_filter_empty_col": false,
+        "is_save_to_data_table": false,
+        "scroll_into_center": true
+      },
+      "elements": {
+        "batch_data": {
+          "kind": "web",
+          "name": "测试页_表格_批量"
+        }
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "结果写成证据文件",
+      "out": {
+        "write_file_path": "report"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/数据抓取_结果.txt"
+        ],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": [
+          "导出的 Excel：",
+          "$batch_path",
+          "\n抓取到的二维数据（含表头）：\n",
+          "$batch_data_out"
+        ]
+      }
+    }
+  ]
+}
