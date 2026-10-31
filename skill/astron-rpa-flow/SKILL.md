@@ -27,6 +27,7 @@ cat ~/.workbuddy-ai/skills/astron-rpa-flow/PROJECT_ROOT.txt
 | 「Key 是 xxx」 | 跑 `python scripts/install.py --key xxx --host h:p --robot-id id` |
 | 「帮我做个 XX 流程」 | 走第 3 步 |
 | 「跑不通 / 报错」 | 先 `python scripts/doctor.py`，按 `→` 提示修 |
+| **「我换设备了」/ 换了台电脑** | **先读 `docs/待办清单.md` §1**，按那里的 5 步重建环境，再往下走 |
 
 ## 第 2 步：装 + 配（只有第一次）
 
@@ -47,6 +48,41 @@ python scripts/install.py --key <API_KEY> --host 192.168.76.130:32742 --robot-id
 
 > **Key 只在用户主动发来时使用，不要编造、不要写进聊天记录之外的地方。**
 > 配置写进 `rpa_config.json`（已在 `.gitignore`，不会入库）。
+
+### 2.1 换设备了怎么办（**用户说「我换设备了」就走这里**）
+
+robotId / elementId 换机器后**全部作废**，但规格、脚本、文档全部可迁移。按顺序：
+
+```bash
+# ① 补两个「不在 git 里」的文件（最容易漏！git clone 拿不到）
+#    rpa_config.json（网关地址/API Key/默认 robotId）
+#    docs/_local_secrets.md（SSH/MySQL/Redis/Minio/Casdoor 密码留档）
+#    从旧机器复制过来；没有就 cp rpa_config.example.json rpa_config.json 再填
+python scripts/rpa_config.py        # 确认生效值
+
+# ② 环境自检（设计器已登录、Chrome 装了 RPA 插件）
+python scripts/doctor.py
+
+# ③ 换机必做（坑 118，不做 DataTable 全系原子必崩）
+mkdir -p "$APPDATA/astron-rpa/astron"
+
+# ④ 盘点平台上有什么（看清哪些是本项目的 51 条）
+python scripts/publish_flow.py --list
+
+# ⑤ 网页流程还要看桥接
+python scripts/element_pick.py --status
+```
+
+**关键：用 `--robot-name`，不要抄旧 robotId。**
+
+```bash
+python scripts/ai_flow.py --spec flows/Excel统计行列小流程.json --robot-name Excel统计行列小流程
+```
+
+`--robot-name` 按名字找机器人，**找不到就新建**。命名约定：规格 `XXX小流程` ↔ 机器人 `XXX`
+（历史遗留，脚本两种都试）。两个例外已登记在 `publish_flow.ROBOT_ALIASES`。
+
+**别做的事**：不要手工去设计器建机器人再抄 id（换设备必卡这里）；不要复用旧 robotId（会报找不到机器人）。
 
 ## 第 3 步：把需求变成流程（核心）
 

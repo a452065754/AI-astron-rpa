@@ -22,7 +22,7 @@ Python 子流程模块 id），任何一项不对都会表现成「流程跑不�
 | 客户端自带 Python | ⚠️ | 本地真跑不了 |
 | 目标机器人 + 主流程 | ❌ | 落库没地方写 |
 | openapi API Key | ⚠️ | invoke 阶段用不了 |
-| Python 依赖（requests / paramiko / playwright） | ⚠️ | 对应功能不可用 |
+| Python 依赖（requests / paramiko） | ⚠️ | 对应功能不可用（playwright 已不需要） |
 | SQL 通道（可选） | ℹ️ | 只影响 execute_log 读取与模块 SQL 补丁 |
 
 ## 用法
@@ -180,10 +180,11 @@ def main():
             add(WARN, "openapi", f"{type(e).__name__}: {e}", "检查 openapi 服务与网络")
 
     # ---------- 7. Python 依赖 ----------
+    # playwright 只有「老的元素重定位器」用；网页元素现在走 element_pick.py（调浏览器插件，
+    # 不需要 playwright），所以不再提示安装，免得让人以为主链路缺依赖（2026-10-31）。
     for mod, why, fix in (
         ("requests", "HTTP 调用（落库/发布/invoke）", "pip install requests"),
         ("paramiko", "SQL 通道（可选）", "pip install paramiko"),
-        ("playwright", "元素重定位（可选）", "pip install playwright && playwright install chromium"),
     ):
         try:
             importlib.import_module(mod)

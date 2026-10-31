@@ -425,6 +425,57 @@ def upsert_openapi_workflow(cookie, project_id, name, version, description="",
 
 
 # ----------------------------- 入口 -----------------------------
+# 历史遗留：早期建的机器人名与规格名对不上（改名要动平台数据，且换设备后 id 本来就变，
+# 所以不改，只在这里登记，让 --list 能正确标注「这是本项目的哪条流程」）。
+ROBOT_ALIASES = {
+    "AI生成流程_测试": "Excel订单表导出小流程",
+    "数据表筛选排序导出": "Excel转JSON小流程",
+}
+
+
+def list_robots():
+    """列出平台全部机器人。换设备后第一件事就是跑这个，看清哪些是本项目的。
+
+    同时标注「本机 flows/ 里有没有同名规格」，避免把用户自己的机器人当成测试机器人误删。
+    命名约定：规格 `XXX小流程` ↔ 机器人 `XXX`（历史遗留，两种写法都认，见 ROBOT_ALIASES）。
+    """
+    import glob
+
+    ck = load_session()
+    d = ok(api("/api/robot/robot-design/design-list", {"pageNo": 1, "pageSize": 500}, ck), "列机器人")
+    recs = d.get("records") if isinstance(d, dict) else (d or [])
+
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    spec_names = {os.path.basename(p)[:-5] for p in glob.glob(os.path.join(root, "flows", "*.json"))}
+
+    def spec_of(name):
+        """机器人名 → 对应的规格名（没有则空）。"""
+        if name in ROBOT_ALIASES:
+            return ROBOT_ALIASES[name]
+        if name in spec_names:
+            return name
+        if (name + "小流程") in spec_names:
+            return name + "小流程"
+        return ""
+
+    rows = sorted(recs or [], key=lambda r: (not spec_of(r.get("robotName") or ""),
+                                             r.get("robotName") or ""))
+    print(f"{'机器人名':<24}{'robotId':<21}{'版本':<7}{'状态':<12}规格")
+    print("-" * 78)
+    mine = 0
+    for r in rows:
+        name = r.get("robotName") or r.get("name") or ""
+        sp = spec_of(name)
+        mine += 1 if sp else 0
+        print("%-24s%-21s%-7s%-12s%s" % (
+            name, r.get("robotId"), r.get("latestVersion") or "-",
+            r.get("publishStatus") or "-", sp or ""))
+    print("-" * 78)
+    print(f"共 {len(rows)} 个机器人：本项目流程 {mine} 个 · 其它 {len(rows) - mine} 个")
+    print("提示：换设备后 robotId 全变，用 --robot-name 让脚本按名字找/建，不要抄旧 id")
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser(description="路线 B 落库：把生成的流程写进 .130")
     ap.add_argument("--flow", default=os.path.join("docs", "generated_flow.json"),
@@ -435,7 +486,12 @@ def main():
     ap.add_argument("--main", action="store_true",
                     help="写进「主流程」——设计器点「编辑」默认打开的就是它，不写这里会看到空白")
     ap.add_argument("--dry-run", action="store_true", help="只打印将写入的内容，不调写接口")
+    ap.add_argument("--list", action="store_true",
+                    help="列出平台上的全部机器人（名字/id/发布版本/状态），换设备后盘点用")
     args = ap.parse_args()
+
+    if args.list:
+        return list_robots()
 
     with open(args.flow, "r", encoding="utf-8") as f:
         flow = json.load(f)

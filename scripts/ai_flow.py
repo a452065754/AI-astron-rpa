@@ -372,6 +372,37 @@ def do_expose(cookie, robot_id, spec, process_id, repair_modules=False):
     return v
 
 
+def resolve_robot_by_name(name):
+    """按名字找机器人，找不到就新建，返回 robotId。
+
+    ## 为什么需要这个（换设备的第一道坎）
+
+    机器人 id 是平台生成的雪花号，换一台机器/换一个服务端就全变；而「机器人名」
+    是稳定的。老做法要人先去设计器建机器人、抄 id、再 `--robot-id`，换设备必卡这里。
+    现在 `--robot-name` 一步到位：有就复用，没有就建。
+
+    命名约定（历史遗留，别改）：早期批量建机器人时把规格名的「小流程」后缀去掉了，
+    所以 `Excel统计行列小流程.json` 对应机器人「Excel统计行列」。这里两种都试，
+    优先精确匹配，再试去后缀，最后才新建（新建用传入的名字）。
+    """
+    cands = [name]
+    if name.endswith("小流程"):
+        cands.append(name[: -len("小流程")])
+    else:
+        cands.append(name + "小流程")
+
+    ck = pf.load_session()
+    for cand in cands:
+        rid = pf.find_robot(ck, cand)
+        if rid:
+            print(f"      机器人「{cand}」已存在：{rid}")
+            return rid
+
+    rid = pf.create_robot(ck, name)
+    print(f"      新建机器人「{name}」：{rid}")
+    return rid
+
+
 def robot_name_of(cookie, robot_id):
     """按 robot_id 反查机器人显示名（评审单里要写清楚去设计器找哪个机器人）。"""
     try:
@@ -409,6 +440,9 @@ def main():
                     help="不自动拾取元素（规格里的 element_requirements 只检查不创建）")
     ap.add_argument("--no-nl-params", action="store_true",
                     help="不从自然语言里抽参数（全部用规格默认值）")
+    ap.add_argument("--robot-name", default="",
+                    help="按名字找机器人，找不到就新建（换设备时不用记 robotId）。"
+                         "省略则用 --robot-id / rpa_config 的 defaults.robot_id")
     args = ap.parse_args()
 
 
@@ -416,6 +450,11 @@ def main():
     print("=" * 64)
     print("AI 流程交付流水线")
     print("=" * 64)
+
+    # 换设备后 robotId 全变，但「机器人名」是稳定的。给了 --robot-name 就先按名字解析，
+    # 解析结果覆盖 robot_id（找不到会新建），这样新机器上一条命令就能跑。
+    if args.robot_name:
+        robot_id = resolve_robot_by_name(args.robot_name)
 
     # ---------- 1. 取规格：自然语言 → 已有规格 / 模板 / 直接读规格 ----------
     if args.spec:
