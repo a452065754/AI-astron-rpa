@@ -1,0 +1,57 @@
+{
+  "name": "文本文件转存小流程",
+  "nl_examples": [
+    "把源文件内容转存成 utf-8",
+    "复制文本文件内容",
+    "转换文件编码"
+  ],
+  "keywords": [
+    "转存",
+    "文本文件",
+    "txt",
+    "复制文件",
+    "另存一份"
+  ],
+  "params": [
+    {
+      "name": "src_file",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\源文件.txt",
+      "describe": "源文本文件路径"
+    },
+    {
+      "name": "dst_file",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\目标文件.txt",
+      "describe": "目标文件路径（含文件名）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "File.file_read",
+      "alias": "读取源文件",
+      "out": {
+        "read_file_content": "file_text"
+      },
+      "inputs": {
+        "file_path": "$p:src_file",
+        "read_type": "all",
+        "encode_type": "default"
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "写出目标文件",
+      "out": {
+        "write_file_path": "out_path"
+      },
+      "inputs": {
+        "file_path": "$p:dst_file",
+        "msg": "$file_text",
+        "file_option": "create",
+        "write_type": "overwrite",
+        "encode_type": "utf-8"
+      }
+    }
+  ]
+}

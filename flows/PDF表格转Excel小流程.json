@@ -1,0 +1,54 @@
+{
+  "name": "PDF表格转Excel小流程",
+  "nl_examples": [
+    "把PDF里的表格提出来变成Excel",
+    "PDF 表格转 Excel",
+    "提取 PDF 中的表格"
+  ],
+  "keywords": [
+    "表格转excel",
+    "pdf表格",
+    "提取表格",
+    "表格提取",
+    "表格转成excel"
+  ],
+  "params": [
+    {
+      "name": "src_pdf",
+      "type": "Str",
+      "default": "F:/AI-Workbench/10-Projects/星辰开源/demo/带表格测试.pdf",
+      "describe": "源 PDF 文件路径（需有文本层+表格线；扫描件识别不到表格）"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo",
+      "describe": "Excel 输出目录"
+    },
+    {
+      "name": "out_name",
+      "type": "Str",
+      "default": "PDF表格提取",
+      "describe": "输出 Excel 文件名（不带 .xlsx 后缀）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "PDF.extract_forms_from_pdf",
+      "alias": "提取表格到Excel（跨页表格自动合并）",
+      "out": {
+        "forms_file_path": "forms_path"
+      },
+      "inputs": {
+        "file_path": "$p:src_pdf",
+        "pwd": "",
+        "select_range": "all",
+        "page_range": "",
+        "combine_flag": true,
+        "save_dir": "$p:out_dir",
+        "new_file_name": "$p:out_name",
+        "exist_handle_type": "overwrite"
+      }
+    }
+  ]
+}

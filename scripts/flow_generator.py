@@ -1,0 +1,1397 @@
+# -*- coding: utf-8 -*-
+"""
+星辰开源 · 路线 B 流程生成器（flow_generator.py）
+================================================
+核心目的：自然语言 → AI 生成「固定的 RPA 流程」（Astron RPA process_content 节点树）。
+
+设计要点（均来自 docs/开发文档-AI操作RPA-OpenAPI集成.md §12 / §13 的实证结论）：
+  - 落库格式是「扁平 JSON 数组」，节点用 `key`(原子全名) 标识，顺序=执行顺序。
+  - 参数值三型：other=字面量 / var=变量 / element=引用 c_element 元素库。
+  - 标准尾部：advanced（前后延迟）+ exception（出错策略/重试）。
+  - 生成器从 `.130` 的 `c_atom_meta_new` 实时拉取原子 schema，保证 key/参数/输出都真实存在；
+    离线时用 `docs/atom_dict_cache.json` 缓存。
+  - 写库（`/api/robot/process/save`）需要 Casdoor 会话 token，属红线操作；默认只生成+校验，
+    显式 `--write` + 环境变量 RPA_SESSION_TOKEN 才尝试落库（且需用户授权）。
+
+用法：
+  python flow_generator.py --purpose excel_export
+  python flow_generator.py --nl "把订单表导成新文件"
+  python flow_generator.py --purpose excel_export --write --robot-id 2065231113695461380
+"""
+import argparse
+import base64
+import json
+import os
+import re
+import sys
+import time
+from datetime import datetime
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import rpa_config as cfg
+from element_relocator import ServerDb, unwrap_special  # SQL 兜底通道（默认关闭）
+
+HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CACHE_PATH = os.path.join(HERE, "docs", "atom_dict_cache.json")
+ELEMENT_CACHE = os.path.join(HERE, "docs", "element_cache.json")
+DEFAULT_ROBOT_ID = 2065231113695461380
+
+# 演示用真实数据目录（模板默认路径必须指向**真实存在**的文件，
+# 否则流程跑起来第一步就报「找不到文件」——2026-10-30 用户实测踩到）
+DEMO_DIR = r"F:\AI-Workbench\10-Projects\星辰开源\demo"
+DEMO_XLSX = DEMO_DIR + r"\订单.xlsx"
+DEMO_TXT = DEMO_DIR + r"\源文件.txt"
+
+
+# ----------------------------- 原子字典（真实 schema） -----------------------------
+def _parse_atom(raw):
+    """解析 atom_content；失败时尝试修复双重转义（两个反斜杠 -> 一个）。返回 (obj, repaired)。"""
+    try:
+        return json.loads(raw), False
+    except Exception:
+        pass
+    try:
+        return json.loads(raw.replace("\\\\", "\\")), True
+    except Exception:
+        return None, False
+
+
+def _write_cache(d):
+    os.makedirs(os.path.dirname(CACHE_PATH), exist_ok=True)
+    with open(CACHE_PATH, "w", encoding="utf-8") as f:
+        json.dump(d, f, ensure_ascii=False, indent=2)
+
+
+def load_atom_dict(offline=False):
+    """原子字典（与 `c_atom_meta_new` 同源的数据）。
+
+    **优先走官方接口** `/api/robot/atom-new/all` —— 这样迁移到新环境时完全不需要
+    数据库访问。接口失败退本地缓存（随包分发的快照），最后才退 SQL 兜底通道。
+    """
+    if offline and os.path.exists(CACHE_PATH):
+        with open(CACHE_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+
+    # 1) 官方接口
+    try:
+        import publish_flow as _pf
+        ck = _pf.load_session()
+        arr = _pf.api("/api/robot/atom-new/all", {}, ck)
+        if isinstance(arr, list) and arr:
+            d = {}
+            for it in arr:
+                k = it.get("atomKey")
+                raw = it.get("atomContent")
+                if not k or raw is None:
+                    continue
+                text = raw if isinstance(raw, str) else json.dumps(raw, ensure_ascii=False)
+                obj, _ = _parse_atom(text)
+                if obj is not None:
+                    d[k] = obj
+            if d:
+                _write_cache(d)
+                return d
+    except (SystemExit, Exception) as e:
+        first = str(e).splitlines()[0][:90] if str(e) else type(e).__name__
+        print(f"      · 原子字典接口不可用（{first}），改本地缓存")
+
+    # 2) 本地缓存
+    if os.path.exists(CACHE_PATH):
+        with open(CACHE_PATH, "r", encoding="utf-8") as f:
+            d = json.load(f)
+        print(f"      · 原子字典用本地缓存（{len(d)} 个）")
+        return d
+
+    # 3) SQL 兜底
+    if not cfg.db_conf():
+        raise SystemExit(
+            "拿不到原子字典：接口不可用、无本地缓存、SQL 通道也没开。\n"
+            "  办法：确认设计器已登录（python scripts/doctor.py 看「登录态」）")
+    db = ServerDb()
+    try:
+        rows = db.sql_rows("SELECT atom_key, atom_content FROM c_atom_meta_new")
+        d = {}
+        for r in rows:
+            if len(r) < 2:
+                continue
+            raw = "\t".join(r[1:])  # 内容若含 tab，sql_rows 会切成多列，这里拼回
+            obj, _ = _parse_atom(raw)
+            if obj is not None:
+                d[r[0]] = obj
+        _write_cache(d)
+        return d
+    finally:
+        db.close()
+
+
+# ----------------------------- 值包装（三型） -----------------------------
+def mk_val(kind, v):
+    return [{"type": kind, "value": v}]
+
+
+def resolve_input(raw, var_names, param_names=None):
+    """raw 可能是：字面量 / `$变量名`（上游节点输出）/ `$p:参数名`（流程参数）。
+
+    `$p:xxx` 编译成 `{"type":"p_var","value":"xxx"}`。引擎会把它渲染成裸变量名，
+    并在 `def main(args)` 开头生成 `xxx = args.get("xxx", 默认值)` —— 所以
+    openapi 的 `params` 可以覆盖默认值（2026-10-30 读引擎 flow/flow.py 实证）。
+    """
+    if isinstance(raw, list):
+        # 片段拼接：[ "$p:img_dir", "/", "$p:prefix", "_1.png" ] → 引擎按 `+` 拼接求值。
+        # 引擎 flow/params.py `_param_to_eval`：含 p_var/var 时 need_eval=True，
+        # 字面量片段转 repr、变量片段保留裸名，再用 `+` 连起来（2026-10-30 读源码实证）。
+        pieces = []
+        for piece in raw:
+            pieces.extend(resolve_input(piece, var_names, param_names))
+        return pieces
+    if isinstance(raw, str) and raw.startswith("$p:"):
+        name = raw[3:]
+        if param_names is not None and name not in param_names:
+            raise ValueError(f"参数引用 $p:{name} 未在规格的 params 中声明")
+        return mk_val("p_var", name)
+    if isinstance(raw, str) and raw.startswith("$"):
+        name = raw[1:]
+        if name not in var_names:
+            raise ValueError(f"变量引用 ${name} 未在任何上游节点 output 中定义")
+        return mk_val("var", name)
+    return mk_val("other", raw)
+
+
+# ----------------------------- 固定流程模板 -----------------------------
+# 每个节点：atom=原子全名；alias=中文别名；out={schema输出key: 变量名}；
+# inputs={schema输入key: 字面量 或 "$变量名"}。
+# 模板即「固定的 RPA 流程」：AI 依意图选中模板 → 填参 → 拼节点树。
+TEMPLATES = {
+    "excel_export": {
+        "name": "Excel订单表导出小流程",
+        "nl_examples": ["把订单表导成新文件", "做个excel拆分流程", "导出这个表格"],
+        # 流程参数（落 c_param）：默认值保证「不传参也能跑」，运行时可由 openapi 覆盖
+        "params": [
+            {"name": "src_file", "type": "Str", "default": DEMO_XLSX,
+             "describe": "源 Excel 文件路径"},
+            {"name": "out_dir", "type": "Str", "default": DEMO_DIR,
+             "describe": "输出目录"},
+            {"name": "out_name", "type": "Str", "default": "导出结果",
+             "describe": "输出文件名（不带扩展名）"},
+        ],
+        "nodes": [
+            {
+                "atom": "Excel.open_excel", "alias": "打开源表",
+                "out": {"open_excel_obj": "src_excel"},
+                "inputs": {
+                    "file_path": "$p:src_file",
+                    "default_application": "Excel",
+                    "visible_flag": True,
+                    "update_links": False,
+                },
+            },
+            {
+                "atom": "Excel.read_excel", "alias": "读取数据",
+                "out": {"read_excel_contents": "sheet_data"},
+                # 注意 read_range 是枚举 cell/row/column/area/all（不是 "A1:Z1000"）
+                "inputs": {
+                    "excel": "$src_excel",
+                    "sheet_name": "Sheet1",
+                    "read_range": "all",
+                    "start_col": "", "end_col": "", "cell": "",
+                    "row": 1, "column": "", "start_row": 1, "end_row": 1,
+                    "read_display": True, "trim_spaces": True, "replace_none": True,
+                },
+            },
+            {
+                "atom": "Excel.create_excel", "alias": "新建结果表",
+                "out": {"create_excel_obj": "dst_excel", "excel_path": "dst_path"},
+                # create_excel 内部会 file_name += ".xlsx"，所以这里**不能带扩展名**
+                "inputs": {
+                    "file_path": "$p:out_dir",
+                    "file_name": "$p:out_name",
+                    "default_application": "Excel",
+                    "visible_flag": True,
+                    "exist_handle_type": "overwrite",
+                },
+            },
+            {
+                # 真正把数据落地的节点。没有它，流程「成功」但产出是空表
+                # （2026-10-30 用 openpyxl 打开产出文件才发现 A1:A1 空表）。
+                # read_excel(read_range=all) 返回「行×列的二维列表」，
+                # edit_excel(edit_range=area) 正好吃这个结构，从 A1 开始铺开。
+                "atom": "Excel.edit_excel", "alias": "写入数据",
+                "out": {},
+                "inputs": {
+                    "excel": "$dst_excel",
+                    "edit_range": "area",
+                    "sheet_name": "",       # 空 = 用结果表的第一个 sheet，避免猜名字
+                    "start_col": "A",
+                    "start_row": "1",
+                    "value": "$sheet_data",  # 二维列表，引擎按原值传参
+                    "edit_type": "overwrite",
+                },
+            },
+            {
+                "atom": "Excel.save_excel", "alias": "保存结果",
+                "out": {},
+                # save_type=save 时 file_path/file_name 会被忽略（另存为才用）
+                "inputs": {
+                    "excel": "$dst_excel",
+                    "save_type": "save",
+                    "file_path": "",
+                    "file_name": "",
+                    "exist_handle_type": "overwrite",
+                    "close_flag": True,
+                },
+            },
+            {
+                # 必须显式关源表：save_excel 的 close_flag 只关「结果表」，
+                # 源表会一直挂在 Excel 里 → 残留进程 + `~$订单.xlsx` 锁文件，
+                # 文件被占用后连改名都做不到（2026-10-30 真机执行后实测踩到）。
+                # save_type_one=abort（不保存）：我们只读源表，绝不能反写。
+                "atom": "Excel.close_excel", "alias": "关闭源表",
+                "out": {},
+                "inputs": {
+                    "close_range_flag": "one",
+                    "excel": "$src_excel",
+                    "save_type_one": "abort",
+                    "save_type_all": "abort",
+                    "file_path": "", "file_name": "",
+                    "exist_handle_type": "rename",
+                    "pkill_flag": False,
+                },
+            },
+        ],
+    },
+    # 第二个固定流程：文本文件转存（零元素依赖，证明模板体系可跨领域复用）
+    "text_file_copy": {
+        "name": "文本文件转存小流程",
+        "nl_examples": ["把源文件内容转存成 utf-8", "复制文本文件内容", "转换文件编码"],
+        # 参数化：源/目标路径都能在运行时覆盖（openapi params）
+        "params": [
+            {"name": "src_file", "type": "Str", "default": DEMO_TXT,
+             "describe": "源文本文件路径"},
+            {"name": "dst_file", "type": "Str", "default": DEMO_DIR + r"\目标文件.txt",
+             "describe": "目标文件路径（含文件名）"},
+        ],
+        "nodes": [
+            {
+                "atom": "File.file_read", "alias": "读取源文件",
+                "out": {"read_file_content": "file_text"},
+                "inputs": {
+                    "file_path": "$p:src_file",
+                    "read_type": "all",
+                    "encode_type": "default",
+                },
+            },
+            {
+                "atom": "File.file_write", "alias": "写出目标文件",
+                "out": {"write_file_path": "out_path"},
+                "inputs": {
+                    "file_path": "$p:dst_file",
+                    "msg": "$file_text",
+                    "file_option": "create",
+                    "write_type": "overwrite",
+                    "encode_type": "utf-8",
+                },
+            },
+        ],
+    },
+    # 第三个固定流程：网页元素点击（含元素槽位，元素由生成器从 c_element 自动取真实引用）
+    "web_click_element": {
+        "name": "网页元素点击小流程",
+        "nl_examples": ["打开京东点一下商品", "在网页上点某个元素", "web 点击流程"],
+        "params": [
+            {"name": "url", "type": "Str", "default": "https://www.jd.com/",
+             "describe": "要打开的网页地址"},
+        ],
+        "nodes": [
+            {
+                "atom": "BrowserSoftware.browser_open", "alias": "打开浏览器",
+                "out": {"web_open": "web"},
+                "inputs": {
+                    "url": "$p:url",
+                    "browser_type": "chrome",
+                    "timeout": 20,
+                    "timeout_handle_type": "execError",
+                    "wait_load_success": True,
+                    "open_with_incognito": False,
+                },
+            },
+            {
+                "atom": "BrowserElement.click", "alias": "点击元素",
+                "out": {},
+                "inputs": {
+                    "browser_obj": "$web",
+                    "element_timeout": 10,
+                    "button_type": "click",
+                    "simulate_flag": False,
+                    "scroll_into_center": True,
+                },
+                # 元素槽位：web 元素由生成器从 c_element 取（目标 robot 名下）
+                "elements": {"element_data": "web"},
+            },
+            {
+                "atom": "BrowserSoftware.browser_close", "alias": "关闭浏览器",
+                "out": {},
+                "inputs": {"browser_obj": "$web"},
+            },
+        ],
+    },
+    # 扩展点：新增固定流程只需在此加一个模板，生成器会自动按真实 schema 校验。
+}
+
+
+_PATH_RX = re.compile(r"[A-Za-z]:[\\/][^\s\"'“”‘’，。；、]*")
+_NAMED_RX = re.compile(r"[\w\u4e00-\u9fa5\-_.()（）]{2,80}\.(?:pdf|docx?|xlsx?|csv|txt)\b", re.I)
+_EXT_WORD = ((".pdf", " pdf "), (".docx", " docx "), (".doc", " doc "),
+             (".xlsx", " excel "), (".xls", " excel "), (".csv", " csv "),
+             (".txt", " txt "))
+
+
+def _strip_paths(s):
+    """把路径/文件名从话里抹掉，只留扩展名当「文件类型」线索。
+
+    为什么必须抹：`把 F:\\…\\星辰开源\\demo\\20260914报废_已转正.pdf 的第1到2页存到 …`
+    这句话里路径贡献了十几个 token，把「第1到2页」这个真正的意图淹掉了，
+    结果「抽取指定页」和「PDF合并」打平 0.50 → 被判「拿不准」。
+    抹掉后扩展名还留着（`.pdf` → `pdf`），所以「PDF vs Word」这类区分不受影响。
+    """
+    def rep(m):
+        p = m.group(0).lower()
+        for ext, word in _EXT_WORD:
+            if p.endswith(ext):
+                return word
+        return " "
+
+    s = _PATH_RX.sub(rep, s or "")
+    return _NAMED_RX.sub(rep, s)
+
+
+# 页码话术：`第1到2页` / `前3页` / `1-2页`
+_PAGE_HINT = re.compile(r"第?\s*\d+\s*页?\s*[-~～至到]\s*\d+\s*页|前\s*\d+\s*页|第\s*\d+\s*页")
+
+# 批量话术。**故意不含「文件夹」「整个文件夹」**——「把这个文件夹里的PDF合并成一个」
+# 也是文件夹，但它是单次操作；只有「都/全部/每个/批量」才是真的要对每个文件做一遍。
+_BATCH_HINT = re.compile(r"都|全部|所有|批量|每个|逐个|遍历|每一个")
+
+
+def _spec_has_loop(spec):
+    """规格里有没有循环块（决定它能不能真的处理「一批」文件）。"""
+    for n in spec.get("nodes") or []:
+        atom = (n.get("atom") or "").lower()
+        if any(k in atom for k in ("for", "loop", "while", "foreach", "iterate")):
+            return True
+    return False
+
+
+def _nl_tokens(s):
+    """把一句中文/英文混排的话切成可比较的 token。
+
+    - ASCII 词：`word` / `pdf` / `excel`（小写）
+    - 中文：取 2 字滑窗（"表格提取" → 表格/格提/提取），单字串保留单字
+
+    不用分词库（迁移到新环境少一个依赖），2-gram 对这种短指令足够。
+    """
+    s = (s or "").lower()
+    toks = set(re.findall(r"[a-z0-9]+", s))
+    for run in re.findall(r"[\u4e00-\u9fa5]+", s):
+        if len(run) == 1:
+            toks.add(run)
+        for i in range(len(run) - 1):
+            toks.add(run[i:i + 2])
+    return toks
+
+
+def _norm_nl(s):
+    """归一化：小写 + 去掉空格与标点，只留可比较的字符。"""
+    return re.sub(r"[\s\-_，。、,.;；:：!！?？\"'（）()\[\]【】/\\]+", "", (s or "").lower())
+
+
+def _kw_score(nl_norm, keywords):
+    """关键词命中分：命中最长的那个关键词，2 字=0.67、3 字及以上=1.0。
+
+    中文短指令用 token 覆盖率算很不稳（「只保留第1到2页」和「合并PDF」会打平），
+    所以规格里显式写 `keywords`，做**子串命中**——可预测、可解释、不依赖分词库。
+    """
+    best = 0.0
+    for kw in keywords or []:
+        k = _norm_nl(kw)
+        if k and k in nl_norm:
+            best = max(best, min(1.0, len(k) / 3.0))
+    return best
+
+
+def match_spec_file(nl, spec_dir=None, min_score=0.5):
+    """在 `flows/*.json` 里按 `nl_examples` + `keywords` 找最匹配的规格。
+
+    返回 `(path, score, 命中说明)`；没把握时返回 `(None, 0, 原因)`。
+
+    为什么需要它：`intent_match()` 只有 3 个内置模板，`flows/` 里的固定流程
+    （Word转PDF / PDF合并 / PDF表格转Excel …）用自然语言根本命中不了，
+    只能靠人记 `--spec` 路径。这个函数把「已有流程」也变成可被自然语言命中的资产。
+
+    判据：`score = max(示例token覆盖率, 关键词命中分)`，取最高；
+    并要求**领先第二名 0.12 以上**，否则认为拿不准（宁可回退模板也不猜错流程）。
+
+    两个细节（2026-10-30 加）：
+    - **先抹掉路径再算分**（`_strip_paths`）：否则长路径的 token 会淹没真正的意图词；
+    - **话里带页码时给「有 page_range 参数」的规格加分**：这是参数层面的硬证据，
+      比词面更像「用户就是要抽页」。
+    """
+    spec_dir = spec_dir or os.path.join(HERE, "flows")
+    if not os.path.isdir(spec_dir):
+        return None, 0.0, f"规格目录不存在：{spec_dir}"
+    nl_clean = _strip_paths(nl)
+    nl_tok = _nl_tokens(nl_clean)
+    nl_norm = _norm_nl(nl_clean)
+    has_page = bool(_PAGE_HINT.search(nl or ""))
+    has_batch = bool(_BATCH_HINT.search(nl or ""))
+    if not nl_tok:
+        return None, 0.0, "自然语言为空"
+
+    scored = []
+    for name in sorted(os.listdir(spec_dir)):
+        if not name.endswith(".json") or name.startswith("_"):
+            continue
+        path = os.path.join(spec_dir, name)
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                spec = json.load(f)
+        except Exception:
+            continue
+        examples = list(spec.get("nl_examples") or []) + [spec.get("name") or ""]
+        best, best_ex = 0.0, ""
+        for ex in examples:
+            ex_tok = _nl_tokens(ex)
+            if not ex_tok:
+                continue
+            score = len(nl_tok & ex_tok) / len(ex_tok)
+            if score > best:
+                best, best_ex = score, ex
+        kw = _kw_score(nl_norm, spec.get("keywords"))
+        if kw > best:
+            best, best_ex = kw, "关键词"
+        if has_page and any((p.get("name") or "") == "page_range" for p in spec.get("params") or []):
+            best = min(1.0, best + 0.25)
+            best_ex = best_ex or "页码话术"
+        if has_batch:
+            # 用户说了「都/全部/每个」：只有带循环的流程才真能做到。
+            # 单文件流程不是「差一点」，是**做不到**，所以降权而不是放着不管。
+            if _spec_has_loop(spec):
+                best = min(1.0, best + 0.2)
+                best_ex = best_ex or "批量话术"
+            else:
+                best = round(best * 0.6, 4)
+        if best > 0:
+            scored.append((best, path, best_ex))
+
+    if not scored:
+        return None, 0.0, "没有任何规格的例子/关键词能匹配"
+    scored.sort(reverse=True)
+    top = scored[0]
+    second = scored[1][0] if len(scored) > 1 else 0.0
+    if top[0] < min_score:
+        return None, top[0], f"最高分 {top[0]:.2f} 低于阈值 {min_score}（最像的是 {os.path.basename(top[1])}）"
+    if top[0] - second < 0.12:
+        return None, top[0], (f"前两名太接近：{os.path.basename(top[1])} {top[0]:.2f} vs "
+                             f"{os.path.basename(scored[1][1])} {second:.2f}")
+    how = "命中关键词" if top[2] == "关键词" else f"命中示例「{top[2]}」"
+    return top[1], top[0], how
+
+
+def spec_catalog(spec_dir=None):
+    """列出所有可用规格：`[(文件名, 流程名, 一句示例)]`。给「没听懂」时提示用户用。"""
+    spec_dir = spec_dir or os.path.join(HERE, "flows")
+    out = []
+    if not os.path.isdir(spec_dir):
+        return out
+    for name in sorted(os.listdir(spec_dir)):
+        if not name.endswith(".json") or name.startswith("_"):
+            continue
+        try:
+            with open(os.path.join(spec_dir, name), "r", encoding="utf-8") as f:
+                spec = json.load(f)
+        except Exception:
+            continue
+        exs = spec.get("nl_examples") or []
+        out.append((name, spec.get("name") or name, exs[0] if exs else ""))
+    return out
+
+
+def intent_match(nl):
+    """极简意图匹配：关键词 → 模板。可后续接 LLM（dispatch_poc 已有 LLM 解析骨架）。
+
+    注意优先级：Excel 关键词先判，否则「导出成新文件」会被「文件」抢走。
+
+    **匹配不上返回空串**（2026-10-30 改）：原来兜底返回 `excel_export`，
+    结果「帮我把这个 PDF 拆成两半」会静默跑成「Excel 订单导出」——错得还很像成功。
+    宁可明确说「没听懂，候选是这几条」，也不猜。
+    """
+    nl = (nl or "").lower()
+    if any(w in nl for w in ["excel", "表格", "订单", "导出", "导成", "拆分", "工作表", "sheet"]):
+        return "excel_export"
+    if any(w in nl for w in ["网页", "浏览器", "点击", "web", "点一下", "打开网站"]):
+        return "web_click_element"
+    if any(w in nl for w in ["文件", "转存", "编码", "txt", "文本"]):
+        return "text_file_copy"
+    return ""
+
+
+_WIN_DRIVE = re.compile(r"^[A-Za-z]:[\\/]")
+
+
+def norm_win_path(v):
+    """把「Windows 盘符路径」里的斜杠统一成正斜杠安全形态 `\\`。
+
+    背景：规格 JSON 是手写/AI 生成的高频出错点——写成 `F://a//b\\c` 这种混合形态后，
+    参数落库、`$p:` 拼接、Python 子流程全都拿到坏路径（坑 64）。这里统一收口：
+    只处理 `X:` 开头的绝对路径，URL（http://…）与 UNC（\\\\server\\share）原样放过。
+    """
+    if not isinstance(v, str) or not _WIN_DRIVE.match(v):
+        return v
+    return re.sub(r"[\\/]+", lambda m: "\\", v)
+
+
+def load_spec(path):
+    """加载「流程规格」JSON —— 这是 AI/LLM 的产出接口，也是模板的通用化形式。
+
+    格式（与 TEMPLATES 的单模板同构，最小可用）：
+      {
+        "name": "流程名",
+        "nl_examples": ["..."],
+        "nodes": [
+          {"atom": "Excel.open_excel", "alias": "打开源表",
+           "inputs": {"file_path": "C:\\\\订单.xlsx", "excel": "$src_excel"},
+           "out": {"open_excel_obj": "src_excel"}}
+        ]
+      }
+    规则：`inputs` 里以 $ 开头表示引用上游输出变量；`out` 把 schema 输出 key 映射成变量名。
+    """
+    with open(path, "r", encoding="utf-8") as f:
+        spec = json.load(f)
+    if not isinstance(spec, dict) or not isinstance(spec.get("nodes"), list) or not spec["nodes"]:
+        raise ValueError("规格文件格式不对：需要 {name, nodes:[{atom, inputs, out}]}")
+    for i, n in enumerate(spec["nodes"]):
+        if not isinstance(n, dict) or not n.get("atom"):
+            raise ValueError(f"规格第 {i} 个节点缺 atom 字段")
+        n.setdefault("alias", n["atom"])
+        n.setdefault("inputs", {})
+        n.setdefault("out", {})
+        # 节点输入里的绝对路径同样收口（坑 64）
+        for k, v in list(n["inputs"].items()):
+            if isinstance(v, str):
+                n["inputs"][k] = norm_win_path(v)
+            elif isinstance(v, list):
+                n["inputs"][k] = [norm_win_path(x) if isinstance(x, str) else x for x in v]
+    spec.setdefault("name", os.path.basename(path))
+    spec.setdefault("nl_examples", [])
+    spec.setdefault("params", [])
+    for i, p in enumerate(spec["params"]):
+        if not isinstance(p, dict) or not p.get("name"):
+            raise ValueError(f"params 第 {i} 项缺 name 字段")
+        p.setdefault("type", "Str")
+        p.setdefault("default", "")
+        p.setdefault("describe", "")
+        p["default"] = norm_win_path(p["default"])
+    return spec
+
+
+# ----------------------------- 构建节点树 -----------------------------
+def _coerce_literals(value_list, p):
+    """把 Bool/Int/Float 的「字面量」改成 python 类型（坑 69）。
+
+    背景：引擎 `params.py::_param_to_eval` 在 `need_eval=False` 时用 `f"{data}"`
+    拼字符串，布尔/数字因此变成 **字符串**（`False` → `"False"`），再被 repr 成
+    `'False'` —— 传进原子就是「非空字符串」= 真值：
+      - `visible_flag=False` → Word 弹出一个可见的空白文档（用户看到「空白 Word」）
+      - `bold_flag=False` → 整段加粗
+      - `underline_flag=0` → 整段下划线
+    改成 `{"type":"python","value":"False"}` 后 `need_eval=True`，编译出来是裸
+    `False`，原子拿到的才是真 bool。
+    """
+    t = (p.get("types") or "").strip()
+    # 只放过「本来就是字符串」的参数；Bool / Int / Float / 数值型枚举（如 UnderLineStyle 的 0/1）
+    # 都要转成 python 类型，否则会被 f-string 变成字符串（"0" 也是真值 → 整段加下划线）。
+    if t in ("", "Str", "Any"):
+        return value_list
+    out = []
+    for v in value_list:
+        if isinstance(v, dict) and v.get("type") == "other" and isinstance(v.get("value"), (bool, int, float)):
+            out.append({"type": "python", "value": repr(v["value"])})
+        else:
+            out.append(v)
+    return out
+
+
+def _json_refs(obj, var_names, param_names=None):
+    """把 `$json:` 里的 `"$var:x"` / `"$p:x"` 换成引擎能求值的 special 结构。
+
+    背景（2026-10-30）：`Script.module` 的 `module_param` 只能整块以 JSON 字符串传
+    （`need_parse="json_str"`），里面每个 `varValue` 原本只能是**字面量**。于是
+    「循环里把当前文件传给子流程」做不到——批量处理卡在这里。
+
+    引擎侧其实支持：`{"rpa":"special","value":[{"type":"var","value":"item"}]}` 会被
+    `ComplexParamParser` 编译成表达式 `item`，在运行时从 `main` 帧的局部变量求值
+    （读 `astronverse/workflowlib/params.py::_get_auto_context` 实证）。所以这里
+    只做一层语法糖转换，让规格里能直接写 `"$var:item"`。
+    """
+    if isinstance(obj, dict):
+        return {k: _json_refs(v, var_names, param_names) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_json_refs(v, var_names, param_names) for v in obj]
+    if isinstance(obj, str):
+        if obj.startswith("$var:"):
+            name = obj[5:]
+            if name not in var_names:
+                raise ValueError(f"module_param 里的 $var:{name} 未在任何上游节点 output 中定义")
+            return {"rpa": "special", "value": [{"type": "var", "value": name}]}
+        if obj.startswith("$p:"):
+            name = obj[3:]
+            if param_names is not None and name not in param_names:
+                raise ValueError(f"module_param 里的 $p:{name} 未在规格的 params 中声明")
+            return {"rpa": "special", "value": [{"type": "p_var", "value": name}]}
+    return obj
+
+
+def build_process_content(template, atom_dict, elements=None, robot_id=DEFAULT_ROBOT_ID, strict=True):
+    """把模板/规格构建成落库用的扁平节点数组。
+
+    elements: 传入 c_element 元素库（load_elements 结果）时，节点里声明的「元素槽位」
+              （spec["elements"] = {参数key: web|uia|cv}）会自动填真实元素引用；
+              否则元素槽位会报错（因为占位元素无法运行）。
+    strict:   True = 只用目标 robot 名下的元素（推荐，跨 robot 引用运行时可能解析不到）。
+
+    规格可选 `params` 段（流程参数，落 c_param）：
+        "params": [{"name":"src_file","type":"Str","default":"D:\\x.xlsx","describe":"源文件"}]
+    节点里用 `$p:src_file` 引用 → `{"type":"p_var","value":"src_file"}`。
+    """
+    param_names = {p.get("name") for p in (template.get("params") or []) if p.get("name")}
+    var_names = {}          # schema 输出 key 的变量名 → 用于 $ 解析（这里用变量名本身）
+    var_defined = set()     # 所有已定义的变量名
+    nodes = []
+    ts = int(time.time() * 1000)
+
+    samples = {}
+    if elements:
+        samples = pick_samples(elements, robot_id=robot_id, strict=strict)
+        if not strict and not samples:
+            samples = pick_samples(elements, robot_id=robot_id, strict=False)
+
+    for i, spec in enumerate(template["nodes"]):
+        atom_key = spec["atom"]
+        if atom_key not in atom_dict:
+            raise KeyError(f"第 {i + 1} 个节点的原子 {atom_key} 不在 c_atom_meta_new 中（可能版本/名称变了）")
+        atom = atom_dict[atom_key]
+        schema_ins = {p.get("key"): p for p in (atom.get("inputList") or []) if isinstance(p, dict)}
+        schema_outs = [p.get("key") for p in (atom.get("outputList") or []) if isinstance(p, dict)]
+
+        node_id = f"bh{ts}{i}"
+
+        # 输入：元素槽位 > 模板值 > schema 默认值
+        input_list = []
+        warnings = []
+        elem_slots = spec.get("elements") or {}
+        for pkey, p in schema_ins.items():
+            if pkey in elem_slots:
+                kind = elem_slots[pkey]
+                sample = samples.get(kind)
+                if not sample:
+                    raise KeyError(
+                        f"第 {i + 1} 个节点 {atom_key}.{pkey} 需要{KIND_CN.get(kind, kind)}，"
+                        f"但目标 robot {robot_id} 的元素库里没有（先在设计器录制）")
+                input_list.append({"key": pkey, "value": [{
+                    "type": "element", "value": sample["element_name"], "data": sample["element_id"]}]})
+            elif pkey in spec["inputs"]:
+                raw_in = spec["inputs"][pkey]
+                if isinstance(raw_in, str) and raw_in.startswith("$json:"):
+                    # 复杂参数：原样传 JSON 字符串，并标 need_parse=json_str
+                    # 引擎 params.py 会 json.loads 后再包 complex_param_parser()，
+                    # 这是 Script.module 的 module_param 唯一能用的形式（传 "" 会变成 [None]）。
+                    # 里面允许写 "$var:item" / "$p:out_dir" 引用变量（见 _json_refs）。
+                    try:
+                        payload = json.loads(raw_in[6:])
+                    except Exception as e:
+                        raise ValueError(f"{atom_key}.{pkey} 的 $json: 不是合法 JSON：{e}")
+                    payload = _json_refs(payload, var_defined, param_names)
+                    input_list.append({"key": pkey,
+                                       "value": json.dumps(payload, ensure_ascii=False),
+                                       "need_parse": "json_str"})
+                else:
+                    input_list.append({"key": pkey,
+                                       "value": resolve_input(raw_in, var_defined, param_names)})
+            elif p.get("required"):
+                dv = _default_for(p)
+                input_list.append({"key": pkey, "value": mk_val("other", dv)})
+                warnings.append(f"{atom_key}.{pkey}(required) 模板未给，用默认值 {dv!r}")
+            else:
+                # 可选参数也填 schema 真实默认值（不能填 ""：Bool/枚举会被运行时错误强转）
+                input_list.append({"key": pkey, "value": mk_val("other", _default_for(p))})
+
+        # 布尔/数字字面量统一转 python 类型（见 _coerce_literals，坑 69）
+        for it in input_list:
+            if isinstance(it.get("value"), list):
+                it["value"] = _coerce_literals(it["value"], schema_ins.get(it["key"]) or {})
+
+        # 输出：按 schema output 的 key 分配变量名（模板指定则用模板名）
+        output_list = []
+        for okey in schema_outs:
+            vname = spec["out"].get(okey)
+            if vname is None:
+                vname = f"{okey}_{node_id[-4:]}"
+            var_defined.add(vname)
+            output_list.append({"key": okey, "value": mk_val("var", vname)})
+
+        node = {
+            "key": atom_key,
+            "version": atom.get("version", "1.0.1"),
+            "id": node_id,
+            "alias": spec.get("alias", atom.get("title", atom_key)),
+            "inputList": input_list,
+            "outputList": output_list,
+            "advanced": [
+                {"key": "__delay_before__", "value": mk_val("other", 0)},
+                {"key": "__delay_after__", "value": mk_val("other", 0)},
+            ],
+            "exception": [
+                # `on_error: "skip"` → 编译成 try/except 包裹，出错继续往下走（`_display_with_skip`）。
+                # 典型用法：先删同名旧文件，文件不存在就跳过（坑 68）。
+                {"key": "__skip_err__", "value": mk_val("other", spec.get("on_error") or "exit")},
+                {"key": "__retry_time__", "value": mk_val("other", 0)},
+                {"key": "__retry_interval__", "value": mk_val("other", 0)},
+            ],
+        }
+        if warnings:
+            node["_warnings"] = warnings
+        nodes.append(node)
+
+    return nodes
+
+
+def _default_for(p):
+    """按 schema 给安全默认值。
+
+    优先级：schema 的 default > options 首个 value > types 兜底 > 参数名启发。
+    注意：以前把可选参数一律写成 ""，会让 Bool 参数（simulate_flag/scroll_into_center）
+    变成空串、运行时被错误强转 —— 这里必须用真实 schema 默认值。
+    """
+    if p.get("default") not in (None, ""):
+        return p["default"]
+    if p.get("options"):
+        for o in p["options"]:
+            if isinstance(o, dict) and "value" in o:
+                return o["value"]
+            if not isinstance(o, dict):
+                return o
+    t = p.get("types")
+    if t == "Bool":
+        return False
+    if t == "Int":
+        return 0
+    if t == "Float":
+        return 0.0
+    # 兜底按名字
+    name = (p.get("key") or "").lower()
+    if "range" in name:
+        return "A1:Z1000"
+    return ""
+
+
+def is_element_pick(p):
+    """元素拾取参数（必须传真实 c_element）：formType.type == 'PICK'。"""
+    ft = p.get("formType")
+    return isinstance(ft, dict) and ft.get("type") == "PICK"
+
+
+# ----------------------------- 校验 -----------------------------
+def _is_reader(atom_key):
+    """判断原子是否「只读」——这类原子的 file_path 必须事先存在。
+
+    用**词元**判定而不是前缀：`File.file_read` 的词元是 [file, read]，
+    并不以 `read_` 开头，前缀法会漏判（实测踩过）。
+    """
+    tail = str(atom_key).split(".", 1)[-1].lower()
+    tokens = set(tail.split("_"))
+    if tokens & {"create", "save", "write", "append", "export"}:
+        return False
+    return bool(tokens & {"open", "read", "load", "import"})
+
+
+def _looks_abs(p):
+    r"""绝对路径判定（盘符 `X:\`、UNC `\\host`、`/` 开头）。相对路径不检查，避免误报。"""
+    if not isinstance(p, str) or not p.strip():
+        return False
+    return bool(re.match(r"^[A-Za-z]:[\\/]", p) or p.startswith("\\\\") or p.startswith("/"))
+
+
+def validate(process_content, atom_dict, elements=None, robot_id=None, params=None):
+    """校验节点树。传入 elements 时，element 引用会被真实核对（存在性 + robot 归属）。
+
+    含**枚举值合法性检查**：参数 schema 有 options 时，字面量值必须在 options 里。
+    （踩过：`Excel.read_excel.read_range` 是枚举 cell/row/column/area/all，
+      曾误填 "A1:Z1000" → 运行时必炸，生成阶段就该拦住。）
+
+    含**读取型路径存在性检查**：`open_*/read_*/load_*/import_*` 这类原子传绝对路径时，
+    文件必须真实存在，否则流程第一步就抛「文件不存在，请检查路径信息！」。
+    （踩过：模板路径写成占位 `C:\订单.xlsx`，schema 完全合法但跑不起来。）
+
+    params: 已声明的流程参数名集合（校验 p_var 引用是否合法）。
+    """
+    errors, warnings = [], []
+    seen_ids = set()
+    # 先收集「本流程会创建/写入的路径」，这些路径后面不存在是正常的
+    produced = set()
+    for node in process_content:
+        key = node.get("key") or ""
+        if not _is_reader(key):
+            for it in node.get("inputList") or []:
+                if it.get("key") in ("file_path", "path") or str(it.get("key", "")).endswith("file_path"):
+                    for v in it.get("value") or []:
+                        if isinstance(v, dict) and isinstance(v.get("value"), str):
+                            produced.add(v["value"].replace("/", "\\").lower())
+    for node in process_content:
+        nid = node.get("id")
+        if nid in seen_ids:
+            errors.append(f"重复节点 id: {nid}")
+        seen_ids.add(nid)
+        key = node.get("key")
+        if key not in atom_dict:
+            errors.append(f"节点 {nid} 的原子 {key} 不存在于 c_atom_meta_new")
+            continue
+        atom = atom_dict[key]
+        schema = {p.get("key"): p for p in (atom.get("inputList") or []) if isinstance(p, dict)}
+        schema_ins = set(schema)
+        provided = {it.get("key") for it in node.get("inputList") or []}
+        for missing in (schema_ins - provided):
+            errors.append(f"节点 {nid}({key}) 缺少输入参数 {missing}")
+        for extra in (provided - schema_ins):
+            warnings.append(f"节点 {nid}({key}) 含 schema 外的输入参数 {extra}")
+        for it in node.get("inputList") or []:
+            p = schema.get(it.get("key")) or {}
+            opts = [o.get("value") if isinstance(o, dict) else o for o in (p.get("options") or [])]
+            for v in it.get("value") or []:
+                if not isinstance(v, dict):
+                    continue
+                if v.get("type") == "other" and opts and v.get("value") not in ("", None):
+                    if v.get("value") not in opts:
+                        errors.append(
+                            f"节点 {nid}({key}).{it.get('key')} 取值 {v.get('value')!r} 不是合法枚举，"
+                            f"可选：{opts}")
+                # 读取型路径必须真实存在（生成期就拦，别让用户跑到第一步才看见报错）
+                pk = str(it.get("key") or "")
+                if (v.get("type") == "other" and isinstance(v.get("value"), str)
+                        and (pk == "file_path" or pk.endswith("file_path"))
+                        and _is_reader(key) and _looks_abs(v["value"])):
+                    p = v["value"]
+                    if p.replace("/", "\\").lower() not in produced and not os.path.exists(p):
+                        errors.append(
+                            f"节点 {nid}({key}).{pk} 指向的路径不存在：{p}（流程会在第一步报「文件不存在」）")
+                # p_var（流程参数）引用核对
+                if v.get("type") == "p_var":
+                    pn = v.get("value")
+                    if params is not None and pn not in params:
+                        errors.append(f"节点 {nid}({key}).{pk} 引用了未声明的流程参数 {pn}")
+                    elif params is None:
+                        warnings.append(f"节点 {nid}({key}).{pk} 引用了流程参数 {pn}，未核对是否已声明")
+                if v.get("type") != "element":
+                    continue
+                data = v.get("data")
+                if elements is None:
+                    warnings.append(f"节点 {nid} 引用了元素库（element），未核对 data={data}")
+                    continue
+                rec = elements.get(str(data))
+                if rec is None:
+                    errors.append(f"节点 {nid}({key}).{it.get('key')} 引用的元素 data={data} 不在 c_element 中")
+                elif robot_id and str(rec.get("robot_id")) != str(robot_id):
+                    warnings.append(
+                        f"节点 {nid}({key}).{it.get('key')} 引用的元素「{rec.get('element_name')}」"
+                        f"属于 robot {rec.get('robot_id')}，非目标 robot {robot_id}")
+
+    # 参数默认值里的路径也要真实存在（否则「不传参」跑起来同样第一步就报错）
+    if isinstance(params, dict):
+        used_by = {}
+        for node in process_content:
+            for it in node.get("inputList") or []:
+                for v in it.get("value") or []:
+                    if isinstance(v, dict) and v.get("type") == "p_var":
+                        used_by.setdefault(v.get("value"), set()).add(node.get("key"))
+        for pname, p in params.items():
+            dv = p.get("default")
+            if not isinstance(dv, str) or not _looks_abs(dv):
+                continue
+            readers = [a for a in used_by.get(pname, ()) if _is_reader(a)]
+            if readers and not os.path.exists(dv):
+                errors.append(
+                    f"流程参数 {pname} 的默认路径不存在：{dv}"
+                    f"（被 {readers[0]} 读取；不传参时流程会失败）")
+    return {"is_pass": len(errors) == 0, "errors": errors, "warnings": warnings}
+
+
+# ----------------------------- 单原子节点构建（覆盖测试用） -----------------------------
+def build_single_atom_node(atom_key, atom, element_refs=None):
+    """为单个原子生成一个节点（填默认值/元素），返回 (node, needs_element, warnings)。
+
+    element_refs: {参数key: {"value": 元素名, "data": element_id}}
+                  来自 c_element 的真实元素；未提供的拾取参数用占位符。
+    """
+    schema_ins = [p for p in (atom.get("inputList") or []) if isinstance(p, dict)]
+    schema_outs = [p for p in (atom.get("outputList") or []) if isinstance(p, dict)]
+    node_id = f"bh{int(time.time() * 1000)}{atom_key[:6]}"
+    input_list, needs_element, warnings = [], False, []
+
+    for p in schema_ins:
+        key = p.get("key")
+        if is_element_pick(p):
+            needs_element = True
+            ref = (element_refs or {}).get(key)
+            if ref:
+                # 真实流程实证格式：{"type":"element","value":元素名,"data":element_id}
+                val = {"type": "element", "value": ref.get("value", ""),
+                       "data": ref.get("data", "")}
+            else:
+                # 占位元素引用：真实 value/data 必须来自 c_element
+                val = {"type": "element", "value": "_NEED_REAL_ELEMENT_", "data": "_NEED_REAL_ID_"}
+            input_list.append({"key": key, "value": [val]})
+            if p.get("required") and not ref:
+                warnings.append(f"{atom_key}.{key} 是元素拾取(必填)，需真实 c_element 才能运行")
+            continue
+        # 非元素参数：一律填 schema 真实默认值（"" 会让 Bool/枚举被运行时错误强转）
+        input_list.append({"key": key, "value": mk_val("other", _default_for(p))})
+
+    output_list = [{"key": o.get("key"), "value": mk_val("var", f"{o.get('key')}_{node_id[-4:]}")}
+                   for o in schema_outs]
+    node = {
+        "key": atom_key,
+        "version": atom.get("version", "1.0.1"),
+        "id": node_id,
+        "alias": atom.get("title", atom_key),
+        "inputList": input_list,
+        "outputList": output_list,
+        "advanced": [
+            {"key": "__delay_before__", "value": mk_val("other", 0)},
+            {"key": "__delay_after__", "value": mk_val("other", 0)},
+        ],
+        "exception": [
+            {"key": "__skip_err__", "value": mk_val("other", "exit")},
+            {"key": "__retry_time__", "value": mk_val("other", 0)},
+            {"key": "__retry_interval__", "value": mk_val("other", 0)},
+        ],
+    }
+    return node, needs_element, warnings
+
+
+def run_coverage(offline=False):
+    """逐个原子可用性覆盖测试：358 原子 → 解析失败 / 可直接生成 / 需真实元素。"""
+    repaired = []
+    if offline and os.path.exists(CACHE_PATH):
+        with open(CACHE_PATH, "r", encoding="utf-8") as f:
+            parsed = json.load(f)
+        rows_total, parse_fail = len(parsed), []
+    else:
+        db = ServerDb()
+        try:
+            rows = db.sql_rows("SELECT atom_key, atom_content FROM c_atom_meta_new")
+        finally:
+            db.close()
+        rows_total, parse_fail, parsed = len(rows), [], {}
+        for r in rows:
+            if len(r) < 2:
+                parse_fail.append(r[0] if r else "?")
+                continue
+            raw = "\t".join(r[1:])  # 内容若含 tab，sql_rows 会切成多列，这里拼回
+            obj, was = _parse_atom(raw)
+            if obj is None:
+                parse_fail.append(r[0])
+                continue
+            parsed[r[0]] = obj
+            if was:
+                repaired.append(r[0])
+        os.makedirs(os.path.dirname(CACHE_PATH), exist_ok=True)
+        with open(CACHE_PATH, "w", encoding="utf-8") as f:
+            json.dump(parsed, f, ensure_ascii=False, indent=2)
+
+    ok, needs = [], []
+    for k, c in parsed.items():
+        _, ne, warns = build_single_atom_node(k, c)
+        rec = {"atom_key": k, "version": c.get("version"), "needs_element": ne,
+               "warnings": warns, "n_inputs": len(c.get("inputList") or []),
+               "n_outputs": len(c.get("outputList") or [])}
+        (needs if ne else ok).append(rec)
+
+    report = {
+        "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "total_rows": rows_total,
+        "parse_fail": parse_fail,
+        "parse_fail_count": len(parse_fail),
+        "parseable": len(parsed),
+        "ok_count": len(ok),
+        "needs_element_count": len(needs),
+        "repaired_on_read": repaired,
+        "repaired_on_read_count": len(repaired),
+        "ok": ok,
+        "needs_element": needs,
+    }
+    out = os.path.join(HERE, "docs", "atom_coverage_report.json")
+    with open(out, "w", encoding="utf-8") as f:
+        json.dump(report, f, ensure_ascii=False, indent=2)
+
+    print(f"原子总数(行):           {rows_total}")
+    print(f"解析失败/不可用:         {len(parse_fail)}  -> {parse_fail}")
+    print(f"可解析:                 {len(parsed)}")
+    print(f"  其中读时自动修复(双重转义): {len(repaired)}  -> {repaired}")
+    print(f"  ✅ 可直接生成(无元素依赖): {len(ok)}")
+    print(f"  🔗 需真实元素(拾取必填):   {len(needs)}")
+    print(f"报告已写出:             {out}")
+    return report
+
+
+# ----------------------------- 元素库（真实 c_element） -----------------------------
+# 实证结论（2026-10-30）：
+#   1) 真实流程里元素参数写作 {"type":"element","value":元素名,"data":element_id}，
+#      178/178 个 element.data 都能在 c_element.element_id 命中。
+#   2) c_element.element_data 顶层 type 只有三种：web(427) / uia(420) / cv(93)。
+#   3) 同一 element_id 会按 robot_id 复制多行，生成流程时应选目标 robot 的那份。
+#   4) 拾取参数用 types 决定元素种类：WebPick→web、WinPick→uia、IMGPick→cv。
+PICK_TYPES_TO_KIND = {"WebPick": "web", "WinPick": "uia", "IMGPick": "cv"}
+KIND_CN = {"web": "网页元素", "uia": "桌面元素", "cv": "图像元素", "batch": "批量抓取结构"}
+
+
+def pick_element_kind(p):
+    """由拾取参数推断所需元素种类。返回 web/uia/cv/batch/None。"""
+    ft = p.get("formType") or {}
+    use = str((ft.get("params") or {}).get("use") or "")
+    if use == "BATCH":
+        return "batch"           # 批量抓取：要的是多列结构，不是单个元素
+    kind = PICK_TYPES_TO_KIND.get(str(p.get("types")))
+    if kind:
+        return kind
+    if use == "WINDOW":
+        return "uia"
+    if use == "CV":
+        return "cv"
+    return None
+
+
+def load_elements(offline=False, robot_id=None):
+    """拉 c_element 真实元素库 → {element_id: 精简记录}（带 web/uia/cv 分类）。
+
+    **元素核对是锦上添花，不该阻塞主链路**：SQL 通道没开（迁移后的默认状态）时，
+    有本地缓存就用缓存，没有就返回空字典 —— 后续 `validate(elements=None)` 会自动
+    跳过元素归属检查。
+    """
+    if offline and os.path.exists(ELEMENT_CACHE):
+        with open(ELEMENT_CACHE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    if not cfg.db_conf():
+        if os.path.exists(ELEMENT_CACHE):
+            with open(ELEMENT_CACHE, "r", encoding="utf-8") as f:
+                cache = json.load(f)
+            print(f"      · 元素库用本地缓存（{len(cache)} 个，db.enabled=false 不连库）")
+            return cache
+        print("      · 元素库跳过（db.enabled=false 且无缓存；不影响结构校验）")
+        return {}
+    db = ServerDb()
+    try:
+        rows = db.sql_rows("SELECT element_id, element_name, robot_id, element_data FROM c_element")
+    finally:
+        db.close()
+
+    out = {}
+    for r in rows:
+        if len(r) < 4:
+            continue
+        raw = "\t".join(r[3:])   # element_data 若含 tab，sql_rows 会切列，这里拼回
+        obj = None
+        for attempt in (raw, raw.replace("\\\\", "\\")):
+            try:
+                obj = json.loads(attempt)
+                break
+            except Exception:
+                continue
+        if not isinstance(obj, dict):
+            continue
+        # path 结构不统一：web/uia 是 dict，个别（批量/图像）是 list，统一兜底
+        path = obj.get("path")
+        if not isinstance(path, dict):
+            path = {}
+        xp = path.get("xpath")
+        xp = unwrap_special(xp) if isinstance(xp, dict) else (xp if isinstance(xp, str) else "")
+        eid = r[0]
+        rec = {
+            "element_id": eid,
+            "element_name": r[1],
+            "robot_id": r[2],
+            "kind": str(obj.get("type")),
+            "app": obj.get("app"),
+            "check_type": path.get("checkType"),
+            "tag": path.get("tag"),
+            "xpath": (xp or "")[:200],
+        }
+        # 同一 element_id 多行（按 robot 复制）：优先保留目标 robot 的那份
+        old = out.get(eid)
+        if old is None or (robot_id and str(rec["robot_id"]) == str(robot_id)
+                           and str(old.get("robot_id")) != str(robot_id)):
+            out[eid] = rec
+
+    os.makedirs(os.path.dirname(ELEMENT_CACHE), exist_ok=True)
+    with open(ELEMENT_CACHE, "w", encoding="utf-8") as f:
+        json.dump(out, f, ensure_ascii=False, indent=2)
+    return out
+
+
+def pick_samples(elements, robot_id=None, strict=False):
+    """每种元素种类挑一个「最可用」的真实元素作样本。
+
+    strict=True 时只认目标 robot 名下的元素（因为 c_element 是按 robot 复制的，
+    跨 robot 引用在运行时可能解析不到）。
+    """
+    best = {}
+    for rec in elements.values():
+        kind = rec.get("kind")
+        if kind not in ("web", "uia", "cv"):
+            continue
+        is_own = bool(robot_id) and str(rec.get("robot_id")) == str(robot_id)
+        if strict and not is_own:
+            continue
+        score = 4 if is_own else 0
+        if rec.get("xpath"):
+            score += 2
+        if rec.get("check_type"):
+            score += 1
+        if kind not in best or score > best[kind][0]:
+            best[kind] = (score, rec)
+    return {k: v[1] for k, v in best.items()}
+
+
+def _check_pick_atoms(atoms, elements, samples, robot_id):
+    """用给定元素样本逐原子生成节点并校验，返回 (results, ok_cnt)。"""
+    results, ok_cnt = [], 0
+    for k, atom in atoms.items():
+        picks = [p for p in (atom.get("inputList") or [])
+                 if isinstance(p, dict) and is_element_pick(p)]
+        if not picks:
+            continue
+
+        refs, kinds, notes = {}, {}, []
+        for p in picks:
+            pk = p.get("key")
+            kind = pick_element_kind(p)
+            kinds[pk] = kind
+            if kind == "batch":
+                notes.append(f"{pk} 是批量抓取(BATCH)：需要多列结构，单元素不适用")
+                kind = "web"   # 退一步用 web 元素占位，仅证明节点可生成
+            sample = samples.get(kind or "")
+            if sample:
+                refs[pk] = {"value": sample["element_name"], "data": sample["element_id"]}
+                if robot_id and str(sample.get("robot_id")) != str(robot_id):
+                    notes.append(f"{pk} 借用 robot {sample['robot_id']} 的元素（非目标 robot）")
+            else:
+                notes.append(f"{pk} 需要的 {KIND_CN.get(kind or '', kind)} 在可选元素中不存在")
+
+        node, ne, warns = build_single_atom_node(k, atom, refs)
+        res = validate([node], atoms)
+        # 硬校验：所有拾取参数都有引用，且 element_id 真实存在于 c_element
+        missing_ref = [p.get("key") for p in picks if p.get("key") not in refs]
+        bad_id = [r["data"] for r in refs.values() if r.get("data") not in elements]
+        is_pass = res["is_pass"] and not missing_ref and not bad_id
+        if is_pass:
+            ok_cnt += 1
+        results.append({
+            "atom_key": k,
+            "title": atom.get("title"),
+            "pick_params": kinds,
+            "elements": refs,
+            "is_pass": is_pass,
+            "missing_ref": missing_ref,
+            "bad_element_id": bad_id,
+            "errors": res["errors"],
+            "warnings": warns + notes,
+        })
+    return results, ok_cnt
+
+
+def run_element_check(offline=False, robot_id=DEFAULT_ROBOT_ID):
+    """66 个拾取原子 → 用真实 c_element 元素生成节点并校验，回答「带元素的节点能否生成」。
+
+    双档输出：
+      - 通用档：元素可跨 robot 借用 → 证明「节点结构 + 元素引用」完全可生成；
+      - 严格档：只允许目标 robot 名下的元素 → 反映该 robot 现在真能跑多少。
+    """
+    atoms = load_atom_dict(offline=offline)
+    elements = load_elements(offline=offline, robot_id=robot_id)
+
+    kinds_count = {}
+    for rec in elements.values():
+        kinds_count[rec.get("kind")] = kinds_count.get(rec.get("kind"), 0) + 1
+
+    own = [r for r in elements.values() if str(r.get("robot_id")) == str(robot_id)]
+    own_kinds = {}
+    for r in own:
+        own_kinds[r.get("kind")] = own_kinds.get(r.get("kind"), 0) + 1
+
+    samples = pick_samples(elements, robot_id=robot_id, strict=False)
+    strict_samples = pick_samples(elements, robot_id=robot_id, strict=True)
+
+    results, ok_cnt = _check_pick_atoms(atoms, elements, samples, robot_id)
+    strict_results, strict_ok = _check_pick_atoms(atoms, elements, strict_samples, robot_id)
+    strict_map = {r["atom_key"]: r for r in strict_results}
+    for r in results:
+        r["strict_ok"] = bool(strict_map.get(r["atom_key"], {}).get("is_pass"))
+
+    report = {
+        "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "robot_id": robot_id,
+        "element_total": len(elements),
+        "element_kinds": kinds_count,
+        "target_robot_elements": len(own),
+        "target_robot_kinds": own_kinds,
+        "samples": samples,
+        "strict_samples": strict_samples,
+        "pick_atoms": len(results),
+        "ok_count": ok_cnt,
+        "fail_count": len(results) - ok_cnt,
+        "strict_ok_count": strict_ok,
+        "strict_fail_count": len(strict_results) - strict_ok,
+        "ok": [r for r in results if r["is_pass"]],
+        "fail": [r for r in results if not r["is_pass"]],
+        "strict_fail": [r for r in strict_results if not r["is_pass"]],
+    }
+    out = os.path.join(HERE, "docs", "atom_element_report.json")
+    with open(out, "w", encoding="utf-8") as f:
+        json.dump(report, f, ensure_ascii=False, indent=2)
+
+    print(f"元素库去重后:           {len(elements)}   分类: {kinds_count}")
+    print(f"目标 robot {robot_id} 名下: {len(own)}   分类: {own_kinds or '无'}")
+    print("通用档样本（可跨 robot 借用）:")
+    for kind, s in samples.items():
+        print(f"  {KIND_CN.get(kind, kind):6s} {s['element_name']} "
+              f"(id={s['element_id']}, robot={s['robot_id']}, xpath={s['xpath'][:46]})")
+    print(f"\n拾取原子数: {len(results)}")
+    print(f"  ✅ 通用档 带真实元素可生成: {ok_cnt}")
+    print(f"  ❌ 通用档 不可生成:         {len(results) - ok_cnt}")
+    for r in report["fail"]:
+        print(f"     - {r['atom_key']}: {r['errors'] or r['warnings']}")
+    print(f"  ✅ 严格档（仅目标 robot 元素）可生成: {strict_ok}")
+    print(f"  ⚠️  严格档需先给目标 robot 建元素:    {len(strict_results) - strict_ok}")
+    print(f"报告已写出:             {out}")
+    return report
+
+
+# ----------------------------- 写库（走客户端同款接口） -----------------------------
+def write_to_rpa(process_content, robot_id, name):
+    """把节点树写进 .130：复用设计器客户端本地会话 + 客户端同款接口。
+
+    2026-10-30 实证纠正了两个早期错误假设：
+      1) 鉴权不是 `Authorization: Bearer`，而是客户端本地会话 cookie
+         （`%APPDATA%/astron-rpa/.cookie.json` 里的 `SESSION`）；
+      2) 保存字段不是 `process_content`，而是 **`processJson`（JSON 字符串）**，
+         且流程必须先用 `/process/create` 建出来。
+    细节与完整流程见 `scripts/publish_flow.py`。
+    """
+    try:
+        from publish_flow import (load_session, create_process, save_process,
+                                  list_processes, read_process, ok)
+    except Exception as e:
+        return {"error": f"无法加载 publish_flow.py：{e}"}
+    try:
+        cookie = load_session()
+        pj = json.dumps(process_content, ensure_ascii=False)
+        existing = [p for p in list_processes(cookie, robot_id)
+                    if isinstance(p, dict) and p.get("processName") == name]
+        if existing:
+            pid = existing[0].get("processId")
+        else:
+            pid = create_process(cookie, robot_id, name)
+        save_process(cookie, robot_id, pid, pj)
+        back = read_process(cookie, robot_id, pid)
+        return {"robot_id": robot_id, "process_id": pid,
+                "saved_bytes": len(pj), "readback_bytes": len(back or ""),
+                "verified": back == pj}
+    except SystemExit as e:
+        return {"error": str(e)}
+    except Exception as e:
+        return {"error": f"{type(e).__name__}: {e}"}
+
+
+# ----------------------------- 入口 -----------------------------
+def main():
+    ap = argparse.ArgumentParser(description="星辰开源 · 路线 B 流程生成器")
+    ap.add_argument("--purpose", help="固定流程模板名（见 TEMPLATES）")
+    ap.add_argument("--nl", help="自然语言意图（会匹配模板）")
+    ap.add_argument("--spec", help="流程规格 JSON 路径（AI/LLM 产出接口，见 load_spec）")
+    ap.add_argument("--robot-id", type=int, default=DEFAULT_ROBOT_ID, help="写库目标 robot_id")
+    ap.add_argument("--offline", action="store_true", help="用缓存的原子字典，不连 .130")
+    ap.add_argument("--coverage", action="store_true", help="逐个原子可用性覆盖测试（不建流程）")
+    ap.add_argument("--elements", action="store_true",
+                    help="66 个元素拾取原子：用真实 c_element 元素生成节点并校验")
+    ap.add_argument("--write", action="store_true", help="尝试写库（需 RPA_SESSION_TOKEN，红线操作）")
+    args = ap.parse_args()
+
+    if args.coverage:
+        run_coverage(offline=args.offline)
+        return 0
+
+    if args.elements:
+        rep = run_element_check(offline=args.offline, robot_id=args.robot_id)
+        return 0 if rep["fail_count"] == 0 else 1
+
+    if args.spec:
+        try:
+            tpl = load_spec(args.spec)
+        except Exception as e:
+            ap.error(f"规格文件无法加载：{e}")
+        purpose = tpl["name"]
+    else:
+        purpose = args.purpose or intent_match(args.nl)
+        if purpose not in TEMPLATES:
+            ap.error(f"未知模板 {purpose}，可选：{list(TEMPLATES)}")
+        tpl = TEMPLATES[purpose]
+
+    print(f"[1/4] 加载原子字典（{'离线缓存' if args.offline else '.130 实时'}）...")
+    atom_dict = load_atom_dict(offline=args.offline)
+    print(f"      原子总数：{len(atom_dict)}")
+
+    # 模板声明了元素槽位时，才去拉元素库（按目标 robot 过滤）
+    elements = None
+    if any(n.get("elements") for n in tpl["nodes"]):
+        elements = load_elements(offline=args.offline, robot_id=args.robot_id)
+        own = sum(1 for r in elements.values() if str(r.get("robot_id")) == str(args.robot_id))
+        print(f"      元素库：{len(elements)}（目标 robot 名下 {own}）")
+
+    print(f"[2/4] 构建固定流程：{tpl['name']}（{len(tpl['nodes'])} 节点）")
+    try:
+        pc = build_process_content(tpl, atom_dict, elements=elements, robot_id=args.robot_id)
+    except KeyError as e:
+        print(f"      ❌ {e.args[0] if e.args else e}")
+        return 2
+
+    print("[3/4] 校验节点树...")
+    res = validate(pc, atom_dict, elements=elements, robot_id=args.robot_id,
+                   params={p["name"]: p for p in (tpl.get("params") or [])})
+    print(f"      IS_PASS: {'YES ✅' if res['is_pass'] else 'NO ❌'}")
+    for e in res["errors"]:
+        print(f"      错误: {e}")
+    for w in res["warnings"]:
+        print(f"      警告: {w}")
+
+    out = {
+        "purpose": purpose,
+        "name": tpl["name"],
+        "nl_examples": tpl["nl_examples"],
+        "robot_id": args.robot_id,
+        "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "process_content": pc,
+        "validation": res,
+    }
+    out_path = os.path.join(HERE, "docs", "generated_flow.json")
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(out, f, ensure_ascii=False, indent=2)
+    print(f"[4/4] 已写出 {out_path}")
+
+    if args.write:
+        print("=> --write：尝试落库（需会话 token）")
+        print("  ", write_to_rpa(pc, args.robot_id, tpl["name"]))
+    else:
+        print("=> 未指定 --write：仅生成+校验，未写库（红线保护）。")
+
+    return 0 if res["is_pass"] else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

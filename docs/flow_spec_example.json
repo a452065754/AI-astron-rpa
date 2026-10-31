@@ -1,0 +1,63 @@
+{
+  "name": "Excel订单表导出（规格版）",
+  "nl_examples": ["把订单表导成新文件", "导出这个表格"],
+  "_comment": "这是 AI/LLM 的产出接口示例：flow_generator.py --spec 本文件 即可构建+校验。inputs 里 $ 开头=引用上游输出变量；out 把 schema 输出 key 映射成变量名。",
+  "nodes": [
+    {
+      "atom": "Excel.open_excel",
+      "alias": "打开源表",
+      "inputs": {
+        "file_path": "C:\\订单.xlsx",
+        "default_application": "Excel",
+        "visible_flag": true,
+        "update_links": false
+      },
+      "out": { "open_excel_obj": "src_excel" }
+    },
+    {
+      "atom": "Excel.read_excel",
+      "alias": "读取数据",
+      "inputs": {
+        "excel": "$src_excel",
+        "sheet_name": "Sheet1",
+        "read_range": "A1:Z1000",
+        "start_col": 1,
+        "end_col": 26,
+        "cell": "A1",
+        "row": 1,
+        "column": 1,
+        "start_row": 1,
+        "end_row": 1000,
+        "read_display": true,
+        "trim_spaces": true,
+        "replace_none": true
+      },
+      "out": { "read_excel_contents": "sheet_data" }
+    },
+    {
+      "atom": "Excel.create_excel",
+      "alias": "新建结果表",
+      "inputs": {
+        "file_path": "C:\\",
+        "file_name": "导出结果.xlsx",
+        "default_application": "Excel",
+        "visible_flag": true,
+        "exist_handle_type": "overwrite"
+      },
+      "out": { "create_excel_obj": "dst_excel", "excel_path": "dst_path" }
+    },
+    {
+      "atom": "Excel.save_excel",
+      "alias": "保存结果",
+      "inputs": {
+        "excel": "$dst_excel",
+        "save_type": "save",
+        "file_path": "C:\\",
+        "file_name": "导出结果.xlsx",
+        "exist_handle_type": "overwrite",
+        "close_flag": true
+      },
+      "out": {}
+    }
+  ]
+}

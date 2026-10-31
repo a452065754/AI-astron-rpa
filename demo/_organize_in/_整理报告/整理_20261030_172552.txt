@@ -1,0 +1,23 @@
+文件夹整理报告
+生成时间：2026-10-30 17:25:52
+整理范围：F:\AI-Workbench\10-Projects\星辰开源\demo\_organize_in
+整理到：  F:\AI-Workbench\10-Projects\星辰开源\demo\_organize_in
+分类方式：ext
+模式：已实际移动
+扫描 7 个，处理 7 个，跳过 0 个
+
+== 分类统计 ==
+  图片：2 个
+  文档：2 个
+  表格：1 个
+  压缩包：1 个
+  其他：1 个
+
+== 明细 ==
+  [图片] a.jpg → F:\AI-Workbench\10-Projects\星辰开源\demo\_organize_in\图片
+  [图片] b.png → F:\AI-Workbench\10-Projects\星辰开源\demo\_organize_in\图片
+  [文档] c.pdf → F:\AI-Workbench\10-Projects\星辰开源\demo\_organize_in\文档
+  [文档] d.docx → F:\AI-Workbench\10-Projects\星辰开源\demo\_organize_in\文档
+  [表格] e.xlsx → F:\AI-Workbench\10-Projects\星辰开源\demo\_organize_in\表格
+  [压缩包] f.zip → F:\AI-Workbench\10-Projects\星辰开源\demo\_organize_in\压缩包
+  [其他] g.xyz → F:\AI-Workbench\10-Projects\星辰开源\demo\_organize_in\其他

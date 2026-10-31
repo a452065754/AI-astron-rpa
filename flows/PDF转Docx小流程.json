@@ -1,0 +1,167 @@
+{
+  "name": "PDF转Docx小流程",
+  "nl_examples": [
+    "把这个PDF转成Word",
+    "PDF 转 Docx",
+    "扫描件PDF转成可看的Word文档"
+  ],
+  "keywords": [
+    "pdf转docx",
+    "pdf转word",
+    "转成word",
+    "pdf转成word"
+  ],
+  "params": [
+    {
+      "name": "src_pdf",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\20260914报废_已转正.pdf",
+      "describe": "源 PDF 文件路径（演示默认用转正后的扫描件；原始件见 docs 说明）"
+    },
+    {
+      "name": "img_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\pdf_pages",
+      "describe": "PDF 页面图临时目录"
+    },
+    {
+      "name": "img_prefix",
+      "type": "Str",
+      "default": "page",
+      "describe": "页面图文件名前缀（产出 prefix_1.png、prefix_2.png…）"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo",
+      "describe": "输出目录"
+    },
+    {
+      "name": "out_name",
+      "type": "Str",
+      "default": "20260914报废",
+      "describe": "输出 Word 文件名（不带扩展名）"
+    },
+    {
+      "name": "scale",
+      "type": "Int",
+      "default": 24,
+      "describe": "页面图插入缩放比例（%，100=原始尺寸；A4纵向页+默认页边距建议 24）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "PDF.convert_pdf_to_img",
+      "alias": "PDF每页转成图片",
+      "out": {},
+      "inputs": {
+        "file_path": "$p:src_pdf",
+        "pwd": "",
+        "image_type": "png",
+        "select_range": "all",
+        "page_range": "",
+        "save_dir": "$p:img_dir",
+        "prefix": "$p:img_prefix",
+        "exist_handle_type": "overwrite"
+      }
+    },
+    {
+      "atom": "Docx.create_docx",
+      "alias": "新建Word文档",
+      "out": {
+        "doc_obj": "doc"
+      },
+      "inputs": {
+        "file_path": "$p:out_dir",
+        "file_name": "$p:out_name",
+        "default_application": "Default",
+        "visible_flag": false,
+        "exist_handle_type": "overwrite"
+      }
+    },
+    {
+      "atom": "Docx.insert_img",
+      "alias": "插入第1页",
+      "out": {},
+      "inputs": {
+        "doc": "$doc",
+        "img_from": "file",
+        "img_path": [
+          "$p:img_dir",
+          "/",
+          "$p:img_prefix",
+          "_1.png"
+        ],
+        "scale": "$p:scale",
+        "newline": true
+      }
+    },
+    {
+      "atom": "Docx.insert_sep",
+      "alias": "分页（第1页结束）",
+      "out": {},
+      "inputs": {
+        "doc": "$doc",
+        "sep_type": "page"
+      }
+    },
+    {
+      "atom": "Docx.insert_img",
+      "alias": "插入第2页",
+      "out": {},
+      "inputs": {
+        "doc": "$doc",
+        "img_from": "file",
+        "img_path": [
+          "$p:img_dir",
+          "/",
+          "$p:img_prefix",
+          "_2.png"
+        ],
+        "scale": "$p:scale",
+        "newline": true
+      }
+    },
+    {
+      "atom": "Docx.insert_sep",
+      "alias": "分页（第2页结束）",
+      "out": {},
+      "inputs": {
+        "doc": "$doc",
+        "sep_type": "page"
+      }
+    },
+    {
+      "atom": "Docx.insert_img",
+      "alias": "插入第3页",
+      "out": {},
+      "inputs": {
+        "doc": "$doc",
+        "img_from": "file",
+        "img_path": [
+          "$p:img_dir",
+          "/",
+          "$p:img_prefix",
+          "_3.png"
+        ],
+        "scale": "$p:scale",
+        "newline": true
+      }
+    },
+    {
+      "atom": "Docx.save_docx",
+      "alias": "保存并关闭Word",
+      "out": {
+        "save_file_path": "docx_path"
+      },
+      "inputs": {
+        "doc": "$doc",
+        "save_type": "save",
+        "file_path": "",
+        "file_name": "",
+        "exist_handle_type": "overwrite",
+        "close_flag": true
+      }
+    }
+  ]
+}

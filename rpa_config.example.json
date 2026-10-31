@@ -1,0 +1,28 @@
+{
+  "_说明": "复制本文件为 rpa_config.json 后按自己的环境填写。rpa_config.json 已在 .gitignore 中，不会入库。",
+  "gateway": {
+    "host": "192.168.76.130:32742",
+    "scheme": "http"
+  },
+  "openapi": {
+    "base": "http://192.168.76.130:32742/api/rpa-openapi",
+    "api_key": "<在平台「开放平台 / API 密钥」页生成>"
+  },
+  "client": {
+    "python": "",
+    "local_gateway_port": 13159
+  },
+  "db": {
+    "enabled": false,
+    "ssh_host": "192.168.76.130",
+    "ssh_user": "<ssh 用户名>",
+    "ssh_password": "<ssh 密码>",
+    "container": "rpa-opensource-mysql",
+    "user": "root",
+    "password": "<mysql 密码>",
+    "database": "rpa"
+  },
+  "defaults": {
+    "robot_id": "<默认机器人 id>"
+  }
+}

@@ -1,0 +1,1734 @@
+{
+  "generated_at": "2026-10-30 10:40:07",
+  "robot_id": 2065231113695461380,
+  "element_total": 259,
+  "element_kinds": {
+    "web": 145,
+    "cv": 22,
+    "uia": 92
+  },
+  "target_robot_elements": 12,
+  "target_robot_kinds": {
+    "web": 12
+  },
+  "samples": {
+    "web": {
+      "element_id": "1979487087267016704",
+      "element_name": "行元素_商品_1",
+      "robot_id": "2065231113695461380",
+      "kind": "web",
+      "app": "chrome",
+      "check_type": "visualization",
+      "tag": "行元素",
+      "xpath": "//span[@id=\"selected\"]"
+    },
+    "cv": {
+      "element_id": "2065324009421471744",
+      "element_name": "图像_1",
+      "robot_id": "2065256954231980032",
+      "kind": "cv",
+      "app": "",
+      "check_type": null,
+      "tag": null,
+      "xpath": ""
+    },
+    "uia": {
+      "element_id": "2067541455209431040",
+      "element_name": "ToolBarControl_地址下载_1",
+      "robot_id": "2067451340797706240",
+      "kind": "uia",
+      "app": "firefox",
+      "check_type": null,
+      "tag": null,
+      "xpath": ""
+    }
+  },
+  "strict_samples": {
+    "web": {
+      "element_id": "1979487087267016704",
+      "element_name": "行元素_商品_1",
+      "robot_id": "2065231113695461380",
+      "kind": "web",
+      "app": "chrome",
+      "check_type": "visualization",
+      "tag": "行元素",
+      "xpath": "//span[@id=\"selected\"]"
+    }
+  },
+  "pick_atoms": 66,
+  "ok_count": 66,
+  "fail_count": 0,
+  "strict_ok_count": 47,
+  "strict_fail_count": 19,
+  "ok": [
+    {
+      "atom_key": "BrowserElement.click",
+      "title": "点击元素（web）",
+      "pick_params": {
+        "element_data": "web"
+      },
+      "elements": {
+        "element_data": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "BrowserElement.data_batch",
+      "title": "数据抓取（web）",
+      "pick_params": {
+        "batch_data": "batch",
+        "element_data": "web"
+      },
+      "elements": {
+        "batch_data": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        },
+        "element_data": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [
+        "batch_data 是批量抓取(BATCH)：需要多列结构，单元素不适用"
+      ],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "BrowserElement.element_exist",
+      "title": "元素是否存在（web）",
+      "pick_params": {
+        "element_data": "web"
+      },
+      "elements": {
+        "element_data": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "BrowserElement.element_operation",
+      "title": "元素操作（web）",
+      "pick_params": {
+        "element_data": "web"
+      },
+      "elements": {
+        "element_data": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "BrowserElement.element_text",
+      "title": "获取元素文本内容（web）",
+      "pick_params": {
+        "element_data": "web"
+      },
+      "elements": {
+        "element_data": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "BrowserElement.get_checked",
+      "title": "获取复选框（web）",
+      "pick_params": {
+        "element_data": "web"
+      },
+      "elements": {
+        "element_data": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "BrowserElement.get_relative_element",
+      "title": "获取关联元素（web）",
+      "pick_params": {
+        "element_data": "web"
+      },
+      "elements": {
+        "element_data": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "BrowserElement.get_select",
+      "title": "获取下拉框（web）",
+      "pick_params": {
+        "element_data": "web"
+      },
+      "elements": {
+        "element_data": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "BrowserElement.get_table",
+      "title": "获取表格数据（web）",
+      "pick_params": {
+        "element_data": "web"
+      },
+      "elements": {
+        "element_data": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "BrowserElement.hover_over",
+      "title": "鼠标悬停在元素上（web）",
+      "pick_params": {
+        "element_data": "web"
+      },
+      "elements": {
+        "element_data": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "BrowserElement.input",
+      "title": "填写输入框（web）",
+      "pick_params": {
+        "element_data": "web"
+      },
+      "elements": {
+        "element_data": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "BrowserElement.loop_similar",
+      "title": "循环相似元素列表（web）",
+      "pick_params": {
+        "element_data": "web"
+      },
+      "elements": {
+        "element_data": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "BrowserElement.position_screenshot",
+      "title": "元素位置截图（web）",
+      "pick_params": {
+        "element_data": "web"
+      },
+      "elements": {
+        "element_data": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "BrowserElement.screenshot",
+      "title": "拾取元素截图（web）",
+      "pick_params": {
+        "element_data": "web"
+      },
+      "elements": {
+        "element_data": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "BrowserElement.scroll",
+      "title": "网页滚动",
+      "pick_params": {
+        "element_data": "web"
+      },
+      "elements": {
+        "element_data": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "BrowserElement.scroll_into_view",
+      "title": "元素置于可视区域（web）",
+      "pick_params": {
+        "element_data": "web"
+      },
+      "elements": {
+        "element_data": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "BrowserElement.set_checked",
+      "title": "操作复选框（web）",
+      "pick_params": {
+        "element_data": "web"
+      },
+      "elements": {
+        "element_data": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "BrowserElement.set_select",
+      "title": "操作下拉框（web）",
+      "pick_params": {
+        "element_data": "web"
+      },
+      "elements": {
+        "element_data": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "BrowserElement.similar",
+      "title": "获取相似元素列表（web）",
+      "pick_params": {
+        "element_data": "web"
+      },
+      "elements": {
+        "element_data": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "BrowserElement.slider_hover",
+      "title": "拾取滑块拖拽（web）",
+      "pick_params": {
+        "element_slider": "web",
+        "element_progress": "web"
+      },
+      "elements": {
+        "element_slider": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        },
+        "element_progress": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "BrowserElement.wait_element",
+      "title": "等待元素（web）",
+      "pick_params": {
+        "element_data": "web"
+      },
+      "elements": {
+        "element_data": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "BrowserScript.js_run",
+      "title": "Js脚本",
+      "pick_params": {
+        "element_data": "web"
+      },
+      "elements": {
+        "element_data": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "BrowserSoftware.download_web_file",
+      "title": "文件下载（web）",
+      "pick_params": {
+        "element_data": "web"
+      },
+      "elements": {
+        "element_data": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "BrowserSoftware.upload_web_file",
+      "title": "文件上传（web）",
+      "pick_params": {
+        "element_data": "web"
+      },
+      "elements": {
+        "element_data": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "CV.cv_click",
+      "title": "点击图像",
+      "pick_params": {
+        "input_data": "cv"
+      },
+      "elements": {
+        "input_data": {
+          "value": "图像_1",
+          "data": "2065324009421471744"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [
+        "input_data 借用 robot 2065256954231980032 的元素（非目标 robot）"
+      ],
+      "strict_ok": false
+    },
+    {
+      "atom_key": "CV.hover_image",
+      "title": "鼠标悬浮在图像上",
+      "pick_params": {
+        "input_data": "cv"
+      },
+      "elements": {
+        "input_data": {
+          "value": "图像_1",
+          "data": "2065324009421471744"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [
+        "input_data 借用 robot 2065256954231980032 的元素（非目标 robot）"
+      ],
+      "strict_ok": false
+    },
+    {
+      "atom_key": "CV.image_input",
+      "title": "图像输入框输入",
+      "pick_params": {
+        "input_data": "cv"
+      },
+      "elements": {
+        "input_data": {
+          "value": "图像_1",
+          "data": "2065324009421471744"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [
+        "input_data 借用 robot 2065256954231980032 的元素（非目标 robot）"
+      ],
+      "strict_ok": false
+    },
+    {
+      "atom_key": "CV.is_image_exist",
+      "title": "IF图像存在",
+      "pick_params": {
+        "input_data": "cv"
+      },
+      "elements": {
+        "input_data": {
+          "value": "图像_1",
+          "data": "2065324009421471744"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [
+        "input_data 借用 robot 2065256954231980032 的元素（非目标 robot）"
+      ],
+      "strict_ok": false
+    },
+    {
+      "atom_key": "CV.wait_image",
+      "title": "等待图像",
+      "pick_params": {
+        "input_data": "cv"
+      },
+      "elements": {
+        "input_data": {
+          "value": "图像_1",
+          "data": "2065324009421471744"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [
+        "input_data 借用 robot 2065256954231980032 的元素（非目标 robot）"
+      ],
+      "strict_ok": false
+    },
+    {
+      "atom_key": "VerifyCode.click_code",
+      "title": "通用点击验证码",
+      "pick_params": {
+        "picture_pick": "web"
+      },
+      "elements": {
+        "picture_pick": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "VerifyCode.picture_code",
+      "title": "通用数英验证码",
+      "pick_params": {
+        "picture_pick": "web",
+        "input_box": "web"
+      },
+      "elements": {
+        "picture_pick": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        },
+        "input_box": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "VerifyCode.slider_code",
+      "title": "通用滑块验证码",
+      "pick_params": {
+        "picture_pick": "web",
+        "slider_pick": "web",
+        "move_pic_pick": "web"
+      },
+      "elements": {
+        "picture_pick": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        },
+        "slider_pick": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        },
+        "move_pic_pick": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "Window.close",
+      "title": "关闭窗口",
+      "pick_params": {
+        "pick": "uia"
+      },
+      "elements": {
+        "pick": {
+          "value": "ToolBarControl_地址下载_1",
+          "data": "2067541455209431040"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [
+        "pick 借用 robot 2067451340797706240 的元素（非目标 robot）"
+      ],
+      "strict_ok": false
+    },
+    {
+      "atom_key": "Window.exist",
+      "title": "IF窗口存在",
+      "pick_params": {
+        "pick": "uia"
+      },
+      "elements": {
+        "pick": {
+          "value": "ToolBarControl_地址下载_1",
+          "data": "2067541455209431040"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [
+        "pick 借用 robot 2067451340797706240 的元素（非目标 robot）"
+      ],
+      "strict_ok": false
+    },
+    {
+      "atom_key": "Window.set_size",
+      "title": "调整窗口大小",
+      "pick_params": {
+        "pick": "uia"
+      },
+      "elements": {
+        "pick": {
+          "value": "ToolBarControl_地址下载_1",
+          "data": "2067541455209431040"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [
+        "pick 借用 robot 2067451340797706240 的元素（非目标 robot）"
+      ],
+      "strict_ok": false
+    },
+    {
+      "atom_key": "Window.top",
+      "title": "置顶窗口",
+      "pick_params": {
+        "pick": "uia"
+      },
+      "elements": {
+        "pick": {
+          "value": "ToolBarControl_地址下载_1",
+          "data": "2067541455209431040"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [
+        "pick 借用 robot 2067451340797706240 的元素（非目标 robot）"
+      ],
+      "strict_ok": false
+    },
+    {
+      "atom_key": "WinEle.click_element",
+      "title": "点击元素（桌面）",
+      "pick_params": {
+        "pick": "uia"
+      },
+      "elements": {
+        "pick": {
+          "value": "ToolBarControl_地址下载_1",
+          "data": "2067541455209431040"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [
+        "pick 借用 robot 2067451340797706240 的元素（非目标 robot）"
+      ],
+      "strict_ok": false
+    },
+    {
+      "atom_key": "WinEle.get_element_text",
+      "title": "获取元素文本（桌面）",
+      "pick_params": {
+        "pick": "uia"
+      },
+      "elements": {
+        "pick": {
+          "value": "ToolBarControl_地址下载_1",
+          "data": "2067541455209431040"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [
+        "pick 借用 robot 2067451340797706240 的元素（非目标 robot）"
+      ],
+      "strict_ok": false
+    },
+    {
+      "atom_key": "WinEle.hover_element",
+      "title": "鼠标悬停元素（桌面）",
+      "pick_params": {
+        "pick": "uia"
+      },
+      "elements": {
+        "pick": {
+          "value": "ToolBarControl_地址下载_1",
+          "data": "2067541455209431040"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [
+        "pick 借用 robot 2067451340797706240 的元素（非目标 robot）"
+      ],
+      "strict_ok": false
+    },
+    {
+      "atom_key": "WinEle.input_text_element",
+      "title": "填写输入框（桌面）",
+      "pick_params": {
+        "pick": "uia"
+      },
+      "elements": {
+        "pick": {
+          "value": "ToolBarControl_地址下载_1",
+          "data": "2067541455209431040"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [
+        "pick 借用 robot 2067451340797706240 的元素（非目标 robot）"
+      ],
+      "strict_ok": false
+    },
+    {
+      "atom_key": "WinEle.screenshot_element",
+      "title": "元素截图（桌面）",
+      "pick_params": {
+        "pick": "uia"
+      },
+      "elements": {
+        "pick": {
+          "value": "ToolBarControl_地址下载_1",
+          "data": "2067541455209431040"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [
+        "pick 借用 robot 2067451340797706240 的元素（非目标 robot）"
+      ],
+      "strict_ok": false
+    },
+    {
+      "atom_key": "WinEle.similar",
+      "title": "获取相似元素列表（桌面）",
+      "pick_params": {
+        "pick": "uia"
+      },
+      "elements": {
+        "pick": {
+          "value": "ToolBarControl_地址下载_1",
+          "data": "2067541455209431040"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [
+        "pick 借用 robot 2067451340797706240 的元素（非目标 robot）"
+      ],
+      "strict_ok": false
+    },
+    {
+      "atom_key": "SAP.click_element",
+      "title": "点击元素（SAP）",
+      "pick_params": {
+        "element_data": "uia"
+      },
+      "elements": {
+        "element_data": {
+          "value": "ToolBarControl_地址下载_1",
+          "data": "2067541455209431040"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [
+        "element_data 借用 robot 2067451340797706240 的元素（非目标 robot）"
+      ],
+      "strict_ok": false
+    },
+    {
+      "atom_key": "SAP.read_table",
+      "title": "读取表格内容",
+      "pick_params": {
+        "element_data": "uia"
+      },
+      "elements": {
+        "element_data": {
+          "value": "ToolBarControl_地址下载_1",
+          "data": "2067541455209431040"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [
+        "element_data 借用 robot 2067451340797706240 的元素（非目标 robot）"
+      ],
+      "strict_ok": false
+    },
+    {
+      "atom_key": "SAP.screenshot_element",
+      "title": "元素截图（SAP）",
+      "pick_params": {
+        "element_data": "uia"
+      },
+      "elements": {
+        "element_data": {
+          "value": "ToolBarControl_地址下载_1",
+          "data": "2067541455209431040"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [
+        "element_data 借用 robot 2067451340797706240 的元素（非目标 robot）"
+      ],
+      "strict_ok": false
+    },
+    {
+      "atom_key": "Gui.mouse_move_new",
+      "title": "鼠标移动",
+      "pick_params": {
+        "window_pick": "uia"
+      },
+      "elements": {
+        "window_pick": {
+          "value": "ToolBarControl_地址下载_1",
+          "data": "2067541455209431040"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [
+        "window_pick 借用 robot 2067451340797706240 的元素（非目标 robot）"
+      ],
+      "strict_ok": false
+    },
+    {
+      "atom_key": "IeBrowserElement.wait_element",
+      "title": "等待元素（ie）",
+      "pick_params": {
+        "element_data": "web"
+      },
+      "elements": {
+        "element_data": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "IeBrowserElement.click",
+      "title": "点击元素（ie）",
+      "pick_params": {
+        "element_data": "web"
+      },
+      "elements": {
+        "element_data": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "IeBrowserElement.input",
+      "title": "填写输入框（ie）",
+      "pick_params": {
+        "element_data": "web"
+      },
+      "elements": {
+        "element_data": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "IeBrowserElement.hover_over",
+      "title": "鼠标悬停在元素上（ie）",
+      "pick_params": {
+        "element_data": "web"
+      },
+      "elements": {
+        "element_data": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "IeBrowserElement.screenshot",
+      "title": "拾取元素截图（ie）",
+      "pick_params": {
+        "element_data": "web"
+      },
+      "elements": {
+        "element_data": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "IeBrowserElement.position_screenshot",
+      "title": "元素位置截图（ie）",
+      "pick_params": {
+        "element_data": "web"
+      },
+      "elements": {
+        "element_data": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "IeBrowserElement.scroll",
+      "title": "网页滚动（ie）",
+      "pick_params": {
+        "element_data": "web"
+      },
+      "elements": {
+        "element_data": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "IeBrowserElement.scroll_into_view",
+      "title": "元素置于可视区域（ie）",
+      "pick_params": {
+        "element_data": "web"
+      },
+      "elements": {
+        "element_data": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "IeBrowserElement.similar",
+      "title": "获取相似元素列表（ie）",
+      "pick_params": {
+        "element_data": "web"
+      },
+      "elements": {
+        "element_data": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "IeBrowserElement.element_text",
+      "title": "获取元素文本内容（ie）",
+      "pick_params": {
+        "element_data": "web"
+      },
+      "elements": {
+        "element_data": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "IeBrowserElement.slider_hover",
+      "title": "拾取滑块拖拽（ie）",
+      "pick_params": {
+        "slider_element": "web",
+        "progress_element": "web"
+      },
+      "elements": {
+        "slider_element": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        },
+        "progress_element": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "IeBrowserElement.get_select",
+      "title": "获取下拉框（ie）",
+      "pick_params": {
+        "element_data": "web"
+      },
+      "elements": {
+        "element_data": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "IeBrowserElement.get_checked",
+      "title": "获取复选框（ie）",
+      "pick_params": {
+        "element_data": "web"
+      },
+      "elements": {
+        "element_data": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "IeBrowserElement.set_select",
+      "title": "操作下拉框（ie）",
+      "pick_params": {
+        "element_data": "web"
+      },
+      "elements": {
+        "element_data": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "IeBrowserElement.set_checked",
+      "title": "操作复选框（ie）",
+      "pick_params": {
+        "element_data": "web"
+      },
+      "elements": {
+        "element_data": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "IeBrowserElement.element_operation",
+      "title": "元素操作（ie）",
+      "pick_params": {
+        "element_data": "web"
+      },
+      "elements": {
+        "element_data": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "IeBrowserElement.element_exist",
+      "title": "元素是否存在（ie）",
+      "pick_params": {
+        "element_data": "web"
+      },
+      "elements": {
+        "element_data": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "IeBrowserScript.js_run",
+      "title": "Js脚本（ie）",
+      "pick_params": {
+        "element_data": "web"
+      },
+      "elements": {
+        "element_data": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "IeBrowserSoftware.download_web_file",
+      "title": "文件下载（ie）",
+      "pick_params": {
+        "element_data": "web"
+      },
+      "elements": {
+        "element_data": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    },
+    {
+      "atom_key": "IeBrowserSoftware.upload_web_file",
+      "title": "文件上传（ie）",
+      "pick_params": {
+        "element_data": "web"
+      },
+      "elements": {
+        "element_data": {
+          "value": "行元素_商品_1",
+          "data": "1979487087267016704"
+        }
+      },
+      "is_pass": true,
+      "missing_ref": [],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [],
+      "strict_ok": true
+    }
+  ],
+  "fail": [],
+  "strict_fail": [
+    {
+      "atom_key": "CV.cv_click",
+      "title": "点击图像",
+      "pick_params": {
+        "input_data": "cv"
+      },
+      "elements": {},
+      "is_pass": false,
+      "missing_ref": [
+        "input_data"
+      ],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [
+        "CV.cv_click.input_data 是元素拾取(必填)，需真实 c_element 才能运行",
+        "input_data 需要的 图像元素 在可选元素中不存在"
+      ]
+    },
+    {
+      "atom_key": "CV.hover_image",
+      "title": "鼠标悬浮在图像上",
+      "pick_params": {
+        "input_data": "cv"
+      },
+      "elements": {},
+      "is_pass": false,
+      "missing_ref": [
+        "input_data"
+      ],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [
+        "CV.hover_image.input_data 是元素拾取(必填)，需真实 c_element 才能运行",
+        "input_data 需要的 图像元素 在可选元素中不存在"
+      ]
+    },
+    {
+      "atom_key": "CV.image_input",
+      "title": "图像输入框输入",
+      "pick_params": {
+        "input_data": "cv"
+      },
+      "elements": {},
+      "is_pass": false,
+      "missing_ref": [
+        "input_data"
+      ],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [
+        "CV.image_input.input_data 是元素拾取(必填)，需真实 c_element 才能运行",
+        "input_data 需要的 图像元素 在可选元素中不存在"
+      ]
+    },
+    {
+      "atom_key": "CV.is_image_exist",
+      "title": "IF图像存在",
+      "pick_params": {
+        "input_data": "cv"
+      },
+      "elements": {},
+      "is_pass": false,
+      "missing_ref": [
+        "input_data"
+      ],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [
+        "CV.is_image_exist.input_data 是元素拾取(必填)，需真实 c_element 才能运行",
+        "input_data 需要的 图像元素 在可选元素中不存在"
+      ]
+    },
+    {
+      "atom_key": "CV.wait_image",
+      "title": "等待图像",
+      "pick_params": {
+        "input_data": "cv"
+      },
+      "elements": {},
+      "is_pass": false,
+      "missing_ref": [
+        "input_data"
+      ],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [
+        "CV.wait_image.input_data 是元素拾取(必填)，需真实 c_element 才能运行",
+        "input_data 需要的 图像元素 在可选元素中不存在"
+      ]
+    },
+    {
+      "atom_key": "Window.close",
+      "title": "关闭窗口",
+      "pick_params": {
+        "pick": "uia"
+      },
+      "elements": {},
+      "is_pass": false,
+      "missing_ref": [
+        "pick"
+      ],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [
+        "Window.close.pick 是元素拾取(必填)，需真实 c_element 才能运行",
+        "pick 需要的 桌面元素 在可选元素中不存在"
+      ]
+    },
+    {
+      "atom_key": "Window.exist",
+      "title": "IF窗口存在",
+      "pick_params": {
+        "pick": "uia"
+      },
+      "elements": {},
+      "is_pass": false,
+      "missing_ref": [
+        "pick"
+      ],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [
+        "Window.exist.pick 是元素拾取(必填)，需真实 c_element 才能运行",
+        "pick 需要的 桌面元素 在可选元素中不存在"
+      ]
+    },
+    {
+      "atom_key": "Window.set_size",
+      "title": "调整窗口大小",
+      "pick_params": {
+        "pick": "uia"
+      },
+      "elements": {},
+      "is_pass": false,
+      "missing_ref": [
+        "pick"
+      ],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [
+        "Window.set_size.pick 是元素拾取(必填)，需真实 c_element 才能运行",
+        "pick 需要的 桌面元素 在可选元素中不存在"
+      ]
+    },
+    {
+      "atom_key": "Window.top",
+      "title": "置顶窗口",
+      "pick_params": {
+        "pick": "uia"
+      },
+      "elements": {},
+      "is_pass": false,
+      "missing_ref": [
+        "pick"
+      ],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [
+        "Window.top.pick 是元素拾取(必填)，需真实 c_element 才能运行",
+        "pick 需要的 桌面元素 在可选元素中不存在"
+      ]
+    },
+    {
+      "atom_key": "WinEle.click_element",
+      "title": "点击元素（桌面）",
+      "pick_params": {
+        "pick": "uia"
+      },
+      "elements": {},
+      "is_pass": false,
+      "missing_ref": [
+        "pick"
+      ],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [
+        "WinEle.click_element.pick 是元素拾取(必填)，需真实 c_element 才能运行",
+        "pick 需要的 桌面元素 在可选元素中不存在"
+      ]
+    },
+    {
+      "atom_key": "WinEle.get_element_text",
+      "title": "获取元素文本（桌面）",
+      "pick_params": {
+        "pick": "uia"
+      },
+      "elements": {},
+      "is_pass": false,
+      "missing_ref": [
+        "pick"
+      ],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [
+        "WinEle.get_element_text.pick 是元素拾取(必填)，需真实 c_element 才能运行",
+        "pick 需要的 桌面元素 在可选元素中不存在"
+      ]
+    },
+    {
+      "atom_key": "WinEle.hover_element",
+      "title": "鼠标悬停元素（桌面）",
+      "pick_params": {
+        "pick": "uia"
+      },
+      "elements": {},
+      "is_pass": false,
+      "missing_ref": [
+        "pick"
+      ],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [
+        "WinEle.hover_element.pick 是元素拾取(必填)，需真实 c_element 才能运行",
+        "pick 需要的 桌面元素 在可选元素中不存在"
+      ]
+    },
+    {
+      "atom_key": "WinEle.input_text_element",
+      "title": "填写输入框（桌面）",
+      "pick_params": {
+        "pick": "uia"
+      },
+      "elements": {},
+      "is_pass": false,
+      "missing_ref": [
+        "pick"
+      ],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [
+        "WinEle.input_text_element.pick 是元素拾取(必填)，需真实 c_element 才能运行",
+        "pick 需要的 桌面元素 在可选元素中不存在"
+      ]
+    },
+    {
+      "atom_key": "WinEle.screenshot_element",
+      "title": "元素截图（桌面）",
+      "pick_params": {
+        "pick": "uia"
+      },
+      "elements": {},
+      "is_pass": false,
+      "missing_ref": [
+        "pick"
+      ],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [
+        "WinEle.screenshot_element.pick 是元素拾取(必填)，需真实 c_element 才能运行",
+        "pick 需要的 桌面元素 在可选元素中不存在"
+      ]
+    },
+    {
+      "atom_key": "WinEle.similar",
+      "title": "获取相似元素列表（桌面）",
+      "pick_params": {
+        "pick": "uia"
+      },
+      "elements": {},
+      "is_pass": false,
+      "missing_ref": [
+        "pick"
+      ],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [
+        "WinEle.similar.pick 是元素拾取(必填)，需真实 c_element 才能运行",
+        "pick 需要的 桌面元素 在可选元素中不存在"
+      ]
+    },
+    {
+      "atom_key": "SAP.click_element",
+      "title": "点击元素（SAP）",
+      "pick_params": {
+        "element_data": "uia"
+      },
+      "elements": {},
+      "is_pass": false,
+      "missing_ref": [
+        "element_data"
+      ],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [
+        "SAP.click_element.element_data 是元素拾取(必填)，需真实 c_element 才能运行",
+        "element_data 需要的 桌面元素 在可选元素中不存在"
+      ]
+    },
+    {
+      "atom_key": "SAP.read_table",
+      "title": "读取表格内容",
+      "pick_params": {
+        "element_data": "uia"
+      },
+      "elements": {},
+      "is_pass": false,
+      "missing_ref": [
+        "element_data"
+      ],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [
+        "SAP.read_table.element_data 是元素拾取(必填)，需真实 c_element 才能运行",
+        "element_data 需要的 桌面元素 在可选元素中不存在"
+      ]
+    },
+    {
+      "atom_key": "SAP.screenshot_element",
+      "title": "元素截图（SAP）",
+      "pick_params": {
+        "element_data": "uia"
+      },
+      "elements": {},
+      "is_pass": false,
+      "missing_ref": [
+        "element_data"
+      ],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [
+        "SAP.screenshot_element.element_data 是元素拾取(必填)，需真实 c_element 才能运行",
+        "element_data 需要的 桌面元素 在可选元素中不存在"
+      ]
+    },
+    {
+      "atom_key": "Gui.mouse_move_new",
+      "title": "鼠标移动",
+      "pick_params": {
+        "window_pick": "uia"
+      },
+      "elements": {},
+      "is_pass": false,
+      "missing_ref": [
+        "window_pick"
+      ],
+      "bad_element_id": [],
+      "errors": [],
+      "warnings": [
+        "Gui.mouse_move_new.window_pick 是元素拾取(必填)，需真实 c_element 才能运行",
+        "window_pick 需要的 桌面元素 在可选元素中不存在"
+      ]
+    }
+  ]
+}

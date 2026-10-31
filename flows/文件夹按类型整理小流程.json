@@ -1,0 +1,76 @@
+{
+  "name": "文件夹按类型整理小流程",
+  "nl_examples": [
+    "把这个文件夹整理一下",
+    "按类型把文件分类",
+    "把下载文件夹整理好",
+    "按扩展名分类整理",
+    "文件夹太乱了归归类"
+  ],
+  "keywords": [
+    "整理",
+    "分类",
+    "归类",
+    "归档",
+    "整理文件夹",
+    "按类型",
+    "太乱"
+  ],
+  "params": [
+    {
+      "name": "src_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_organize_in",
+      "describe": "要整理的文件夹（只整理第一层，子文件夹不动）"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "",
+      "describe": "整理到哪（留空 = 就在原文件夹里建子目录）"
+    },
+    {
+      "name": "by",
+      "type": "Str",
+      "default": "ext",
+      "describe": "分类方式：ext=按类型 / date=按月份 / ext_date=类型/月份"
+    },
+    {
+      "name": "dry_run",
+      "type": "Str",
+      "default": "false",
+      "describe": "true = 只出报告不动文件（第一次建议先这么跑）"
+    },
+    {
+      "name": "copy_mode",
+      "type": "Str",
+      "default": "false",
+      "describe": "true = 复制而不是移动（原文件保留）"
+    },
+    {
+      "name": "rules",
+      "type": "Str",
+      "default": "",
+      "describe": "自定义分类（JSON，如 {\"图纸\":[\"dwg\",\"dxf\"]}），留空用默认分类"
+    },
+    {
+      "name": "module_id",
+      "type": "Str",
+      "default": "2116097120214405120",
+      "describe": "文件夹整理子流程模块 id"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "Script.module",
+      "alias": "按类型整理（Python子流程）",
+      "out": {
+        "program_script": "organize_result"
+      },
+      "inputs": {
+        "content": "$p:module_id",
+        "module_param": "$json:[{\"varName\": \"src_dir\", \"varValue\": \"$p:src_dir\"}, {\"varName\": \"out_dir\", \"varValue\": \"$p:out_dir\"}, {\"varName\": \"by\", \"varValue\": \"$p:by\"}, {\"varName\": \"dry_run\", \"varValue\": \"$p:dry_run\"}, {\"varName\": \"copy_mode\", \"varValue\": \"$p:copy_mode\"}, {\"varName\": \"rules\", \"varValue\": \"$p:rules\"}]"
+      }
+    }
+  ]
+}

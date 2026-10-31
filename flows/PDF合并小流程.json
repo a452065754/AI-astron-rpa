@@ -1,0 +1,55 @@
+{
+  "name": "PDF合并小流程",
+  "nl_examples": [
+    "把这个文件夹里的PDF合并成一个",
+    "多个PDF合成一个文件",
+    "PDF 合并"
+  ],
+  "keywords": [
+    "合并pdf",
+    "pdf合并",
+    "合并成一个",
+    "合成一个",
+    "多个pdf",
+    "pdf合成"
+  ],
+  "params": [
+    {
+      "name": "in_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\pdf_merge_in",
+      "describe": "待合并 PDF 所在文件夹（该文件夹里的所有 PDF 会按文件名顺序合并）"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo",
+      "describe": "合并结果输出目录"
+    },
+    {
+      "name": "out_name",
+      "type": "Str",
+      "default": "合并结果",
+      "describe": "合并后的文件名（不带 .pdf 后缀）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "PDF.merge_pdf_files",
+      "alias": "合并文件夹内所有PDF",
+      "out": {
+        "pdf_merge_file_path": "merged_path"
+      },
+      "inputs": {
+        "merge_type": "folder",
+        "file_folder_path": "$p:in_dir",
+        "files_path": "",
+        "save_dir": "$p:out_dir",
+        "new_file_name": "$p:out_name",
+        "new_pwd_flag": false,
+        "new_pwd": "",
+        "exist_handle_type": "overwrite"
+      }
+    }
+  ]
+}

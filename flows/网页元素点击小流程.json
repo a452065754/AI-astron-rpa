@@ -1,0 +1,64 @@
+{
+  "name": "网页元素点击小流程",
+  "nl_examples": [
+    "打开京东点一下商品",
+    "在网页上点某个元素",
+    "web 点击流程"
+  ],
+  "keywords": [
+    "网页",
+    "浏览器",
+    "点击",
+    "按钮",
+    "打开网站",
+    "登录"
+  ],
+  "params": [
+    {
+      "name": "url",
+      "type": "Str",
+      "default": "http://192.168.76.130:8899/test.html",
+      "describe": "要打开的网页地址"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "BrowserSoftware.browser_open",
+      "alias": "打开浏览器",
+      "out": {
+        "web_open": "web"
+      },
+      "inputs": {
+        "url": "$p:url",
+        "browser_type": "chrome",
+        "timeout": 20,
+        "timeout_handle_type": "execError",
+        "wait_load_success": true,
+        "open_with_incognito": false
+      }
+    },
+    {
+      "atom": "BrowserElement.click",
+      "alias": "点击元素",
+      "out": {},
+      "inputs": {
+        "browser_obj": "$web",
+        "element_timeout": 10,
+        "button_type": "click",
+        "simulate_flag": false,
+        "scroll_into_center": true
+      },
+      "elements": {
+        "element_data": "web"
+      }
+    },
+    {
+      "atom": "BrowserSoftware.browser_close",
+      "alias": "关闭浏览器",
+      "out": {},
+      "inputs": {
+        "browser_obj": "$web"
+      }
+    }
+  ]
+}

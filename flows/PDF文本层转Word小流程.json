@@ -1,0 +1,143 @@
+{
+  "name": "PDF文本层转Word小流程",
+  "nl_examples": [
+    "把这个PDF转成Word，要能编辑文字",
+    "PDF里的文字提出来做成Word",
+    "带文本层的PDF转Word"
+  ],
+  "keywords": [
+    "文本层",
+    "可复制",
+    "选中文字",
+    "文字层"
+  ],
+  "params": [
+    {
+      "name": "src_pdf",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\文本层测试.pdf",
+      "describe": "源 PDF（必须有文本层）"
+    },
+    {
+      "name": "txt_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo",
+      "describe": "中间 txt 存放目录（须已存在）"
+    },
+    {
+      "name": "txt_name",
+      "type": "Str",
+      "default": "_pdf_text",
+      "describe": "中间 txt 文件名（不带扩展名）"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo",
+      "describe": "Word 输出目录"
+    },
+    {
+      "name": "out_name",
+      "type": "Str",
+      "default": "文本层_转Word",
+      "describe": "Word 文件名（不带扩展名）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "PDF.get_pdf_text",
+      "alias": "提取PDF文本到txt",
+      "out": {
+        "pdf_text": "pdf_text"
+      },
+      "inputs": {
+        "file_path": "$p:src_pdf",
+        "password": "",
+        "select_range": "all",
+        "page_range": "",
+        "text_save_type": "txt",
+        "save_dir": "$p:txt_dir",
+        "save_file_name": "$p:txt_name",
+        "exist_handle_type": "overwrite"
+      }
+    },
+    {
+      "atom": "File.file_read",
+      "alias": "读取提取出的文本",
+      "out": {
+        "read_file_content": "plain_text"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:txt_dir",
+          "\\",
+          "$p:txt_name",
+          ".txt"
+        ],
+        "read_type": "all",
+        "encode_type": "utf-8"
+      }
+    },
+    {
+      "atom": "File.file_delete",
+      "alias": "删除同名旧Word（不存在则跳过）",
+      "on_error": "skip",
+      "out": {},
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "\\",
+          "$p:out_name",
+          ".docx"
+        ],
+        "delete_options": "delete"
+      }
+    },
+    {
+      "atom": "Docx.create_docx",
+      "alias": "新建Word文档",
+      "out": {
+        "doc_obj": "doc"
+      },
+      "inputs": {
+        "file_path": "$p:out_dir",
+        "file_name": "$p:out_name",
+        "default_application": "Default",
+        "visible_flag": false,
+        "exist_handle_type": "overwrite"
+      }
+    },
+    {
+      "atom": "Docx.insert_docx",
+      "alias": "写入正文",
+      "out": {},
+      "inputs": {
+        "doc": "$doc",
+        "text": "$plain_text",
+        "enter_flag": false,
+        "font_size": 10,
+        "bold_flag": false,
+        "italic_flag": false,
+        "underline_flag": 0,
+        "font_name": "宋体",
+        "font_color": "0,0,0"
+      }
+    },
+    {
+      "atom": "Docx.save_docx",
+      "alias": "保存并关闭Word",
+      "out": {
+        "save_file_path": "docx_path"
+      },
+      "inputs": {
+        "doc": "$doc",
+        "save_type": "save",
+        "file_path": "",
+        "file_name": "",
+        "exist_handle_type": "overwrite",
+        "close_flag": true
+      }
+    }
+  ],
+  "note": "适用：PDF 里有可选中文字的「电子版」。扫描件请用 PDF转可编辑Word小流程（OCR）。"
+}

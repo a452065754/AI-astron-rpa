@@ -1,0 +1,112 @@
+{
+  "name": "批量PDF版面还原小流程",
+  "nl_examples": [
+    "把这个文件夹的PDF都转成Word",
+    "批量把文件夹里的pdf还原版面",
+    "整个文件夹的pdf都转成word",
+    "文件夹里的pdf全部转成word"
+  ],
+  "keywords": [
+    "都转成word",
+    "都还原",
+    "全部还原",
+    "每一个pdf",
+    "整个文件夹的pdf",
+    "批量还原",
+    "批量转word",
+    "批量转成word"
+  ],
+  "params": [
+    {
+      "name": "in_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\pdf_merge_in",
+      "describe": "待处理的 PDF 所在文件夹"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo",
+      "describe": "输出目录（每个 PDF 生成一个同名 Word）"
+    },
+    {
+      "name": "pattern",
+      "type": "Str",
+      "default": ".pdf",
+      "describe": "只处理文件名里包含这个字符串的文件（默认 .pdf）"
+    },
+    {
+      "name": "module_id",
+      "type": "Str",
+      "default": "2116095188095684608",
+      "describe": "版面还原子流程模块 id"
+    },
+    {
+      "name": "ps1",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\scripts\\win_ocr.ps1",
+      "describe": "Windows OCR 脚本路径"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "File.get_file_list",
+      "alias": "列出文件夹里的文件",
+      "out": {
+        "file_list": "file_list"
+      },
+      "inputs": {
+        "folder_path": "$p:in_dir",
+        "traverse_subfolder": "no",
+        "tempfile_include": false,
+        "output_type": "list",
+        "sort_method": "mtime",
+        "sort_type": "ascending"
+      }
+    },
+    {
+      "atom": "Code.ForList",
+      "alias": "逐个文件处理",
+      "out": {
+        "index": "idx",
+        "item": "item"
+      },
+      "inputs": {
+        "list": "$file_list"
+      }
+    },
+    {
+      "atom": "Code.If",
+      "alias": "只要 PDF",
+      "out": {},
+      "inputs": {
+        "args1": "$item",
+        "condition": "in",
+        "args2": "$p:pattern"
+      }
+    },
+    {
+      "atom": "Script.module",
+      "alias": "版面还原这个文件",
+      "out": {
+        "program_script": "one_result"
+      },
+      "inputs": {
+        "content": "$p:module_id",
+        "module_param": "$json:[{\"varName\": \"src_pdf\", \"varValue\": \"$var:item\"}, {\"varName\": \"out_dir\", \"varValue\": \"$p:out_dir\"}, {\"varName\": \"out_name\", \"varValue\": \"\"}, {\"varName\": \"ps1\", \"varValue\": \"$p:ps1\"}]"
+      }
+    },
+    {
+      "atom": "Code.IfEnd",
+      "alias": "条件结束",
+      "out": {},
+      "inputs": {}
+    },
+    {
+      "atom": "Code.ForEnd",
+      "alias": "循环结束",
+      "out": {},
+      "inputs": {}
+    }
+  ]
+}

@@ -1,0 +1,129 @@
+{
+  "name": "Excel订单表导出小流程",
+  "nl_examples": [
+    "把订单表导成新文件",
+    "做个excel拆分流程",
+    "导出这个表格"
+  ],
+  "keywords": [
+    "订单",
+    "excel导出",
+    "导出excel",
+    "导出成excel",
+    "表格导出"
+  ],
+  "params": [
+    {
+      "name": "src_file",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\订单.xlsx",
+      "describe": "源 Excel 文件路径"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo",
+      "describe": "输出目录"
+    },
+    {
+      "name": "out_name",
+      "type": "Str",
+      "default": "导出结果",
+      "describe": "输出文件名（不带扩展名）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "Excel.open_excel",
+      "alias": "打开源表",
+      "out": {
+        "open_excel_obj": "src_excel"
+      },
+      "inputs": {
+        "file_path": "$p:src_file",
+        "default_application": "Excel",
+        "visible_flag": true,
+        "update_links": false
+      }
+    },
+    {
+      "atom": "Excel.read_excel",
+      "alias": "读取数据",
+      "out": {
+        "read_excel_contents": "sheet_data"
+      },
+      "inputs": {
+        "excel": "$src_excel",
+        "sheet_name": "Sheet1",
+        "read_range": "all",
+        "start_col": "",
+        "end_col": "",
+        "cell": "",
+        "row": 1,
+        "column": "",
+        "start_row": 1,
+        "end_row": 1,
+        "read_display": true,
+        "trim_spaces": true,
+        "replace_none": true
+      }
+    },
+    {
+      "atom": "Excel.create_excel",
+      "alias": "新建结果表",
+      "out": {
+        "create_excel_obj": "dst_excel",
+        "excel_path": "dst_path"
+      },
+      "inputs": {
+        "file_path": "$p:out_dir",
+        "file_name": "$p:out_name",
+        "default_application": "Excel",
+        "visible_flag": true,
+        "exist_handle_type": "overwrite"
+      }
+    },
+    {
+      "atom": "Excel.edit_excel",
+      "alias": "写入数据",
+      "out": {},
+      "inputs": {
+        "excel": "$dst_excel",
+        "edit_range": "area",
+        "sheet_name": "",
+        "start_col": "A",
+        "start_row": "1",
+        "value": "$sheet_data",
+        "edit_type": "overwrite"
+      }
+    },
+    {
+      "atom": "Excel.save_excel",
+      "alias": "保存结果",
+      "out": {},
+      "inputs": {
+        "excel": "$dst_excel",
+        "save_type": "save",
+        "file_path": "",
+        "file_name": "",
+        "exist_handle_type": "overwrite",
+        "close_flag": true
+      }
+    },
+    {
+      "atom": "Excel.close_excel",
+      "alias": "关闭源表",
+      "out": {},
+      "inputs": {
+        "close_range_flag": "one",
+        "excel": "$src_excel",
+        "save_type_one": "abort",
+        "save_type_all": "abort",
+        "file_path": "",
+        "file_name": "",
+        "exist_handle_type": "rename",
+        "pkill_flag": false
+      }
+    }
+  ]
+}

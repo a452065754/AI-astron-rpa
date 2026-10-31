@@ -1,0 +1,77 @@
+{
+  "name": "Excel按条件拆表小流程",
+  "nl_examples": [
+    "把这张表按部门拆成多个文件",
+    "按列拆分 Excel",
+    "把一个 sheet 按条件导出成多个文件",
+    "按地区把订单表分开",
+    "这张表太大了按类别拆一下"
+  ],
+  "keywords": [
+    "拆表",
+    "拆分",
+    "按条件",
+    "按列",
+    "分组",
+    "拆成多个文件",
+    "分类导出",
+    "分开"
+  ],
+  "params": [
+    {
+      "name": "src_excel",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\拆表测试\\源.xlsx",
+      "describe": "要拆分的源 Excel（只取第一个 sheet）"
+    },
+    {
+      "name": "split_col",
+      "type": "Str",
+      "default": "部门",
+      "describe": "按哪一列拆分：列名（如 部门）或列号（A 或 1）"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "",
+      "describe": "输出目录（留空 = 源文件旁边）"
+    },
+    {
+      "name": "out_name",
+      "type": "Str",
+      "default": "拆分",
+      "describe": "生成文件名前缀"
+    },
+    {
+      "name": "copy_header",
+      "type": "Str",
+      "default": "true",
+      "describe": "true = 每个文件保留表头"
+    },
+    {
+      "name": "skip_blank",
+      "type": "Str",
+      "default": "true",
+      "describe": "true = 跳过该列空白的行"
+    },
+    {
+      "name": "module_id",
+      "type": "Str",
+      "default": "2116329008176504832",
+      "describe": "Excel拆表子流程模块 id"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "Script.module",
+      "alias": "按条件拆表（Python子流程）",
+      "out": {
+        "program_script": "split_result"
+      },
+      "inputs": {
+        "content": "$p:module_id",
+        "module_param": "$json:[{\"varName\": \"src_excel\", \"varValue\": \"$p:src_excel\"}, {\"varName\": \"split_col\", \"varValue\": \"$p:split_col\"}, {\"varName\": \"out_dir\", \"varValue\": \"$p:out_dir\"}, {\"varName\": \"out_name\", \"varValue\": \"$p:out_name\"}, {\"varName\": \"copy_header\", \"varValue\": \"$p:copy_header\"}, {\"varName\": \"skip_blank\", \"varValue\": \"$p:skip_blank\"}]"
+      }
+    }
+  ]
+}

@@ -1,0 +1,171 @@
+{
+  "name": "PDF转可编辑Word小流程",
+  "nl_examples": [
+    "把这个PDF转成能编辑文字的Word",
+    "扫描件OCR成Word",
+    "PDF转Word要能改文字"
+  ],
+  "keywords": [
+    "可编辑",
+    "扫描件",
+    "ocr",
+    "识别文字",
+    "图片pdf"
+  ],
+  "params": [
+    {
+      "name": "src_pdf",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\20260914报废_已转正.pdf",
+      "describe": "源 PDF（建议先转正，否则文字方向仍是横的）"
+    },
+    {
+      "name": "img_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\pdf_pages",
+      "describe": "PDF 页面图目录（须已存在）"
+    },
+    {
+      "name": "img_prefix",
+      "type": "Str",
+      "default": "page",
+      "describe": "页面图文件名前缀"
+    },
+    {
+      "name": "txt_out",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_ocr_text.txt",
+      "describe": "OCR 合并文本输出路径"
+    },
+    {
+      "name": "ps1",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\scripts\\win_ocr.ps1",
+      "describe": "本地 OCR 脚本（Windows 自带引擎，无需密钥）"
+    },
+    {
+      "name": "lang",
+      "type": "Str",
+      "default": "zh-Hans-CN",
+      "describe": "OCR 语言"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo",
+      "describe": "Word 输出目录"
+    },
+    {
+      "name": "out_name",
+      "type": "Str",
+      "default": "20260914报废_可编辑",
+      "describe": "Word 文件名（不带扩展名）"
+    },
+    {
+      "name": "module_id",
+      "type": "Str",
+      "default": "2116046800000000010",
+      "describe": "OCR Python 子流程模块 ID（c_module）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "PDF.convert_pdf_to_img",
+      "alias": "PDF每页转图片",
+      "out": {},
+      "inputs": {
+        "file_path": "$p:src_pdf",
+        "pwd": "",
+        "image_type": "png",
+        "select_range": "all",
+        "page_range": "",
+        "save_dir": "$p:img_dir",
+        "prefix": "$p:img_prefix",
+        "exist_handle_type": "overwrite"
+      }
+    },
+    {
+      "atom": "Script.module",
+      "alias": "OCR识别（Python子流程）",
+      "out": {
+        "program_script": "ocr_result"
+      },
+      "inputs": {
+        "content": "$p:module_id",
+        "module_param": "$json:[{\"varName\": \"img_dir\", \"varValue\": {\"rpa\": \"special\", \"value\": [{\"type\": \"p_var\", \"value\": \"img_dir\"}]}}, {\"varName\": \"txt_out\", \"varValue\": {\"rpa\": \"special\", \"value\": [{\"type\": \"p_var\", \"value\": \"txt_out\"}]}}, {\"varName\": \"ps1\", \"varValue\": {\"rpa\": \"special\", \"value\": [{\"type\": \"p_var\", \"value\": \"ps1\"}]}}, {\"varName\": \"lang\", \"varValue\": {\"rpa\": \"special\", \"value\": [{\"type\": \"p_var\", \"value\": \"lang\"}]}}, {\"varName\": \"docx_path\", \"varValue\": {\"rpa\": \"special\", \"value\": [{\"type\": \"p_var\", \"value\": \"out_dir\"}, {\"type\": \"other\", \"value\": \"\\\\\"}, {\"type\": \"p_var\", \"value\": \"out_name\"}, {\"type\": \"other\", \"value\": \".docx\"}]}}]"
+      }
+    },
+    {
+      "atom": "File.file_read",
+      "alias": "读取OCR文本",
+      "out": {
+        "read_file_content": "ocr_text"
+      },
+      "inputs": {
+        "file_path": "$p:txt_out",
+        "read_type": "all",
+        "encode_type": "utf-8"
+      }
+    },
+    {
+      "atom": "File.file_delete",
+      "alias": "删除同名旧Word（不存在则跳过）",
+      "on_error": "skip",
+      "out": {},
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "\\",
+          "$p:out_name",
+          ".docx"
+        ],
+        "delete_options": "delete"
+      }
+    },
+    {
+      "atom": "Docx.create_docx",
+      "alias": "新建Word文档",
+      "out": {
+        "doc_obj": "doc"
+      },
+      "inputs": {
+        "file_path": "$p:out_dir",
+        "file_name": "$p:out_name",
+        "default_application": "Default",
+        "visible_flag": false,
+        "exist_handle_type": "overwrite"
+      }
+    },
+    {
+      "atom": "Docx.insert_docx",
+      "alias": "写入识别文字",
+      "out": {},
+      "inputs": {
+        "doc": "$doc",
+        "text": "$ocr_text",
+        "enter_flag": false,
+        "font_size": 10,
+        "bold_flag": false,
+        "italic_flag": false,
+        "underline_flag": 0,
+        "font_name": "宋体",
+        "font_color": "0,0,0"
+      }
+    },
+    {
+      "atom": "Docx.save_docx",
+      "alias": "保存并关闭Word",
+      "out": {
+        "save_file_path": "docx_path"
+      },
+      "inputs": {
+        "doc": "$doc",
+        "save_type": "save",
+        "file_path": "",
+        "file_name": "",
+        "exist_handle_type": "overwrite",
+        "close_flag": true
+      }
+    }
+  ]
+}

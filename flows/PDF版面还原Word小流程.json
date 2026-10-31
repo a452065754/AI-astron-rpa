@@ -1,0 +1,70 @@
+{
+  "name": "PDF版面还原Word小流程",
+  "nl_examples": [
+    "把这个PDF转成Word，版式要和原件一样",
+    "PDF转Word保留表格和页眉页脚",
+    "扫描件转成排版一致的Word",
+    "PDF转Word要能改文字而且要像原件"
+  ],
+  "keywords": [
+    "版面",
+    "还原",
+    "保持格式",
+    "格式一致",
+    "排版",
+    "一模一样",
+    "保留表格",
+    "版式"
+  ],
+  "params": [
+    {
+      "name": "src_pdf",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\20260914报废_已转正.pdf",
+      "describe": "源 PDF（扫描件也可以）"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo",
+      "describe": "Word 输出目录（须已存在）"
+    },
+    {
+      "name": "out_name",
+      "type": "Str",
+      "default": "20260914报废_版面还原",
+      "describe": "Word 文件名（不带扩展名）"
+    },
+    {
+      "name": "ps1",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\scripts\\win_ocr.ps1",
+      "describe": "本地 OCR 脚本（Windows 自带引擎，离线免费无密钥）"
+    },
+    {
+      "name": "lang",
+      "type": "Str",
+      "default": "zh-Hans-CN",
+      "describe": "OCR 语言"
+    },
+    {
+      "name": "module_id",
+      "type": "Str",
+      "default": "2116087281595998208",
+      "describe": "版面还原 Python 子流程模块 ID（c_module）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "Script.module",
+      "alias": "版面分析重建Word（Python子流程）",
+      "out": {
+        "program_script": "layout_result"
+      },
+      "inputs": {
+        "content": "$p:module_id",
+        "module_param": "$json:[{\"varName\": \"src_pdf\", \"varValue\": {\"rpa\": \"special\", \"value\": [{\"type\": \"p_var\", \"value\": \"src_pdf\"}]}}, {\"varName\": \"out_dir\", \"varValue\": {\"rpa\": \"special\", \"value\": [{\"type\": \"p_var\", \"value\": \"out_dir\"}]}}, {\"varName\": \"out_name\", \"varValue\": {\"rpa\": \"special\", \"value\": [{\"type\": \"p_var\", \"value\": \"out_name\"}]}}, {\"varName\": \"ps1\", \"varValue\": {\"rpa\": \"special\", \"value\": [{\"type\": \"p_var\", \"value\": \"ps1\"}]}}, {\"varName\": \"lang\", \"varValue\": {\"rpa\": \"special\", \"value\": [{\"type\": \"p_var\", \"value\": \"lang\"}]}}]"
+      }
+    }
+  ]
+}

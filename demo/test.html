@@ -1,0 +1,10 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>RPA 点击测试页</title>
+<style>body{font-family:sans-serif;padding:40px}input{padding:8px;width:240px}button{padding:8px 20px}#status{margin-top:24px;color:#0a7;font-weight:bold}</style></head>
+<body>
+<h1>RPA 网页点击测试页</h1>
+<p>用于验证 BrowserElement.click 真能点到元素（点击会回写服务器日志 /clicked）。</p>
+<input id="key" type="text" placeholder="输入框 id=key">
+<button id="btn" onclick="fetch('/clicked?from=btn&t='+Date.now());document.getElementById('status').textContent='按钮已被点击 ✅';document.title='已点击-OK';">点我</button>
+<div id="status">尚未点击</div>
+</body></html>
