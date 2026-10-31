@@ -1,0 +1,276 @@
+{
+  "name": "Word批注光标与删除小流程",
+  "nl_examples": [
+    "给 Word 加两条批注，删掉一条，再试试光标定位和选中文本",
+    "在 Word 里加批注、删批注、移动光标、选中整段、删掉几个字",
+    "测试 Word 的批注操作和光标移动选择",
+    "Docx 域批注 / 光标 / 选中 / 删除原子演示"
+  ],
+  "keywords": [
+    "Word批注",
+    "创建批注",
+    "删除批注",
+    "定位光标",
+    "移动光标",
+    "选择文本",
+    "删除内容"
+  ],
+  "params": [
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_word_out",
+      "describe": "输出目录"
+    },
+    {
+      "name": "out_name",
+      "type": "Str",
+      "default": "批注光标与删除测试",
+      "describe": "输出文件名（不含扩展名）"
+    },
+    {
+      "name": "anchor_str",
+      "type": "Str",
+      "default": "ANCHOR",
+      "describe": "批注锚点文本（正文里唯一出现一次）"
+    },
+    {
+      "name": "del_str",
+      "type": "Str",
+      "default": "待删标记XYZ",
+      "describe": "要删除的文字"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "Docx.create_docx",
+      "alias": "新建 Word 文档",
+      "out": {
+        "doc_obj": "doc",
+        "doc_create_path": "doc_path"
+      },
+      "inputs": {
+        "file_path": "$p:out_dir",
+        "file_name": "$p:out_name",
+        "default_application": "Word",
+        "visible_flag": false,
+        "exist_handle_type": "overwrite"
+      }
+    },
+    {
+      "atom": "Docx.insert_docx",
+      "alias": "写第 1 段（含批注锚点）",
+      "out": {},
+      "inputs": {
+        "doc": "$doc",
+        "text": [
+          "第一段原文 ",
+          "$p:anchor_str"
+        ],
+        "enter_flag": false,
+        "font_size": 12,
+        "bold_flag": false,
+        "italic_flag": false,
+        "underline_flag": false,
+        "font_name": "宋体",
+        "font_color": "0,0,0"
+      }
+    },
+    {
+      "atom": "Docx.insert_docx",
+      "alias": "写第 2 段（光标要移到这里）",
+      "out": {},
+      "inputs": {
+        "doc": "$doc",
+        "text": "第二段原文 BBB",
+        "enter_flag": true,
+        "font_size": 12,
+        "bold_flag": false,
+        "italic_flag": false,
+        "underline_flag": false,
+        "font_name": "宋体",
+        "font_color": "0,0,0"
+      }
+    },
+    {
+      "atom": "Docx.insert_docx",
+      "alias": "写第 3 段（整段会被替换）",
+      "out": {},
+      "inputs": {
+        "doc": "$doc",
+        "text": "第三段原文 CCC",
+        "enter_flag": true,
+        "font_size": 12,
+        "bold_flag": false,
+        "italic_flag": false,
+        "underline_flag": false,
+        "font_name": "宋体",
+        "font_color": "0,0,0"
+      }
+    },
+    {
+      "atom": "Docx.insert_docx",
+      "alias": "写第 4 段（含待删文字）",
+      "out": {},
+      "inputs": {
+        "doc": "$doc",
+        "text": [
+          "第四段原文 DDD ",
+          "$p:del_str"
+        ],
+        "enter_flag": true,
+        "font_size": 12,
+        "bold_flag": false,
+        "italic_flag": false,
+        "underline_flag": false,
+        "font_name": "宋体",
+        "font_color": "0,0,0"
+      }
+    },
+    {
+      "atom": "Docx.create_comment",
+      "alias": "批注一：按文本内容定位（锚在锚点词上）",
+      "out": {},
+      "inputs": {
+        "doc": "$doc",
+        "comment": "批注一：锚定在锚点词上",
+        "comment_type": "content",
+        "paragraph_idx": 1,
+        "start": 1,
+        "end": 5,
+        "target_str": "$p:anchor_str",
+        "comment_all": true,
+        "comment_index": 1
+      }
+    },
+    {
+      "atom": "Docx.create_comment",
+      "alias": "批注二：按段落位置定位（第 2 段）",
+      "out": {},
+      "inputs": {
+        "doc": "$doc",
+        "comment": "批注二：定位在第二段",
+        "comment_type": "position",
+        "paragraph_idx": 2,
+        "start": 1,
+        "end": 5,
+        "target_str": "",
+        "comment_all": false,
+        "comment_index": 1
+      }
+    },
+    {
+      "atom": "Docx.delete_comment",
+      "alias": "删除第 1 条批注（应只剩批注二）",
+      "out": {},
+      "inputs": {
+        "doc": "$doc",
+        "delete_all": false,
+        "comment_index": 1
+      }
+    },
+    {
+      "atom": "Docx.get_cursor_position",
+      "alias": "光标定位到第 1 段开头",
+      "out": {},
+      "inputs": {
+        "doc": "$doc",
+        "by": "paragraph",
+        "pos": "head",
+        "content": "",
+        "c_idx": 1,
+        "p_idx": 1,
+        "r_idx": 1
+      }
+    },
+    {
+      "atom": "Docx.move_cursor",
+      "alias": "光标下移一行（应落在第 2 段开头）",
+      "out": {},
+      "inputs": {
+        "doc": "$doc",
+        "direction": "down",
+        "unitupdown": "row",
+        "unitleftright": "character",
+        "distance": 1,
+        "with_shift": false
+      }
+    },
+    {
+      "atom": "Docx.insert_docx",
+      "alias": "在光标处插入标记（验证光标真的移动了）",
+      "out": {},
+      "inputs": {
+        "doc": "$doc",
+        "text": "【光标下移一行】",
+        "enter_flag": false,
+        "font_size": 12,
+        "bold_flag": false,
+        "italic_flag": false,
+        "underline_flag": false,
+        "font_name": "宋体",
+        "font_color": "0,0,0"
+      }
+    },
+    {
+      "atom": "Docx.delete",
+      "alias": "删除正文里的待删文字（删除所有命中）",
+      "out": {},
+      "inputs": {
+        "doc": "$doc",
+        "delete_mode": "content",
+        "delete_str": "$p:del_str",
+        "delete_idx": 1,
+        "str_delete_all": true,
+        "p_start": 0,
+        "c_start": 0,
+        "p_end": 0,
+        "c_end": 0
+      }
+    },
+    {
+      "atom": "Docx.select_text",
+      "alias": "选中第 3 段整段",
+      "out": {},
+      "inputs": {
+        "doc": "$doc",
+        "select_type": "paragraph",
+        "p_start": 3,
+        "p_end": 3,
+        "r_start": 1,
+        "r_end": 1
+      }
+    },
+    {
+      "atom": "Docx.insert_docx",
+      "alias": "向选区写入（TypeText 会替换选中内容）",
+      "out": {},
+      "inputs": {
+        "doc": "$doc",
+        "text": "【第三段被替换】",
+        "enter_flag": false,
+        "font_size": 12,
+        "bold_flag": false,
+        "italic_flag": false,
+        "underline_flag": false,
+        "font_name": "宋体",
+        "font_color": "0,0,0"
+      }
+    },
+    {
+      "atom": "Docx.save_docx",
+      "alias": "保存并关闭",
+      "out": {
+        "save_file_path": "saved"
+      },
+      "inputs": {
+        "doc": "$doc",
+        "save_type": "save",
+        "file_path": "",
+        "file_name": "",
+        "exist_handle_type": "overwrite",
+        "close_flag": true
+      }
+    }
+  ]
+}

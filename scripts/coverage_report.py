@@ -42,6 +42,9 @@ DEPRECATED_KEYS = {
     "Code.ForStepEnd", "Code.ForListEnd", "Code.ForDictEnd", "Code.WhileEnd",
     "Code.ElseEnd", "Code.ElseIfEnd", "Code.CatchEnd", "Code.FinallyEnd",
     "Code.Process",
+    # Docx：字典残留但类里没有这两个方法，真实 183 条流程 0 命中；
+    # 现行 key 是 open_docx / read_docx（分别 5 次 / 1 次命中）。
+    "Docx.open_document", "Docx.read_document_content",
 }
 
 DOMAIN_CN = {

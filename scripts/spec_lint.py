@@ -105,6 +105,8 @@ DEAD_ATOMS = {
     "Code.CatchEnd": "接 Code.Finally 或 Code.TryEnd（坑 133 作废 key）",
     "Code.FinallyEnd": "用 Code.TryEnd 收尾（坑 133 作废 key）",
     "Code.Process": "旧版子流程 key，改用 Script.process（前端 atomKeyMap.ts: ProcessOld 注释）",
+    "Docx.open_document": "旧 key，改用 Docx.open_docx（类里没有 open_document，真实流程 0 命中）",
+    "Docx.read_document_content": "旧 key，改用 Docx.read_docx（类里没有 read_document_content，真实流程 0 命中）",
 }
 
 # 元素类参数（要靠 elements 槽位从元素库取真实元素，不能写字面量）
