@@ -32,6 +32,18 @@ FLOWS = os.path.join(ROOT, "flows")
 
 ELEMENT_TYPES = {"WebPick", "UiaPick", "CvPick", "Pick", "Element"}
 
+# 作废 key：字典 c_atom_meta_new 里残留，但**前端不生成、引擎也不认**，不应计入分母。
+# 三重依据（2026-10-31）：
+#   1) 引擎 token.py 的 TokenType 只有 IfEnd/ForEnd/TryEnd/GroupEnd 四个 End
+#   2) 前端 atomKeyMap.ts 的 LOOP_END_MAP 生成收尾节点也只有这四个
+#   3) 173 条真实流程 process_content 里，下面 8 个 key 出现次数均为 0
+# Code.Process 是旧版子流程 key，前端已改用 Script.process（atomKeyMap.ts 注明 ProcessOld）
+DEPRECATED_KEYS = {
+    "Code.ForStepEnd", "Code.ForListEnd", "Code.ForDictEnd", "Code.WhileEnd",
+    "Code.ElseEnd", "Code.ElseIfEnd", "Code.CatchEnd", "Code.FinallyEnd",
+    "Code.Process",
+}
+
 DOMAIN_CN = {
     "Excel": "Excel 表格", "Docx": "Word 文档", "PDF": "PDF 文档",
     "File": "文件", "Folder": "文件夹", "DataTable": "数据表",
@@ -104,9 +116,11 @@ def main():
             print("被 %d 条流程使用：%s" % (len(users), "、".join(users) or "（没有，属于未覆盖能力）"))
         return 0
 
-    # 按域统计
+    # 按域统计（作废 key 直接剔除，不进分母）
     stats = {}
     for k, atom in atoms.items():
+        if k in DEPRECATED_KEYS:
+            continue
         d = k.split(".")[0]
         s = stats.setdefault(d, {"total": 0, "used": 0, "elem": 0, "unused": []})
         s["total"] += 1
@@ -117,9 +131,11 @@ def main():
         else:
             s["unused"].append(k)
 
-    total = len(atoms)
-    used_n = sum(1 for k in atoms if k in used)
-    zero_elem = sum(1 for k in atoms.values() if not needs_element(k))
+    valid_atoms = {k: v for k, v in atoms.items() if k not in DEPRECATED_KEYS}
+    dep_n = len(atoms) - len(valid_atoms)
+    total = len(valid_atoms)
+    used_n = sum(1 for k in valid_atoms if k in used)
+    zero_elem = sum(1 for k in valid_atoms.values() if not needs_element(k))
 
     if a.domain:
         d = a.domain
@@ -144,6 +160,7 @@ def main():
     # 总览
     if a.json:
         print(json.dumps({"total": total, "used": used_n, "zero_element": zero_elem,
+                          "deprecated_excluded": dep_n,
                           "flows": len(glob.glob(os.path.join(FLOWS, "*.json"))),
                           "domains": {d: {"total": v["total"], "used": v["used"]}
                                       for d, v in stats.items()}}, ensure_ascii=False, indent=2))
@@ -154,6 +171,7 @@ def main():
     print("=" * 66)
     print("流程规格 %d 条 · 原子总数 %d · 已用 %d · 覆盖率 %.1f%%"
           % (nflows, total, used_n, used_n * 100.0 / total))
+    print("（已剔除 %d 个作废 key：字典残留但前端不生成/编译器不认，见 DEPRECATED_KEYS）" % dep_n)
     print("零元素可跑 %d 个（其余 %d 个需要界面元素）" % (zero_elem, total - zero_elem))
     print("  ↳ 需要元素的不再是阻塞项：element_pick.py 可自动拾取并写库（见 README「元素自动拾取」）")
     print()

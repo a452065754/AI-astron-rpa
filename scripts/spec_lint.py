@@ -71,7 +71,11 @@ PARAM_HINT = {
 }
 
 PAIRS = {"Code.ForList": "Code.ForEnd", "Code.If": "Code.IfEnd",
-         "Code.Try": "Code.TryEnd", "Code.While": "Code.WhileEnd",
+         "Code.Try": "Code.TryEnd",
+         # While **也用 Code.ForEnd 收尾**（不是 WhileEnd）：
+         # token.py 的 special_token_type_end[While] = [ForEnd]，
+         # 前端 atomKeyMap.ts 的 LOOP_END_MAP[While] 也写的是 ForEnd（坑 133）
+         "Code.While": "Code.ForEnd",
          # 循环类块**统一用 Code.ForEnd 收尾**：`Code.ForStepEnd` 编译出来是
          # `None(...)` 必崩（坑 122）；ForList/ForStep 已实测，ForDict 同类处理
          "Code.ForDict": "Code.ForEnd", "Code.ForStep": "Code.ForEnd",
@@ -85,11 +89,22 @@ PAIRS = {"Code.ForList": "Code.ForEnd", "Code.If": "Code.IfEnd",
          "File.file_exist": "Code.IfEnd",
          "Folder.folder_exist": "Code.IfEnd"}
 
-# 编译出来是 `None(...)` 的死原子：字典里有、平台编译不支持，写了必崩
+# 作废 key：字典 c_atom_meta_new 里还有，但**编译器不认、前端也不生成**。
+# 依据（2026-10-31 实测 + 源码双证）：
+#   1) 引擎 token.py 的 TokenType 枚举只有 IfEnd / ForEnd / TryEnd / GroupEnd 四个 End
+#   2) 前端 atomKeyMap.ts 的 LOOP_END_MAP 生成的收尾节点也只有这四个
+#   3) 173 条真实流程里这 8 个 key 出现次数均为 0
+# 写了必崩：编译时不在枚举 → 掉进 parse_atomic 当普通原子 → 生成 `None(...)`
 DEAD_ATOMS = {
-    "Code.ForStepEnd": "用 Code.ForEnd 收尾（见坑 122）",
-    "Code.ForListEnd": "用 Code.ForEnd 收尾（见坑 122）",
-    "Code.ForDictEnd": "用 Code.ForEnd 收尾（见坑 122）",
+    "Code.ForStepEnd": "用 Code.ForEnd 收尾（坑 122 实测崩）",
+    "Code.ForListEnd": "用 Code.ForEnd 收尾（坑 133 作废 key）",
+    "Code.ForDictEnd": "用 Code.ForEnd 收尾（坑 133 作废 key）",
+    "Code.WhileEnd": "用 Code.ForEnd 收尾（坑 133 作废 key，While 也用 ForEnd）",
+    "Code.ElseEnd": "用 Code.IfEnd 收尾（坑 133 作废 key）",
+    "Code.ElseIfEnd": "用 Code.IfEnd 收尾（坑 133 作废 key）",
+    "Code.CatchEnd": "接 Code.Finally 或 Code.TryEnd（坑 133 作废 key）",
+    "Code.FinallyEnd": "用 Code.TryEnd 收尾（坑 133 作废 key）",
+    "Code.Process": "旧版子流程 key，改用 Script.process（前端 atomKeyMap.ts: ProcessOld 注释）",
 }
 
 # 元素类参数（要靠 elements 槽位从元素库取真实元素，不能写字面量）

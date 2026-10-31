@@ -1,0 +1,353 @@
+{
+  "name": "条件分支与While循环小流程",
+  "nl_examples": [
+    "按分数判断优秀及格不及格",
+    "while循环累计到指定次数",
+    "循环里跳过某一次",
+    "遍历字典打印键值",
+    "条件分支加循环组合"
+  ],
+  "keywords": [
+    "if判断",
+    "elseif",
+    "else分支",
+    "while循环",
+    "continue",
+    "字典循环",
+    "编组"
+  ],
+  "params": [
+    {
+      "name": "score",
+      "type": "Str",
+      "default": "78",
+      "describe": "分数，用于多分支判断"
+    },
+    {
+      "name": "total",
+      "type": "Str",
+      "default": "3",
+      "describe": "While 循环总共做到第几轮"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:/AI-Workbench/10-Projects/星辰开源/demo/_code_out",
+      "describe": "证据文件输出目录"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "Code.Group",
+      "alias": "编组开始：评分判断",
+      "out": {},
+      "inputs": {}
+    },
+    {
+      "atom": "Code.If",
+      "alias": "分数达到90",
+      "out": {},
+      "inputs": {
+        "args1": "$p:score",
+        "condition": ">=",
+        "args2": "90"
+      }
+    },
+    {
+      "atom": "Report.print",
+      "alias": "打印优秀",
+      "out": {},
+      "inputs": {
+        "report_type": "info",
+        "msg": "评级：优秀"
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "写评级：优秀",
+      "out": {
+        "write_file_path": "写评级_优秀_p"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/",
+          "评级结果.txt"
+        ],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": "评级：优秀"
+      }
+    },
+    {
+      "atom": "Code.ElseIf",
+      "alias": "分数达到60",
+      "out": {},
+      "inputs": {
+        "args1": "$p:score",
+        "condition": ">=",
+        "args2": "60"
+      }
+    },
+    {
+      "atom": "Report.print",
+      "alias": "打印及格",
+      "out": {},
+      "inputs": {
+        "report_type": "info",
+        "msg": "评级：及格"
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "写评级：及格",
+      "out": {
+        "write_file_path": "写评级_及格_p"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/",
+          "评级结果.txt"
+        ],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": "评级：及格"
+      }
+    },
+    {
+      "atom": "Code.Else",
+      "alias": "其余情况",
+      "out": {},
+      "inputs": {}
+    },
+    {
+      "atom": "Report.print",
+      "alias": "打印不及格",
+      "out": {},
+      "inputs": {
+        "report_type": "info",
+        "msg": "评级：不及格"
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "写评级：不及格",
+      "out": {
+        "write_file_path": "写评级_不及格_p"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/",
+          "评级结果.txt"
+        ],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": "评级：不及格"
+      }
+    },
+    {
+      "atom": "Code.IfEnd",
+      "alias": "条件判断结束",
+      "out": {},
+      "inputs": {}
+    },
+    {
+      "atom": "Code.GroupEnd",
+      "alias": "编组结束：评分判断",
+      "out": {},
+      "inputs": {}
+    },
+    {
+      "atom": "DataProcess.set_variable_value",
+      "alias": "计数器初始化为0",
+      "out": {
+        "variable_var": "i"
+      },
+      "inputs": {
+        "value": "0",
+        "variable_type": "int"
+      }
+    },
+    {
+      "atom": "Code.While",
+      "alias": "只要未到total轮就继续",
+      "out": {},
+      "inputs": {
+        "args1": "$i",
+        "condition": "<",
+        "args2": "$p:total"
+      }
+    },
+    {
+      "atom": "MathProcess.self_calculation_number",
+      "alias": "计数器加1",
+      "out": {
+        "self_calculation_number": "i"
+      },
+      "inputs": {
+        "number": "$i",
+        "add_sub": "add",
+        "add_sub_number": 1
+      }
+    },
+    {
+      "atom": "Code.If",
+      "alias": "第二轮要跳过",
+      "out": {},
+      "inputs": {
+        "args1": "$i",
+        "condition": "==",
+        "args2": "2"
+      }
+    },
+    {
+      "atom": "Code.Continue",
+      "alias": "跳过本轮",
+      "out": {},
+      "inputs": {}
+    },
+    {
+      "atom": "Code.IfEnd",
+      "alias": "跳过判断结束",
+      "out": {},
+      "inputs": {}
+    },
+    {
+      "atom": "Report.print",
+      "alias": "打印当前轮次",
+      "out": {},
+      "inputs": {
+        "report_type": "info",
+        "msg": [
+          "While 第 ",
+          "$i",
+          " 轮"
+        ]
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "轮次追加一行",
+      "out": {
+        "write_file_path": "轮次追加一行_p"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/",
+          "轮次记录.txt"
+        ],
+        "file_option": "create",
+        "write_type": "append",
+        "msg": [
+          "第 ",
+          "$i",
+          " 轮\n"
+        ]
+      }
+    },
+    {
+      "atom": "Code.ForEnd",
+      "alias": "While循环结束",
+      "out": {},
+      "inputs": {}
+    },
+    {
+      "atom": "DictProcess.create_new_dict",
+      "alias": "建空字典",
+      "out": {
+        "created_new_dict_data": "d1"
+      },
+      "inputs": {
+        "dict_data": "$json:{}"
+      }
+    },
+    {
+      "atom": "DictProcess.set_value_to_dict",
+      "alias": "写入键甲",
+      "out": {
+        "inserted_dict_data": "d2"
+      },
+      "inputs": {
+        "dict_data": "$d1",
+        "dict_key": "甲",
+        "value": "1"
+      }
+    },
+    {
+      "atom": "DictProcess.set_value_to_dict",
+      "alias": "写入键乙",
+      "out": {
+        "inserted_dict_data": "d3"
+      },
+      "inputs": {
+        "dict_data": "$d2",
+        "dict_key": "乙",
+        "value": "2"
+      }
+    },
+    {
+      "atom": "Code.ForDict",
+      "alias": "遍历字典",
+      "out": {
+        "key": "dk",
+        "value": "dv"
+      },
+      "inputs": {
+        "dicts": "$d3"
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "每个键值追加一行",
+      "out": {
+        "write_file_path": "dict_written"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/字典遍历记录.txt"
+        ],
+        "file_option": "create",
+        "write_type": "append",
+        "msg": [
+          "键 ",
+          "$dk",
+          " = ",
+          "$dv",
+          "\n"
+        ]
+      }
+    },
+    {
+      "atom": "Code.ForEnd",
+      "alias": "字典循环结束",
+      "out": {},
+      "inputs": {}
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "结果写成证据文件",
+      "out": {
+        "write_file_path": "written"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/分支与循环结果.txt"
+        ],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": [
+          "分数：",
+          "$p:score",
+          "\nWhile 结束计数：",
+          "$i",
+          "\n字典遍历明细见 字典遍历记录.txt，本文件写入成功即说明整条链路跑通"
+        ]
+      }
+    }
+  ]
+}

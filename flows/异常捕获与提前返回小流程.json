@@ -1,0 +1,134 @@
+{
+  "name": "异常捕获与提前返回小流程",
+  "nl_examples": [
+    "读取不存在的文件并捕获异常",
+    "try catch finally 异常处理",
+    "出错也要执行收尾动作",
+    "异常处理后退出流程",
+    "捕获错误继续执行"
+  ],
+  "keywords": [
+    "try",
+    "catch",
+    "finally",
+    "异常处理",
+    "捕获异常",
+    "退出流程",
+    "return"
+  ],
+  "params": [
+    {
+      "name": "bad_file",
+      "type": "Str",
+      "default": "F:/AI-Workbench/10-Projects/星辰开源/demo/_code_out",
+      "describe": "故意指向一个文件夹（不是文件），读取时必然报错，用来触发异常"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:/AI-Workbench/10-Projects/星辰开源/demo/_code_out",
+      "describe": "证据文件输出目录"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "Code.Try",
+      "alias": "尝试：读取一个文件夹路径",
+      "out": {},
+      "inputs": {}
+    },
+    {
+      "atom": "File.file_read",
+      "alias": "读一个文件夹路径（必抛异常）",
+      "out": {
+        "read_file_content": "content"
+      },
+      "inputs": {
+        "file_path": "$p:bad_file",
+        "read_type": "all",
+        "encode_type": "default"
+      }
+    },
+    {
+      "atom": "Code.Catch",
+      "alias": "捕获到异常就走这里",
+      "out": {},
+      "inputs": {}
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "记录已捕获异常",
+      "out": {
+        "write_file_path": "w1"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/异常处理记录.txt"
+        ],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": "第1行：进入 Catch 块，说明异常被成功捕获"
+      }
+    },
+    {
+      "atom": "Code.Finally",
+      "alias": "finally：无论成败都执行",
+      "out": {},
+      "inputs": {}
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "记录finally已执行",
+      "out": {
+        "write_file_path": "w2"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/异常处理记录.txt"
+        ],
+        "file_option": "create",
+        "write_type": "append",
+        "msg": "\n第2行：Finally 块已执行（读文件失败后流程没有崩）"
+      }
+    },
+    {
+      "atom": "Code.TryEnd",
+      "alias": "异常处理结束",
+      "out": {},
+      "inputs": {}
+    },
+    {
+      "atom": "Report.print",
+      "alias": "打印收尾",
+      "out": {},
+      "inputs": {
+        "report_type": "info",
+        "msg": "异常已被捕获，流程继续走到这里"
+      }
+    },
+    {
+      "atom": "Code.Return",
+      "alias": "退出流程",
+      "out": {},
+      "inputs": {}
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "Return之后的节点（不该执行）",
+      "out": {
+        "write_file_path": "should_not"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/不该执行.txt"
+        ],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": "如果你看到这个文件，说明 Return 没生效"
+      }
+    }
+  ]
+}
