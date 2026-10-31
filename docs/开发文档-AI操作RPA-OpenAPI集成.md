@@ -353,7 +353,8 @@ def run_async(pid, params=None, interval=3, max_try=40):
 | 端点 | 方法 | 说明 |
 | --- | --- | --- |
 | `/robot-design/create` | POST | 建机器人，Body=`RobotDesign` 实体（robotId/name/creatorId/tenantId/appId/appVersion/marketId/resourceStatus/dataSource/editEnable/transformStatus）——**仅元数据** |
-| `/robot-design/design-list`、`/rename`、`/delete-robot`、`/copy-design-robot`、`/my-robot-detail` 等 | — | 设计器管理 |
+| `/robot-design/design-list`、`/rename`、`/copy-design-robot`、`/my-robot-detail` 等 | — | 设计器管理 |
+| `/robot-design/delete-robot` | POST | 删除整个机器人。Body=**JSON** `{"robotId":"...","situation":2}`。**`situation` 必填**（Integer，漏传会 `NPE` → `999999 系统异常`）：1=仅删设计、2=删设计+执行记录（删机器人用这个）、3=删调度任务（另传 `taskIds` 逗号分隔）。工具函数 `publish_flow.delete_robot(cookie, robotId)` |
 | **`/process/save`** | POST | **保存节点树**（c_process）；另有 `/process/create`、`/process/all-data`、`/process-json`、`/name-list` |
 | `/atom`、`/atom-new` | GET | 原子目录运行时下发 |
 | `/element` | — | 元素库接口 |

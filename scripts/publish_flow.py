@@ -384,6 +384,26 @@ def delete_params(cookie, robot_id, process_id, keep_names):
     return {"deleted": deleted, "failed": failed}
 
 
+def delete_robot(cookie, robot_id, situation=2):
+    """删除整个机器人。
+
+    `POST /api/robot/robot-design/delete-robot`，body 为 JSON
+    `{"robotId": "...", "situation": 2}`。
+
+    **`situation` 是必填字段**（漏传会 `NullPointerException` → 报
+    `999999 系统异常`，而不是明确的参数校验错误）。取值语义：
+      - 1 = 仅删「设计」（design）
+      - 2 = 删「设计 + 执行记录」（删整个机器人用这个）
+      - 3 = 删「调度任务」（需另传 taskIds，逗号分隔）
+    """
+    url = cfg.gateway_base() + "/api/robot/robot-design/delete-robot"
+    headers = {"X-Requested-With": "XMLHttpRequest",
+               "Content-Type": "application/json", "Cookie": cookie}
+    r = requests.post(url, json={"robotId": str(robot_id), "situation": situation},
+                      headers=headers, timeout=TIMEOUT)
+    return ok(r.json(), f"删除机器人 {robot_id}")
+
+
 def get_last_execute_error(robot_id, execute_id=None):
     """取最近一次执行的**具体失败原因**。
 
@@ -606,7 +626,7 @@ def main():
 
     print(f"   在设计器里打开机器人「{args.robot_name}」即可看到流程「{pname}」。")
     print(f"   如需清理：POST /api/robot/process/delete {{robotId, processId}}；"
-          f"整个机器人：POST /api/robot/robot-design/delete-robot")
+          f"整个机器人：delete_robot(cookie, robotId)（内部补 situation=2）")
     return 0
 
 
