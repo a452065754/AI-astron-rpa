@@ -52,6 +52,10 @@ demo/_gui_out/chrome-profile*/
 demo/_cv_out/site/
 demo/_gui_out/site/
 
+# 相似元素/OCR 试验的生成物（图片可再生；.txt 取证要入库）
+demo/_ocr_out/*.png
+demo/_similar_out/*.png
+
 # ============ 临时 / 锁文件 ============
 .dsh-tmp-*.py
 ~$*

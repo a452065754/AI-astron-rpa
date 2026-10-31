@@ -1,0 +1,12 @@
+【结论】WinEle.similar（相似元素）执行成功。
+相似元素个数 = 4
+第 0 个相似元素的控件名 = 项目一
+期望个数 = 4
+
+【为什么这条流程能当证据】
+1) 元素「靶场_相似列表项」是引擎自己的拾取器产出的 picker_type=SIMILAR 元素，
+   由 scripts/winsimilar_pick.py 生成（先拾项目一、再拾项目二，引擎比对两层 path 后打 similar_parent 标记）。
+2) 流程跑的是 WinEle.similar 原子本身，返回的列表长度由 ListProcess.get_length_of_list 计算，
+   不是脚本里数出来的。
+3) 再用 ListProcess.get_value_from_list 取出列表第 0 项（一个 WinPick），
+   交给 WinEle.get_element_text 读出它的控件名 —— 能读出名字，说明列表里装的是真控件。

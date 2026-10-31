@@ -190,7 +190,12 @@ def main():
             importlib.import_module(mod)
             add(OK, f"依赖 {mod}", "已安装")
         except ImportError:
-            add(WARN if mod != "requests" else BAD, f"依赖 {mod}", f"缺失（{why}）", fix)
+            fix_txt = fix
+            if mod == "requests":
+                # 2026-10-31 实测：用系统 Python 跑 doctor 会因为缺 requests 报一堆假故障
+                #（登录态/会话/openapi 跟着一起报错），其实客户端自带 python 里有。
+                fix_txt = 'pip install requests；或直接用客户端自带解释器跑："%APPDATA%/astron-rpa/python_core/python.exe" scripts/doctor.py'
+            add(WARN if mod != "requests" else BAD, f"依赖 {mod}", f"缺失（{why}）", fix_txt)
 
     # ---------- 8. SQL 通道 ----------
     if not cfg.db_conf():

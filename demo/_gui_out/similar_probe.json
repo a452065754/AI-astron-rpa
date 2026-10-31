@@ -1,0 +1,46 @@
+{
+ "version": "1",
+ "type": "uia",
+ "app": "python",
+ "path": [
+  {
+   "tag_name": "WindowControl",
+   "cls": "#32770",
+   "name": "星辰相似元素靶场",
+   "checked": true,
+   "disable_keys": [],
+   "similar_parent": true
+  },
+  {
+   "tag_name": "ListControl",
+   "cls": "ListBox",
+   "name": "",
+   "index": 0,
+   "checked": true,
+   "disable_keys": [
+    "name",
+    "value",
+    "cls",
+    "index"
+   ],
+   "similar_parent": true
+  },
+  {
+   "tag_name": "ListItemControl",
+   "name": "项目一",
+   "index": 0,
+   "checked": true,
+   "disable_keys": [
+    "cls",
+    "name",
+    "value",
+    "index"
+   ]
+  }
+ ],
+ "img": {
+  "self": "iVBORw0KGgoAAAANSUhEUgAAAagAAAAQCAIAAADMPnw7AAAAxElEQVR4nO3bXQvCIBiA0Rn9/79skCSyLWcENd+dcyXlRVcP5kfKOS8AV3IfnJdSKgOhBMKGr5au2iZvO6czGeB04dstXfmwX7HVt50aApzBrY7yUx23CUsvf/qRAD/c46spVD3gQocbh8nTRCDmqe43e3yDZXQeAkwTvkOKBkQLn7+6QITwfdQy11mA6e/xtXdZrOaAyPf4ivYq32opZ6sOiCF1ctY+29h9q+vJGhDwrW67AHyXOXt8QIQV38gTXYBlTg/QQ1cxcq+OsgAAAABJRU5ErkJggg=="
+ },
+ "picker_type": "SIMILAR",
+ "similar_count": 4
+}

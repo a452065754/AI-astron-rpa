@@ -12,6 +12,7 @@
 """
 
 import argparse
+import shlex
 import subprocess
 import sys
 import time
@@ -21,6 +22,23 @@ CREATE_NEW_PROCESS_GROUP = 0x00000200
 CREATE_BREAKAWAY_FROM_JOB = 0x01000000
 
 
+def split_args(text):
+    """把 --args 字符串拆成参数列表。
+
+    用 posix=False 拆（Windows 路径里的反斜杠不能被当转义符），再把成对引号剥掉
+    —— posix=False 会把引号保留在 token 里，直接传给 Popen 会导致「文件名带引号」→ 找不到文件。
+    """
+    if not text:
+        return []
+    parts = shlex.split(text, posix=False)
+    out = []
+    for p in parts:
+        if len(p) >= 2 and p[0] == '"' and p[-1] == '"':
+            p = p[1:-1]
+        out.append(p)
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--exe", required=True)
@@ -28,14 +46,21 @@ def main():
     ap.add_argument("--wait", type=float, default=3.0)
     args = ap.parse_args()
 
-    cmd = [args.exe] + ([args.args] if args.args else [])
+    cmd = [args.exe] + split_args(args.args)
     flags = DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_BREAKAWAY_FROM_JOB
+    # DETACHED_PROCESS 下标准句柄不连控制台，子进程里的 print(flush=True) 会抛 OSError
+    # 直接把进程打死（表现为「窗口刚出现就没了」）。所以显式重定向到 DEVNULL。
+    redir = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
     try:
-        p = subprocess.Popen(cmd, creationflags=flags, close_fds=True, cwd="C:\\")
+        p = subprocess.Popen(cmd, creationflags=flags, close_fds=True, cwd="C:\\", **redir)
     except OSError:
         # 有些环境不允许 breakaway（不在 job 里），退一步只 detached
         p = subprocess.Popen(
-            cmd, creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP, close_fds=True, cwd="C:\\"
+            cmd,
+            creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP,
+            close_fds=True,
+            cwd="C:\\",
+            **redir,
         )
     time.sleep(args.wait)
     print(f"已启动 pid={p.pid} 命令={cmd}")

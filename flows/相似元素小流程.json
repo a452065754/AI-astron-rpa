@@ -1,0 +1,151 @@
+{
+  "name": "相似元素小流程",
+  "nl_examples": [
+    "在桌面列表里找出一个元素的所有相似元素",
+    "用 WinEle.similar 拿到同类元素列表并统计数量",
+    "验证相似元素（picker_type=SIMILAR）拾取能力"
+  ],
+  "keywords": [
+    "相似元素",
+    "同类元素",
+    "列表项",
+    "WinEle"
+  ],
+  "params": [
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_similar_out",
+      "describe": "取证输出目录"
+    },
+    {
+      "name": "expect_count",
+      "type": "Int",
+      "default": 4,
+      "describe": "期望找到的相似元素个数（靶场默认 4 个列表项）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "File.file_write",
+      "alias": "开始标记（有这个文件才说明流程真的跑起来了）",
+      "out": {
+        "write_file_path": "mark"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/相似元素_0_开始.txt"
+        ],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": [
+          "相似元素流程开始。期望相似元素个数=",
+          "$p:expect_count",
+          "\n接下来：WinEle.similar → ListProcess.get_length_of_list → 取首元素名字 → 写取证。\n"
+        ]
+      }
+    },
+    {
+      "atom": "WinEle.similar",
+      "alias": "取相似元素列表（元素带 picker_type=SIMILAR，运行时返回 WinPick 列表）",
+      "out": {
+        "get_similar_ele": "sim_list"
+      },
+      "inputs": {
+        "wait_time": 10
+      },
+      "elements": {
+        "pick": {
+          "kind": "uia",
+          "name": "靶场_相似列表项"
+        }
+      }
+    },
+    {
+      "atom": "ListProcess.get_length_of_list",
+      "alias": "统计相似元素个数（这是列表长度的真值，不是我在脚本里数的）",
+      "out": {
+        "get_list_length": "sim_count"
+      },
+      "inputs": {
+        "list_data": "$sim_list"
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "写相似元素个数",
+      "out": {
+        "write_file_path": "count_ev"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/相似元素_1_数量.txt"
+        ],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": [
+          "WinEle.similar 返回的相似元素个数 = ",
+          "$sim_count",
+          "\n期望 = ",
+          "$p:expect_count",
+          "\n"
+        ]
+      }
+    },
+    {
+      "atom": "ListProcess.get_value_from_list",
+      "alias": "取列表第 0 项（得到一个 WinPick）",
+      "out": {
+        "get_list_value": "sim_item0"
+      },
+      "inputs": {
+        "list_data": "$sim_list",
+        "index": 0
+      }
+    },
+    {
+      "atom": "WinEle.get_element_text",
+      "alias": "读这个 WinPick 的控件名（证明列表里装的是真控件，不是字符串）",
+      "out": {
+        "ele_text": "sim_name0"
+      },
+      "inputs": {
+        "pick": "$sim_item0",
+        "wait_time": 10
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "写最终取证",
+      "out": {
+        "write_file_path": "evidence"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/相似元素取证.txt"
+        ],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": [
+          "【结论】WinEle.similar（相似元素）执行成功。\n",
+          "相似元素个数 = ",
+          "$sim_count",
+          "\n第 0 个相似元素的控件名 = ",
+          "$sim_name0",
+          "\n期望个数 = ",
+          "$p:expect_count",
+          "\n\n【为什么这条流程能当证据】\n",
+          "1) 元素「靶场_相似列表项」是引擎自己的拾取器产出的 picker_type=SIMILAR 元素，\n",
+          "   由 scripts/winsimilar_pick.py 生成（先拾项目一、再拾项目二，引擎比对两层 path 后打 similar_parent 标记）。\n",
+          "2) 流程跑的是 WinEle.similar 原子本身，返回的列表长度由 ListProcess.get_length_of_list 计算，\n",
+          "   不是脚本里数出来的。\n",
+          "3) 再用 ListProcess.get_value_from_list 取出列表第 0 项（一个 WinPick），\n",
+          "   交给 WinEle.get_element_text 读出它的控件名 —— 能读出名字，说明列表里装的是真控件。\n"
+        ]
+      }
+    }
+  ]
+}

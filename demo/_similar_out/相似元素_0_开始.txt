@@ -1,0 +1,2 @@
+相似元素流程开始。期望相似元素个数=4
+接下来：WinEle.similar → ListProcess.get_length_of_list → 取首元素名字 → 写取证。
