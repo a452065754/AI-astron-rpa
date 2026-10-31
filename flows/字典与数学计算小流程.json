@@ -1,0 +1,152 @@
+{
+  "name": "字典与数学计算小流程",
+  "nl_examples": [
+    "把商品和单价存成字典再算总价",
+    "用字典存数据并做乘法计算",
+    "字典取值后算金额并四舍五入",
+    "算一下数量乘单价"
+  ],
+  "keywords": [
+    "字典处理",
+    "字典取值",
+    "数学计算",
+    "四舍五入"
+  ],
+  "params": [
+    {
+      "name": "product",
+      "type": "Str",
+      "default": "沙发",
+      "describe": "商品名（写进字典）"
+    },
+    {
+      "name": "price",
+      "type": "Str",
+      "default": "1999.5",
+      "describe": "单价（写进字典，再从字典取出来用）"
+    },
+    {
+      "name": "qty",
+      "type": "Str",
+      "default": "3",
+      "describe": "数量"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "DictProcess.create_new_dict",
+      "alias": "建一个空字典",
+      "out": {
+        "created_new_dict_data": "d1"
+      },
+      "inputs": {
+        "dict_data": "$json:{}"
+      }
+    },
+    {
+      "atom": "DictProcess.set_value_to_dict",
+      "alias": "写入商品名",
+      "out": {
+        "inserted_dict_data": "d2"
+      },
+      "inputs": {
+        "dict_data": "$d1",
+        "dict_key": "商品",
+        "value": "$p:product"
+      }
+    },
+    {
+      "atom": "DictProcess.set_value_to_dict",
+      "alias": "写入单价",
+      "out": {
+        "inserted_dict_data": "d3"
+      },
+      "inputs": {
+        "dict_data": "$d2",
+        "dict_key": "单价",
+        "value": "$p:price"
+      }
+    },
+    {
+      "atom": "DictProcess.get_value_from_dict",
+      "alias": "从字典取单价",
+      "out": {
+        "get_dict_value": "price"
+      },
+      "inputs": {
+        "dict_data": "$d3",
+        "dict_key": "单价",
+        "fail_option": "raise_error",
+        "default_value": ""
+      }
+    },
+    {
+      "atom": "DictProcess.get_keys_from_dict",
+      "alias": "取所有键",
+      "out": {
+        "get_dict_keys": "keys"
+      },
+      "inputs": {
+        "dict_data": "$d3"
+      }
+    },
+    {
+      "atom": "MathProcess.calculate_expression",
+      "alias": "单价乘数量",
+      "out": {
+        "calculation_number": "total"
+      },
+      "inputs": {
+        "left": "$price",
+        "operator": "*",
+        "right": "$p:qty",
+        "handle_method": "none",
+        "precision": 0
+      }
+    },
+    {
+      "atom": "MathProcess.get_rounding_number",
+      "alias": "金额保留两位",
+      "out": {
+        "rounding_number": "amount"
+      },
+      "inputs": {
+        "number": "$total",
+        "precision": 2
+      }
+    },
+    {
+      "atom": "MathProcess.generate_random_number",
+      "alias": "生成一个随机单号后缀",
+      "out": {
+        "generated_random_numbers": "rnd"
+      },
+      "inputs": {
+        "number_type": "integer",
+        "size": 1,
+        "start": 1000,
+        "end": 9999
+      }
+    },
+    {
+      "atom": "Report.print",
+      "alias": "打印结果",
+      "out": {},
+      "inputs": {
+        "report_type": "info",
+        "msg": [
+          "字典键：",
+          "$keys",
+          " · ",
+          "$p:product",
+          " × ",
+          "$p:qty",
+          " = ",
+          "$amount",
+          " · 单号后缀：",
+          "$rnd"
+        ]
+      }
+    }
+  ]
+}

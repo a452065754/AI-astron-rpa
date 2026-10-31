@@ -1,0 +1,85 @@
+{
+  "name": "Word读取表格小流程",
+  "nl_examples": [
+    "把Word里第一个表格的内容读出来",
+    "提取Word表格数据",
+    "读一下文档里的表格",
+    "Word表格转成数据"
+  ],
+  "keywords": [
+    "word读表格",
+    "提取word表格",
+    "文档表格",
+    "word表格内容"
+  ],
+  "params": [
+    {
+      "name": "src_docx",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\带表格测试.docx",
+      "describe": "要读取的 Word 文件"
+    },
+    {
+      "name": "table_idx",
+      "type": "Str",
+      "default": "1",
+      "describe": "读第几个表格（从 1 开始）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "Docx.open_docx",
+      "alias": "打开Word",
+      "out": {
+        "doc_obj": "doc"
+      },
+      "inputs": {
+        "file_path": "$p:src_docx",
+        "default_application": "Default",
+        "visible_flag": false,
+        "encoding": "utf-8",
+        "open_pwd_flag": false,
+        "write_pwd_flag": false
+      }
+    },
+    {
+      "atom": "Docx.read_table",
+      "alias": "读取第N个表格",
+      "out": {
+        "table_content": "table"
+      },
+      "inputs": {
+        "doc": "$doc",
+        "search_type": "idx",
+        "idx": "$p:table_idx",
+        "text": ""
+      }
+    },
+    {
+      "atom": "Report.print",
+      "alias": "打印表格内容",
+      "out": {},
+      "inputs": {
+        "report_type": "info",
+        "msg": [
+          "表格内容：",
+          "$table"
+        ]
+      }
+    },
+    {
+      "atom": "Docx.close_docx",
+      "alias": "关闭不保存",
+      "out": {},
+      "inputs": {
+        "doc": "$doc",
+        "close_range_flag": "one",
+        "save_type": "abort",
+        "file_path": "",
+        "file_name": "",
+        "exist_handle_type": "overwrite",
+        "pkill_flag": false
+      }
+    }
+  ]
+}

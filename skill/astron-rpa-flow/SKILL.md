@@ -115,7 +115,11 @@ python scripts/spec_lint.py flows/<流程名>.json
 
 写规格时注意（都是踩过的坑）：
 
-1. **循环块结束标记是 `Code.ForEnd`**，不是 `Code.ForListEnd`（写错会编译成 `None(...)` 塞进循环体）。
+1. **循环块结束标记一律是 `Code.ForEnd`**，不是 `Code.ForListEnd` / `Code.ForStepEnd` / `Code.ForDictEnd`
+   （这三个编译成 `None(...)` 塞进循环体，一跑就 `TypeError: 'NoneType' object is not callable`）。
+   已实测：`Code.ForList`、`Code.ForStep`、`Excel.loop_excel_content` 都用 `Code.ForEnd` 收尾；
+   判断块用 `Code.IfEnd`；`File.file_exist` / `Folder.folder_exist` 本身就是开块，也配 `Code.IfEnd`。
+   `spec_lint` 已内置死原子黑名单，写错会直接拦。
 2. **循环变量传进子流程要写 `"$var:item"`**，纯字符串永远是字面量。
 3. **`Script.module` 的 `module_id` 做成流程参数**（不要写死在节点里），换环境才不用改流程。
 4. **`keywords` 决定自然语言能否命中**：放用户真会说的词，不要放「批量/文件夹」这类会误伤的歧义词。

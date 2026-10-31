@@ -1,0 +1,104 @@
+{
+  "name": "Word生成表格报告小流程",
+  "nl_examples": [
+    "新建一个Word并把数据做成表格",
+    "生成一份带表格的Word报告",
+    "把这几行数据写进Word表格",
+    "Word插入表格和链接"
+  ],
+  "keywords": [
+    "word插入表格",
+    "生成word报告",
+    "word建表",
+    "word超链接"
+  ],
+  "params": [
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_word_out",
+      "describe": "输出目录"
+    },
+    {
+      "name": "out_name",
+      "type": "Str",
+      "default": "表格报告",
+      "describe": "输出文件名（不含扩展名）"
+    },
+    {
+      "name": "link_url",
+      "type": "Str",
+      "default": "https://github.com/a452065754/AI-astron-rpa",
+      "describe": "要插入的超链接地址"
+    },
+    {
+      "name": "link_text",
+      "type": "Str",
+      "default": "项目仓库",
+      "describe": "超链接显示文字"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "Docx.create_docx",
+      "alias": "新建Word",
+      "out": {
+        "doc_obj": "doc",
+        "doc_create_path": "doc_path"
+      },
+      "inputs": {
+        "file_path": "$p:out_dir",
+        "file_name": "$p:out_name",
+        "default_application": "Default",
+        "visible_flag": false,
+        "exist_handle_type": "overwrite"
+      }
+    },
+    {
+      "atom": "Docx.insert_table",
+      "alias": "插入数据表格",
+      "out": {},
+      "inputs": {
+        "doc": "$doc",
+        "table_content": "$json:[[\"项目\",\"单价\",\"数量\"],[\"沙发\",1999,1],[\"茶几\",599,2],[\"电视柜\",1299,1]]",
+        "table_behavior": 0,
+        "alignment": 1,
+        "v_alignment": 1,
+        "border": true,
+        "if_change_font": false,
+        "font_size": 11,
+        "font_color": "",
+        "font_set": "",
+        "font_bold": false,
+        "font_italic": false,
+        "underline": 0,
+        "newline": true
+      }
+    },
+    {
+      "atom": "Docx.insert_hyperlink",
+      "alias": "插入超链接",
+      "out": {},
+      "inputs": {
+        "doc": "$doc",
+        "url": "$p:link_url",
+        "display": "$p:link_text"
+      }
+    },
+    {
+      "atom": "Docx.save_docx",
+      "alias": "保存并关闭",
+      "out": {
+        "save_file_path": "saved"
+      },
+      "inputs": {
+        "doc": "$doc",
+        "save_type": "save",
+        "file_path": "",
+        "file_name": "",
+        "exist_handle_type": "overwrite",
+        "close_flag": true
+      }
+    }
+  ]
+}

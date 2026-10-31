@@ -72,7 +72,9 @@ PARAM_HINT = {
 
 PAIRS = {"Code.ForList": "Code.ForEnd", "Code.If": "Code.IfEnd",
          "Code.Try": "Code.TryEnd", "Code.While": "Code.WhileEnd",
-         "Code.ForDict": "Code.ForDictEnd", "Code.ForStep": "Code.ForStepEnd",
+         # 循环类块**统一用 Code.ForEnd 收尾**：`Code.ForStepEnd` 编译出来是
+         # `None(...)` 必崩（坑 122）；ForList/ForStep 已实测，ForDict 同类处理
+         "Code.ForDict": "Code.ForEnd", "Code.ForStep": "Code.ForEnd",
          "Code.Group": "Code.GroupEnd",
          # 业务域自带的循环块（没有专属 End 原子，统一用 Code.ForEnd 收尾）
          # 依据：编译后就是 `for k, v in Excel().loop_excel_content(...):`，见坑 116
@@ -82,6 +84,13 @@ PAIRS = {"Code.ForList": "Code.ForEnd", "Code.If": "Code.IfEnd",
          # 「IF xxx 存在」类原子本身就是开块，同样用 Code.IfEnd 收尾
          "File.file_exist": "Code.IfEnd",
          "Folder.folder_exist": "Code.IfEnd"}
+
+# 编译出来是 `None(...)` 的死原子：字典里有、平台编译不支持，写了必崩
+DEAD_ATOMS = {
+    "Code.ForStepEnd": "用 Code.ForEnd 收尾（见坑 122）",
+    "Code.ForListEnd": "用 Code.ForEnd 收尾（见坑 122）",
+    "Code.ForDictEnd": "用 Code.ForEnd 收尾（见坑 122）",
+}
 
 # 元素类参数（要靠 elements 槽位从元素库取真实元素，不能写字面量）
 ELEMENT_TYPES = {"WebPick", "UiaPick", "CvPick", "Pick", "Element"}
@@ -159,6 +168,11 @@ def lint(spec, atoms):
             cand = difflib.get_close_matches(atom_key, list(atoms), n=3, cutoff=0.5)
             err("%s：原子不存在 %r" % (where, atom_key),
                 ("相近的有：" + " / ".join(cand)) if cand else "用 atom_catalog.py 查可用原子")
+            continue
+
+        if atom_key in DEAD_ATOMS:
+            err("%s：%s 是死原子（编译成 None 必崩）" % (where, atom_key),
+                DEAD_ATOMS[atom_key])
             continue
 
         # 字典里有、但本机 python_core 没实现（版本不一致，跑了必 AttributeError）

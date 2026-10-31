@@ -1,0 +1,63 @@
+{
+  "name": "HTTP下载文件小流程",
+  "nl_examples": [
+    "把这个链接的文件下载下来",
+    "从网上下载一个文件存到本地",
+    "下载URL到指定目录",
+    "抓个文件下来"
+  ],
+  "keywords": [
+    "http下载",
+    "下载文件",
+    "url下载",
+    "抓文件"
+  ],
+  "params": [
+    {
+      "name": "url",
+      "type": "Str",
+      "default": "https://api.github.com",
+      "describe": "要下载的地址"
+    },
+    {
+      "name": "dst_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_http_out",
+      "describe": "保存到哪个目录（不存在会自动建）"
+    },
+    {
+      "name": "save_name",
+      "type": "Str",
+      "default": "下载结果.json",
+      "describe": "保存的文件名（要带扩展名）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "Network.http_download",
+      "alias": "下载到本地",
+      "out": {
+        "http_download_path": "saved_path"
+      },
+      "inputs": {
+        "url": "$p:url",
+        "dst_dir": "$p:dst_dir",
+        "rename": "$p:save_name",
+        "state_type": "create",
+        "exist_type": "overwrite"
+      }
+    },
+    {
+      "atom": "Report.print",
+      "alias": "打印落盘路径",
+      "out": {},
+      "inputs": {
+        "report_type": "info",
+        "msg": [
+          "已保存到：",
+          "$saved_path"
+        ]
+      }
+    }
+  ]
+}

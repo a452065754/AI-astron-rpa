@@ -1,0 +1,132 @@
+{
+  "name": "Excel合并单元格与插入行小流程",
+  "nl_examples": [
+    "在表格末尾加一行合计并把两列合并",
+    "Excel合并单元格再写合计",
+    "表格插入一行并合并表头",
+    "Excel加合计行"
+  ],
+  "keywords": [
+    "合并单元格",
+    "插入行",
+    "excel合计行",
+    "merge单元格"
+  ],
+  "params": [
+    {
+      "name": "src_excel",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\订单.xlsx",
+      "describe": "要处理的 Excel"
+    },
+    {
+      "name": "sheet_name",
+      "type": "Str",
+      "default": "Sheet1",
+      "describe": "在哪个工作表上操作"
+    },
+    {
+      "name": "after_row",
+      "type": "Str",
+      "default": "4",
+      "describe": "在这一行下面插入新行"
+    },
+    {
+      "name": "merge_range",
+      "type": "Str",
+      "default": "A5:B5",
+      "describe": "要合并的单元格区域（如 A5:B5）"
+    },
+    {
+      "name": "total_text",
+      "type": "Str",
+      "default": "合计",
+      "describe": "合并单元格里写的文字"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_excel_out",
+      "describe": "输出目录（不动原文件）"
+    },
+    {
+      "name": "out_name",
+      "type": "Str",
+      "default": "加合计行",
+      "describe": "输出文件名（不含扩展名）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "Excel.open_excel",
+      "alias": "打开表格",
+      "out": {
+        "open_excel_obj": "wb"
+      },
+      "inputs": {
+        "file_path": "$p:src_excel",
+        "default_application": "Default",
+        "visible_flag": false,
+        "update_links": false
+      }
+    },
+    {
+      "atom": "Excel.insert_excel_row_or_column",
+      "alias": "末尾插入一个空行",
+      "out": {},
+      "inputs": {
+        "excel": "$wb",
+        "sheet_name": "$p:sheet_name",
+        "insert_type": "row",
+        "row": "$p:after_row",
+        "row_direction": "lower",
+        "col": "1",
+        "col_direction": "right",
+        "blank_rows": true,
+        "insert_num": 1,
+        "insert_content": ""
+      }
+    },
+    {
+      "atom": "Excel.merge_split_excel_cell",
+      "alias": "合并两个单元格",
+      "out": {},
+      "inputs": {
+        "excel": "$wb",
+        "sheet_name": "$p:sheet_name",
+        "job_type": "merge",
+        "merge_cell_range": "$p:merge_range",
+        "split_cell_range": "A1:B2"
+      }
+    },
+    {
+      "atom": "Excel.edit_excel",
+      "alias": "写合计文字",
+      "out": {},
+      "inputs": {
+        "excel": "$wb",
+        "edit_range": "cell",
+        "sheet_name": "$p:sheet_name",
+        "start_col": "A",
+        "start_row": "5",
+        "value": [
+          "$p:total_text"
+        ],
+        "edit_type": "overwrite"
+      }
+    },
+    {
+      "atom": "Excel.save_excel",
+      "alias": "另存结果",
+      "out": {},
+      "inputs": {
+        "excel": "$wb",
+        "save_type": "save_as",
+        "exist_handle_type": "overwrite",
+        "close_flag": true,
+        "file_path": "$p:out_dir",
+        "file_name": "$p:out_name"
+      }
+    }
+  ]
+}

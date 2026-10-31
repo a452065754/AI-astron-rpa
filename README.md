@@ -70,7 +70,7 @@ python scripts/ai_flow.py --spec flows/<流程>.json --stage publish --version 1
 │   └── mod_*.py              # Python 子流程实现（PDF 版面还原 / OCR / 文件夹整理 / Excel 拆表）
 ├── mcp/server.py             # MCP 服务（零依赖，stdio JSON-RPC）
 ├── skill/astron-rpa-flow/    # 技能包（AI 操作手册）
-├── flows/                    # 35 条流程规格（契约文件）
+├── flows/                    # 41 条流程规格（契约文件）
 ├── docs/                     # 交接清单、开发进度、部署与 MCP 文档、评审单
 └── demo/                     # 演示数据与实测产物
 ```
@@ -105,9 +105,15 @@ python scripts/ai_flow.py --spec flows/<流程>.json --stage publish --version 1
 | **列表与文本处理** | 分割 → 去重 → 排序 → 计数 → 合并 → 大小写 |
 | **文本编码解码** | Base64 编/解、MD5、SHA 摘要 |
 | **时间戳转换** | 当前时间 ⇄ 时间戳 ⇄ 指定格式文本 |
+| **Word 生成表格报告** | 新建 Word + 插入数据表格 + 超链接（链接只落文字，见坑 121） |
+| **Word 读取表格** | 读文档里第 N 个表格的内容 |
+| **HTTP 下载文件** | 按 URL 下载并另存到指定目录 |
+| **Excel 合并单元格与插入行** | 末尾插行 + 合并单元格 + 写合计 |
+| **字典与数学计算** | 字典建/写/取值 + 乘算 + 四舍五入 + 随机数 |
+| **计数循环与提前退出** | `ForStep` + `Break` 控制流样例 |
 | Excel 订单表导出 / 文本文件转存 / 网页元素点击 | 基础原子流程 |
 
-> 原子覆盖率：357 个原子中已用 **74 个（20.7%）**。`python scripts/coverage_report.py` 随时看缺口；
+> 原子覆盖率：357 个原子中已用 **89 个（24.9%）**。`python scripts/coverage_report.py` 随时看缺口；
 > `python scripts/atom_impl_check.py` 核对「字典里有但本机没实现」的原子（当前 39 个，IE 系整块缺失）。
 
 ## 文档

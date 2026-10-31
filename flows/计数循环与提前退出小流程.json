@@ -1,0 +1,93 @@
+{
+  "name": "计数循环与提前退出小流程",
+  "nl_examples": [
+    "从1数到10但到5就停",
+    "循环指定次数并提前退出",
+    "按次数循环打印",
+    "计数循环"
+  ],
+  "keywords": [
+    "计数循环",
+    "for循环",
+    "提前退出",
+    "break"
+  ],
+  "params": [
+    {
+      "name": "count",
+      "type": "Str",
+      "default": "10",
+      "describe": "最多循环到第几次"
+    },
+    {
+      "name": "stop_at",
+      "type": "Str",
+      "default": "5",
+      "describe": "超过这个次数就提前退出"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "Code.ForStep",
+      "alias": "从1数到count",
+      "out": {
+        "index": "idx"
+      },
+      "inputs": {
+        "start": "1",
+        "end": "$p:count",
+        "step": "1"
+      }
+    },
+    {
+      "atom": "Code.If",
+      "alias": "超过上限就退出",
+      "out": {},
+      "inputs": {
+        "args1": "$idx",
+        "condition": ">",
+        "args2": "$p:stop_at"
+      }
+    },
+    {
+      "atom": "Code.Break",
+      "alias": "跳出循环",
+      "out": {},
+      "inputs": {}
+    },
+    {
+      "atom": "Code.IfEnd",
+      "alias": "条件结束",
+      "out": {},
+      "inputs": {}
+    },
+    {
+      "atom": "Report.print",
+      "alias": "打印当前次数",
+      "out": {},
+      "inputs": {
+        "report_type": "info",
+        "msg": [
+          "第 ",
+          "$idx",
+          " 次"
+        ]
+      }
+    },
+    {
+      "atom": "Code.ForEnd",
+      "alias": "循环结束",
+      "out": {},
+      "inputs": {}
+    },
+    {
+      "atom": "Report.print",
+      "alias": "打印收尾",
+      "out": {},
+      "inputs": {
+        "report_type": "info",
+        "msg": "循环已结束（到上限会提前退出）"
+      }
+    }
+  ]
+}
