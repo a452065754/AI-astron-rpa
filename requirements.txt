@@ -1,0 +1,10 @@
+# 主链路（ai_flow.py / publish_flow.py 必需）
+requests>=2.28
+
+# ---- 可选能力，按需安装 ----
+# SQL 兜底通道（读 execute_log、给历史模块打补丁；需 db.enabled=true）
+# paramiko>=3.0
+# 元素重定位（网页类流程，P1.5 支线）
+# playwright>=1.40
+# 在 RPA 之外单测 Excel 子流程（RPA 运行时用设计器自带 Python，无需本机装）
+# openpyxl>=3.1

@@ -65,10 +65,21 @@ python scripts/ai_flow.py --spec flows/<流程>.json --stage publish --version 1
 
 ## 文档
 
+- [**部署使用文档**](docs/部署使用文档.md) —— **换到另一台电脑怎么装、怎么配、怎么跑（先看这篇）**
 - [交接清单](docs/交接清单.md) —— 制品地图、环境信息、已知现象、红线
 - [开发进度](docs/开发进度.md) —— 逐条踩坑记录与验证结论
 - [架构设计](docs/架构设计-RPA引擎.md) —— RPA 引擎结构
 - [调研报告](docs/astron-调研.md) —— 上游项目调研
+
+## 这个项目是什么
+
+**外挂程序（旁路工具链）**，不是技能包、也不是 MCP：
+
+- 一套独立 Python 命令行工具，通过 HTTP 接口操作**已有的** Astron RPA 平台，**不改服务端**。
+- 不是 MCP server（未实现该协议）；不是 skill（但可另行封装成 skill 或 MCP 工具）。
+- 必须与 Astron RPA 设计器装在同一台 Windows 机器上（写流程要登录态、真跑要本地执行引擎）。
+
+详见 [部署使用文档 §0](docs/部署使用文档.md)。
 
 ## 安全
 
