@@ -1,0 +1,121 @@
+{
+  "name": "Excel生成空白模板小流程",
+  "nl_examples": [
+    "把这个表复制一份清空数据当空白模板",
+    "Excel做空模板只留表头",
+    "复制工作表并清空内容",
+    "生成空白录入模板"
+  ],
+  "keywords": [
+    "excel模板",
+    "清空数据",
+    "复制工作表",
+    "空白表头"
+  ],
+  "params": [
+    {
+      "name": "src_excel",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\订单.xlsx",
+      "describe": "源 Excel"
+    },
+    {
+      "name": "src_sheet",
+      "type": "Str",
+      "default": "Sheet1",
+      "describe": "要复制的工作表名"
+    },
+    {
+      "name": "tpl_sheet",
+      "type": "Str",
+      "default": "空白模板",
+      "describe": "复制出来的工作表名"
+    },
+    {
+      "name": "clear_range",
+      "type": "Str",
+      "default": "A2:D100",
+      "describe": "要清空的区域（保留第 1 行表头）"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_excel_out",
+      "describe": "输出目录（不动原文件）"
+    },
+    {
+      "name": "out_name",
+      "type": "Str",
+      "default": "空白模板",
+      "describe": "输出文件名（不含扩展名）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "Excel.open_excel",
+      "alias": "打开源表",
+      "out": {
+        "open_excel_obj": "wb"
+      },
+      "inputs": {
+        "file_path": "$p:src_excel",
+        "default_application": "Default",
+        "visible_flag": false,
+        "update_links": false
+      }
+    },
+    {
+      "atom": "Excel.copy_excel_worksheet",
+      "alias": "复制一份工作表",
+      "out": {},
+      "inputs": {
+        "excel": "$wb",
+        "source_sheet_name": "$p:src_sheet",
+        "new_sheet_name": "$p:tpl_sheet",
+        "location": "last",
+        "copy_type": "current_workbook",
+        "other_excel_obj": "$wb",
+        "is_cover": false
+      }
+    },
+    {
+      "atom": "Excel.clear_excel_content",
+      "alias": "清空表头以下的数据",
+      "out": {},
+      "inputs": {
+        "excel": "$wb",
+        "sheet_name": "$p:tpl_sheet",
+        "select_type": "area",
+        "cell_location": "",
+        "row": "",
+        "col": "",
+        "data_range": "$p:clear_range",
+        "clear_type": "content"
+      }
+    },
+    {
+      "atom": "Excel.move_excel_worksheet",
+      "alias": "把模板页挪到最后",
+      "out": {},
+      "inputs": {
+        "excel": "$wb",
+        "move_type": "move_to_last",
+        "move_sheet": "$p:tpl_sheet",
+        "move_to_sheet": ""
+      }
+    },
+    {
+      "atom": "Excel.save_excel",
+      "alias": "另存模板",
+      "out": {},
+      "inputs": {
+        "excel": "$wb",
+        "save_type": "save_as",
+        "exist_handle_type": "overwrite",
+        "close_flag": true,
+        "file_path": "$p:out_dir",
+        "file_name": "$p:out_name"
+      }
+    }
+  ]
+}

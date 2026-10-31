@@ -1,0 +1,103 @@
+{
+  "name": "文件夹重命名与移动小流程",
+  "nl_examples": [
+    "把这个文件夹改名然后挪到归档目录",
+    "文件夹重命名后移动到另一个地方",
+    "给目录改名并归档",
+    "移动文件夹到目标目录"
+  ],
+  "keywords": [
+    "文件夹改名",
+    "移动文件夹",
+    "目录归档",
+    "重命名目录"
+  ],
+  "params": [
+    {
+      "name": "parent_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_fmove_in",
+      "describe": "要处理的文件夹所在的父目录"
+    },
+    {
+      "name": "old_name",
+      "type": "Str",
+      "default": "待整理",
+      "describe": "原来的文件夹名"
+    },
+    {
+      "name": "new_name",
+      "type": "Str",
+      "default": "已归档",
+      "describe": "改名后的文件夹名"
+    },
+    {
+      "name": "target_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_fmove_out",
+      "describe": "移动到哪个目录（不存在会自动建）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "Folder.folder_exist",
+      "alias": "先确认文件夹在",
+      "out": {},
+      "inputs": {
+        "folder_path": [
+          "$p:parent_dir",
+          "\\",
+          "$p:old_name"
+        ],
+        "exist_type": "exist"
+      }
+    },
+    {
+      "atom": "Folder.folder_rename",
+      "alias": "改名",
+      "out": {
+        "rename_folder_path": "renamed"
+      },
+      "inputs": {
+        "folder_path": [
+          "$p:parent_dir",
+          "\\",
+          "$p:old_name"
+        ],
+        "new_name": "$p:new_name",
+        "exist_options": "generate"
+      }
+    },
+    {
+      "atom": "Code.IfEnd",
+      "alias": "条件结束",
+      "out": {},
+      "inputs": {}
+    },
+    {
+      "atom": "Folder.folder_move",
+      "alias": "移动到目标目录",
+      "out": {
+        "move_folder_path": "moved"
+      },
+      "inputs": {
+        "folder_path": "$renamed",
+        "target_folder": "$p:target_dir",
+        "state_type": "create",
+        "exist_options": "generate"
+      }
+    },
+    {
+      "atom": "Report.print",
+      "alias": "打印最终位置",
+      "out": {},
+      "inputs": {
+        "report_type": "info",
+        "msg": [
+          "已移动到：",
+          "$moved"
+        ]
+      }
+    }
+  ]
+}

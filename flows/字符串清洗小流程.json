@@ -1,0 +1,125 @@
+{
+  "name": "字符串清洗小流程",
+  "nl_examples": [
+    "把这段文字去掉多余空格并提取手机号",
+    "清洗文本：去空格、截断、补齐、提手机号",
+    "从一段话里提取电话号码",
+    "文本格式化整理"
+  ],
+  "keywords": [
+    "文本清洗",
+    "去空格",
+    "提取手机号",
+    "文本截取",
+    "文本补齐"
+  ],
+  "params": [
+    {
+      "name": "raw_text",
+      "type": "Str",
+      "default": "  张三 13800138000 zhangsan@example.com  ",
+      "describe": "要清洗的原始文本（两边带空格）"
+    },
+    {
+      "name": "keep_len",
+      "type": "Str",
+      "default": "10",
+      "describe": "去空格后截取前多少字"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "StringProcess.strip_string",
+      "alias": "去掉两侧空格",
+      "out": {
+        "stripped_string": "s1"
+      },
+      "inputs": {
+        "string_data": "$p:raw_text",
+        "strip_method": "both"
+      }
+    },
+    {
+      "atom": "StringProcess.get_string_length",
+      "alias": "量一下原始长度",
+      "out": {
+        "string_length": "len1"
+      },
+      "inputs": {
+        "string_data": "$s1"
+      }
+    },
+    {
+      "atom": "StringProcess.replace_content_in_string",
+      "alias": "去掉所有空格",
+      "out": {
+        "replaced_content_string": "s2"
+      },
+      "inputs": {
+        "text": "$s1",
+        "replace_type": "string",
+        "replaced_string": " ",
+        "regex_formula": "",
+        "new_value": "",
+        "first_flag": false,
+        "ignore_case_flag": false
+      }
+    },
+    {
+      "atom": "StringProcess.cut_string_to_length",
+      "alias": "截取前N个字",
+      "out": {
+        "cut_string": "s3"
+      },
+      "inputs": {
+        "string_data": "$s2",
+        "length": "$p:keep_len",
+        "cut_type": "first",
+        "index": 0,
+        "find_str": ""
+      }
+    },
+    {
+      "atom": "StringProcess.extract_content_from_string",
+      "alias": "从原文提取手机号",
+      "out": {
+        "extract_from_string": "phone"
+      },
+      "inputs": {
+        "text": "$s1",
+        "extract_type": "phone_number",
+        "regex_formula": "",
+        "first_flag": true
+      }
+    },
+    {
+      "atom": "StringProcess.concatenate_string",
+      "alias": "拼上手机号",
+      "out": {
+        "concat_string": "s5"
+      },
+      "inputs": {
+        "string_data_1": "$s3",
+        "string_data_2": "$phone",
+        "concat_type": "space",
+        "separator": ""
+      }
+    },
+    {
+      "atom": "Report.print",
+      "alias": "打印结果",
+      "out": {},
+      "inputs": {
+        "report_type": "info",
+        "msg": [
+          "去空格后长度 ",
+          "$len1",
+          " · 手机号 ",
+          "$phone",
+          " · 截取+拼接：",
+          "$s5"
+        ]
+      }
+    }
+  ]
+}

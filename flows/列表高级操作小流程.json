@@ -1,0 +1,215 @@
+{
+  "name": "列表高级操作小流程",
+  "nl_examples": [
+    "对一组商品名做增删改、反转、求交集",
+    "列表增删改查和合并去交集",
+    "玩一下列表：插入删除反转打乱",
+    "列表常用操作演示"
+  ],
+  "keywords": [
+    "列表插入",
+    "列表删除",
+    "列表反转",
+    "列表交集",
+    "列表合并"
+  ],
+  "params": [
+    {
+      "name": "append_value",
+      "type": "Str",
+      "default": "餐桌",
+      "describe": "追加到列表末尾的值"
+    },
+    {
+      "name": "remove_value",
+      "type": "Str",
+      "default": "电视柜",
+      "describe": "要删掉的值"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "ListProcess.create_new_list",
+      "alias": "建初始列表",
+      "out": {
+        "created_list_data": "L1"
+      },
+      "inputs": {
+        "list_type": "user_defined",
+        "size": 0,
+        "value": "",
+        "custom_list": "$json:[\"沙发\",\"茶几\",\"电视柜\"]"
+      }
+    },
+    {
+      "atom": "ListProcess.insert_value_to_list",
+      "alias": "末尾追加一项",
+      "out": {
+        "inserted_list_data": "L2"
+      },
+      "inputs": {
+        "list_data": "$L1",
+        "value": "$p:append_value",
+        "insert_method": "append",
+        "index": ""
+      }
+    },
+    {
+      "atom": "ListProcess.get_list_position",
+      "alias": "查茶几在第几位",
+      "out": {
+        "get_list_position": "pos"
+      },
+      "inputs": {
+        "list_data": "$L2",
+        "value": "茶几"
+      }
+    },
+    {
+      "atom": "ListProcess.get_value_from_list",
+      "alias": "取第2项",
+      "out": {
+        "get_list_value": "v1"
+      },
+      "inputs": {
+        "list_data": "$L2",
+        "index": "1"
+      }
+    },
+    {
+      "atom": "ListProcess.change_value_in_list",
+      "alias": "把第1项改名",
+      "out": {
+        "changed_list_data": "L3"
+      },
+      "inputs": {
+        "list_data": "$L2",
+        "index": "0",
+        "new_value": "布艺沙发"
+      }
+    },
+    {
+      "atom": "ListProcess.remove_value_from_list",
+      "alias": "按值删掉电视柜",
+      "out": {
+        "removed_list_data": "L4"
+      },
+      "inputs": {
+        "list_data": "$L3",
+        "del_mode": "value",
+        "del_value": "$p:remove_value",
+        "del_pos": ""
+      }
+    },
+    {
+      "atom": "ListProcess.reverse_list",
+      "alias": "反转顺序",
+      "out": {
+        "reversed_list_data": "L5"
+      },
+      "inputs": {
+        "list_data": "$L4"
+      }
+    },
+    {
+      "atom": "ListProcess.random_shuffle_list",
+      "alias": "随机打乱",
+      "out": {
+        "shuffled_list_data": "L6"
+      },
+      "inputs": {
+        "list_data": "$L5"
+      }
+    },
+    {
+      "atom": "ListProcess.create_new_list",
+      "alias": "建第二个列表",
+      "out": {
+        "created_list_data": "M1"
+      },
+      "inputs": {
+        "list_type": "user_defined",
+        "size": 0,
+        "value": "",
+        "custom_list": "$json:[\"茶几\",\"床\"]"
+      }
+    },
+    {
+      "atom": "ListProcess.get_common_elements_from_list",
+      "alias": "求两个列表的交集",
+      "out": {
+        "common_list_data": "common"
+      },
+      "inputs": {
+        "list_data_1": "$L6",
+        "list_data_2": "$M1"
+      }
+    },
+    {
+      "atom": "ListProcess.merge_list",
+      "alias": "合并两个列表",
+      "out": {
+        "merged_list_data": "merged"
+      },
+      "inputs": {
+        "list_data_1": "$L6",
+        "list_data_2": "$M1"
+      }
+    },
+    {
+      "atom": "ListProcess.filter_elements_from_list",
+      "alias": "剔除含第二个列表的项",
+      "out": {
+        "filter_list_data": "filtered"
+      },
+      "inputs": {
+        "list_data_1": "$merged",
+        "list_data_2": "$M1"
+      }
+    },
+    {
+      "atom": "ListProcess.clear_list",
+      "alias": "清空列表",
+      "out": {
+        "cleared_list_data": "cleared"
+      },
+      "inputs": {
+        "list_data": "$filtered"
+      }
+    },
+    {
+      "atom": "Report.print",
+      "alias": "打印中间结果",
+      "out": {},
+      "inputs": {
+        "report_type": "info",
+        "msg": [
+          "茶几位置 ",
+          "$pos",
+          " · 第2项 ",
+          "$v1",
+          " · 打乱后 ",
+          "$L6",
+          " · 交集 ",
+          "$common"
+        ]
+      }
+    },
+    {
+      "atom": "Report.print",
+      "alias": "打印收尾结果",
+      "out": {},
+      "inputs": {
+        "report_type": "info",
+        "msg": [
+          "合并 ",
+          "$merged",
+          " · 剔除后 ",
+          "$filtered",
+          " · 清空后 ",
+          "$cleared"
+        ]
+      }
+    }
+  ]
+}
