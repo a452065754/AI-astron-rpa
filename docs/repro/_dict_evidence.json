@@ -1,0 +1,49 @@
+{
+  "DataTable.sort_table": {
+    "title": "数据表格排序",
+    "outputs": []
+  },
+  "Docx.open_document": {
+    "title": null,
+    "outputs": [
+      "doc_obj"
+    ]
+  },
+  "Docx.read_document_content": {
+    "title": null,
+    "outputs": [
+      "doc_data"
+    ]
+  },
+  "DataTable.copy_data": {
+    "title": "复制数据表格",
+    "outputs": [
+      "copied_cell",
+      "copied_row",
+      "copied_column",
+      "copied_area"
+    ]
+  },
+  "DataTable.read_data": {
+    "title": "读取数据表格",
+    "outputs": [
+      "cell_info",
+      "row_info",
+      "column_info",
+      "area_info"
+    ]
+  },
+  "BrowserElement.element_operation": {
+    "title": "元素操作（web）",
+    "outputs": [
+      "get_ele_attr",
+      "get_ele_value",
+      "get_ele_html",
+      "get_ele_link",
+      "get_ele_text",
+      "get_ele_position",
+      "get_ele_selected",
+      "get_ele_style"
+    ]
+  }
+}
