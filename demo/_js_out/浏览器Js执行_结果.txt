@@ -1,0 +1,5 @@
+页面 = http://127.0.0.1:8765/
+【BrowserScript.js_run 返回】= RPA 元素测试页 || links=0 || h1=RPA 元素测试页
+
+说明：js_run 要求脚本里必须有 main 函数，引擎会在 content 后面追加 `return main()`，
+所以直接写一句表达式（如 document.title）是不行的，会报「代码中必须包含main函数」。
