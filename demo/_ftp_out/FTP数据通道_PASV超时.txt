@@ -1,0 +1,1 @@
+get_ftp_list 抛异常：该服务器只接受主动模式（PORT），RPA 的 ftplib 默认走 PASV，数据连接 21 秒后 WinError 10060。注意：命令通道（pwd/cwd/mkd/rmd/rename/delete）不受影响。

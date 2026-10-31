@@ -1,0 +1,269 @@
+{
+  "name": "FTP上传下载与增删小流程",
+  "nl_examples": [
+    "把本地文件传到 FTP，改个名再下载回来，最后删掉",
+    "FTP 建目录、上传、列目录、重命名、下载、删除一条龙",
+    "测试 FTP 的增删改查：上传下载重命名删除",
+    "Network 域 FTP 文件操作类原子演示"
+  ],
+  "keywords": [
+    "FTP上传",
+    "FTP下载",
+    "FTP重命名",
+    "FTP删除",
+    "创建文件夹",
+    "获取文件列表",
+    "文件传输"
+  ],
+  "params": [
+    {
+      "name": "ftp_host",
+      "type": "Str",
+      "default": "192.168.0.27",
+      "describe": "FTP 服务器地址"
+    },
+    {
+      "name": "ftp_port",
+      "type": "Int",
+      "default": 21,
+      "describe": "FTP 端口（21 = Windows IIS FTP，可读写、支持被动模式）"
+    },
+    {
+      "name": "ftp_user",
+      "type": "Str",
+      "default": "anonymous",
+      "describe": "FTP 用户名"
+    },
+    {
+      "name": "ftp_pass",
+      "type": "Str",
+      "default": "a@a.a",
+      "describe": "FTP 密码"
+    },
+    {
+      "name": "remote_dir",
+      "type": "Str",
+      "default": "_rpa_ftp_test",
+      "describe": "远端测试目录（流程结束会删掉）"
+    },
+    {
+      "name": "local_file",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_ftp_out\\rpa_ftp_up.txt",
+      "describe": "待上传的本地文件"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_ftp_out",
+      "describe": "下载落地与证据文件目录"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "Network.ftp_create",
+      "alias": "创建FTP连接（IIS 可读写站点）",
+      "out": {
+        "ftp_instance": "ftp"
+      },
+      "inputs": {
+        "host": "$p:ftp_host",
+        "port": "$p:ftp_port",
+        "name": "$p:ftp_user",
+        "password": "$p:ftp_pass"
+      }
+    },
+    {
+      "atom": "Network.get_work_dir",
+      "alias": "获取初始工作目录",
+      "out": {
+        "get_work_dir": "wd_before"
+      },
+      "inputs": {
+        "ftp_instance": "$ftp"
+      }
+    },
+    {
+      "atom": "Network.create_folder",
+      "alias": "创建远端测试目录（已存在则复用）",
+      "out": {
+        "new_folder": "new_folder"
+      },
+      "inputs": {
+        "ftp_instance": "$ftp",
+        "folder_name": "$p:remote_dir",
+        "exist_type": "cancel"
+      }
+    },
+    {
+      "atom": "Network.change_working_dir",
+      "alias": "切进测试目录",
+      "out": {
+        "change_work_dir": "cwd_in"
+      },
+      "inputs": {
+        "ftp_instance": "$ftp",
+        "new_work_dir": "$new_folder"
+      }
+    },
+    {
+      "atom": "Network.ftp_upload",
+      "alias": "上传本地文件",
+      "out": {
+        "upload_ftp_list": "uploaded"
+      },
+      "inputs": {
+        "ftp_instance": "$ftp",
+        "file_type": "file",
+        "ftp_pwd": "",
+        "file_path": "$p:local_file",
+        "folder_path": "",
+        "exist_type": "overwrite"
+      }
+    },
+    {
+      "atom": "Network.get_ftp_list",
+      "alias": "列出目录（应有刚上传的文件）",
+      "out": {
+        "get_ftp_list": "files_after_upload"
+      },
+      "inputs": {
+        "ftp_instance": "$ftp",
+        "file_type": "all"
+      }
+    },
+    {
+      "atom": "Network.ftp_rename",
+      "alias": "重命名文件（new_file_name 不带扩展名）",
+      "out": {
+        "rename_ftp_path": "renamed"
+      },
+      "inputs": {
+        "ftp_instance": "$ftp",
+        "file_type": "file",
+        "cur_file_name": "rpa_ftp_up.txt",
+        "new_file_name": "rpa_ftp_up_renamed",
+        "cur_folder_name": "",
+        "new_folder_name": "",
+        "exist_type": "overwrite"
+      }
+    },
+    {
+      "atom": "Network.ftp_download",
+      "alias": "从FTP下载文件到本地",
+      "out": {
+        "download_ftp_path": "downloaded"
+      },
+      "inputs": {
+        "ftp_instance": "$ftp",
+        "file_type": "file",
+        "download_file_name": "rpa_ftp_up_renamed.txt",
+        "download_folder_name": "",
+        "dst_path": "$p:out_dir",
+        "state_type": "create",
+        "exist_type": "overwrite"
+      }
+    },
+    {
+      "atom": "Network.ftp_delete",
+      "alias": "删除远端文件",
+      "out": {
+        "delete_ftp_result": "del_file"
+      },
+      "inputs": {
+        "ftp_instance": "$ftp",
+        "file_type": "file",
+        "delete_file_name": "rpa_ftp_up_renamed.txt",
+        "delete_folder_name": ""
+      }
+    },
+    {
+      "atom": "Network.get_ftp_list",
+      "alias": "再列一次（证明文件真的没了）",
+      "out": {
+        "get_ftp_list": "files_after_delete"
+      },
+      "inputs": {
+        "ftp_instance": "$ftp",
+        "file_type": "all"
+      }
+    },
+    {
+      "atom": "Network.change_working_dir",
+      "alias": "退回上级目录",
+      "out": {
+        "change_work_dir": "cwd_out"
+      },
+      "inputs": {
+        "ftp_instance": "$ftp",
+        "new_work_dir": ".."
+      }
+    },
+    {
+      "atom": "Network.ftp_delete",
+      "alias": "删除远端测试目录",
+      "out": {
+        "delete_ftp_result": "del_dir"
+      },
+      "inputs": {
+        "ftp_instance": "$ftp",
+        "file_type": "folder",
+        "delete_file_name": "",
+        "delete_folder_name": "$p:remote_dir"
+      }
+    },
+    {
+      "atom": "Network.ftp_close",
+      "alias": "关闭FTP连接",
+      "out": {
+        "close_ftp": "closed"
+      },
+      "inputs": {
+        "ftp_instance": "$ftp"
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "把六步操作结果写成证据文件",
+      "out": {
+        "write_file_path": "report"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/FTP上传下载增删_结果.txt"
+        ],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": [
+          "服务器：",
+          "$p:ftp_host",
+          ":",
+          "$p:ftp_port",
+          "\n初始工作目录：",
+          "$wd_before",
+          "\n测试目录：",
+          "$new_folder",
+          "\n切进返回：",
+          "$cwd_in",
+          "\n上传结果：",
+          "$uploaded",
+          "\n上传后列表：",
+          "$files_after_upload",
+          "\n重命名后路径：",
+          "$renamed",
+          "\n下载到本地：",
+          "$downloaded",
+          "\n删除文件返回：",
+          "$del_file",
+          "\n删除后列表：",
+          "$files_after_delete",
+          "\n删除目录返回：",
+          "$del_dir",
+          "\n关闭连接：",
+          "$closed"
+        ]
+      }
+    }
+  ]
+}

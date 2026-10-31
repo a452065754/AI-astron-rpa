@@ -1,0 +1,3 @@
+RPA FTP 上传测试文件
+生成时间：2026-10-31
+内容用于验证 upload -> rename -> download -> delete 全链路

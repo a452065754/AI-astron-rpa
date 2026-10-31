@@ -1,0 +1,12 @@
+服务器：192.168.0.27:21
+初始工作目录：/
+测试目录：/_rpa_ftp_test
+切进返回：/_rpa_ftp_test
+上传结果：['/_rpa_ftp_test\\rpa_ftp_up.txt']
+上传后列表：{'files': ['rpa_ftp_up.txt'], 'folders': []}
+重命名后路径：/_rpa_ftp_test\rpa_ftp_up_renamed.txt
+下载到本地：['F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_ftp_out\\rpa_ftp_up_renamed.txt']
+删除文件返回：True
+删除后列表：{'files': [], 'folders': []}
+删除目录返回：True
+关闭连接：True

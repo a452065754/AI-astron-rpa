@@ -1,0 +1,202 @@
+{
+  "name": "FTP连接与目录操作小流程",
+  "nl_examples": [
+    "连一下 FTP 服务器，看看工作目录，切个目录再取一次",
+    "测试 FTP 建连接、取工作目录、切换目录、关闭连接",
+    "用 admin 登录这个 FTP，进 MESAPP 看看里面有什么",
+    "Network 域 FTP 连接类原子演示"
+  ],
+  "keywords": [
+    "FTP连接",
+    "创建FTP连接",
+    "获取工作目录",
+    "切换工作目录",
+    "关闭FTP连接",
+    "ftplib",
+    "只读网关"
+  ],
+  "params": [
+    {
+      "name": "ftp_host",
+      "type": "Str",
+      "default": "192.168.0.27",
+      "describe": "FTP 服务器地址"
+    },
+    {
+      "name": "ftp_port",
+      "type": "Int",
+      "default": 2121,
+      "describe": "FTP 端口（2121 = OpsLumen 文件网关，只读）"
+    },
+    {
+      "name": "ftp_user",
+      "type": "Str",
+      "default": "admin",
+      "describe": "FTP 用户名"
+    },
+    {
+      "name": "ftp_pass",
+      "type": "Str",
+      "default": "admin123",
+      "describe": "FTP 密码"
+    },
+    {
+      "name": "remote_dir",
+      "type": "Str",
+      "default": "MESAPP",
+      "describe": "要切换过去的工作目录"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_ftp_out",
+      "describe": "证据文件输出目录"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "Network.ftp_create",
+      "alias": "创建FTP连接（登录文件网关）",
+      "out": {
+        "ftp_instance": "ftp"
+      },
+      "inputs": {
+        "host": "$p:ftp_host",
+        "port": "$p:ftp_port",
+        "name": "$p:ftp_user",
+        "password": "$p:ftp_pass"
+      }
+    },
+    {
+      "atom": "Network.get_work_dir",
+      "alias": "获取初始工作目录",
+      "out": {
+        "get_work_dir": "wd_before"
+      },
+      "inputs": {
+        "ftp_instance": "$ftp"
+      }
+    },
+    {
+      "atom": "Network.change_working_dir",
+      "alias": "切换到 MESAPP 目录",
+      "out": {
+        "change_work_dir": "cwd_res"
+      },
+      "inputs": {
+        "ftp_instance": "$ftp",
+        "new_work_dir": "$p:remote_dir"
+      }
+    },
+    {
+      "atom": "Network.get_work_dir",
+      "alias": "确认工作目录已切换（对比值即证据）",
+      "out": {
+        "get_work_dir": "wd_after"
+      },
+      "inputs": {
+        "ftp_instance": "$ftp"
+      }
+    },
+    {
+      "atom": "Code.Try",
+      "alias": "尝试：列当前目录（检验数据通道）",
+      "inputs": {}
+    },
+    {
+      "atom": "Network.get_ftp_list",
+      "alias": "获取文件/文件夹列表",
+      "out": {
+        "get_ftp_list": "files"
+      },
+      "inputs": {
+        "ftp_instance": "$ftp",
+        "file_type": "all"
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "列目录成功 → 写「数据通道可用」",
+      "out": {
+        "write_file_path": "w_ok"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/FTP数据通道_可用.txt"
+        ],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": [
+          "get_ftp_list 成功，目录内容：",
+          "$files"
+        ]
+      }
+    },
+    {
+      "atom": "Code.Catch",
+      "alias": "列目录失败 → 记录数据通道不可用",
+      "inputs": {}
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "写「数据通道不可用（PASV 超时）」",
+      "out": {
+        "write_file_path": "w_bad"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/FTP数据通道_PASV超时.txt"
+        ],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": "get_ftp_list 抛异常：该服务器只接受主动模式（PORT），RPA 的 ftplib 默认走 PASV，数据连接 21 秒后 WinError 10060。注意：命令通道（pwd/cwd/mkd/rmd/rename/delete）不受影响。"
+      }
+    },
+    {
+      "atom": "Code.TryEnd",
+      "alias": "异常处理结束",
+      "inputs": {}
+    },
+    {
+      "atom": "Network.ftp_close",
+      "alias": "关闭FTP连接",
+      "out": {
+        "close_ftp": "closed"
+      },
+      "inputs": {
+        "ftp_instance": "$ftp"
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "把目录状态写成证据文件",
+      "out": {
+        "write_file_path": "report"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/FTP连接与目录操作_结果.txt"
+        ],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": [
+          "服务器：",
+          "$p:ftp_host",
+          ":",
+          "$p:ftp_port",
+          "\n初始工作目录：",
+          "$wd_before",
+          "\n切换目录返回：",
+          "$cwd_res",
+          "\n切换后工作目录：",
+          "$wd_after",
+          "\n关闭连接：",
+          "$closed"
+        ]
+      }
+    }
+  ]
+}
