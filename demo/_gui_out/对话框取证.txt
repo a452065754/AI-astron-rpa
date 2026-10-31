@@ -1,0 +1,16 @@
+【Dialog 域 12 次弹窗的返回值】
+message_box(confirm)        = confirm
+message_box(confirm_cancel) = confirm
+message_box(yes_no)         = yes
+message_box(yes_no_cancel) = yes
+input_box                   = DEFAULT-TEXT
+select_box(single)          = 
+select_box(multi)           = []
+select_file_box(file)       = 
+select_file_box(folder)     = 
+select_time_box(time)       = None
+select_time_box(range)      = None
+custom_box                  = {'result_button': 'confirm'}
+
+【口径】这些值是原子自己 return 的，不是流程编的。
+弹窗本体由设计器前端渲染（引擎↔前端 WebSocket），无人接入时 auto_check 超时后按默认按钮返回。

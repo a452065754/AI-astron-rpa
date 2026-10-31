@@ -348,6 +348,42 @@ def sync_params(cookie, robot_id, process_id, params):
             "total": len(by_name) + len(added)}
 
 
+def delete_param(cookie, param_id):
+    """删除单个流程参数（c_param）。
+
+    注意：后端 `POST /api/robot/param/delete` 用的是 **form 表单**（`@RequestParam`），
+    字段名是 `id`，不是 JSON body。传 JSON（`{"id": ...}`）会报
+    `500001 缺少必填参数: id`，传 GET 会报 `999999 系统异常`。
+    """
+    url = cfg.gateway_base() + "/api/robot/param/delete"
+    headers = {"X-Requested-With": "XMLHttpRequest", "Cookie": cookie}
+    r = requests.post(url, data={"id": str(param_id)}, headers=headers, timeout=TIMEOUT)
+    try:
+        return ok(r.json(), f"删除参数 {param_id}")
+    except Exception:
+        return False
+
+
+def delete_params(cookie, robot_id, process_id, keep_names):
+    """批量删除流程参数，仅保留 `keep_names` 里的参数名。
+
+    返回 {"deleted": [...], "failed": [...]}。
+    """
+    existing = list_params(cookie, robot_id, process_id)
+    deleted, failed = [], []
+    for p in existing:
+        if not isinstance(p, dict):
+            continue
+        name = p.get("varName")
+        if name in (keep_names or set()):
+            continue
+        if delete_param(cookie, p.get("id")):
+            deleted.append(name)
+        else:
+            failed.append(name)
+    return {"deleted": deleted, "failed": failed}
+
+
 def get_last_execute_error(robot_id, execute_id=None):
     """取最近一次执行的**具体失败原因**。
 

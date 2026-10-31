@@ -691,11 +691,13 @@ python scripts/ai_flow.py --spec flows/x.json --stage invoke   # API 调用 + �
 | `POST /api/robot/param/all` | `{robotId, processId}` | 读参数列表 |
 | `POST /api/robot/param/add` | `CParamDto` | 新增 |
 | `POST /api/robot/param/update` | `CParamDto` | 更新 |
-| `POST /api/robot/param/delete` | `{paramId}` | 删除 |
+| `POST /api/robot/param/delete` | **form 表单** `id=<paramId>`（`@RequestParam`，非 JSON body） | 删除 |
 
 `CParamDto` 必填 `varDirection / varName / varType / robotId`，且 **`processId` 与 `moduleId` 不能同时为空**。
 
 `publish_flow.sync_params(cookie, robot_id, process_id, params)` 按 `varName` 匹配：缺则 add、变则 update；**服务端多余的参数不删，只列出来提示**（避免误删用户手工建的参数）。
+
+> **坑：`param/delete` 必须用 form 表单传 `id`**。用 JSON body（`{"id": ...}` / `{"paramId": ...}`）一律报 `500001 缺少必填参数: id`，用 GET 带 query 报 `999999 系统异常`。正确写法：`requests.post(url, data={"id": str(param_id)})`（`@RequestParam`），成功返回 `code=000000, data=true`。
 
 #### 14.12.4 `parameters` 必须登记真实参数表（否则 403）
 
