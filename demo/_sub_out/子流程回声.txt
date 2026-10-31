@@ -1,0 +1,2 @@
+【子流程已执行】收到主流程透传的 echo_text = SUB-ECHO-OK
+如果这里的文字和主流程里填的不一样，说明 Script.process 没把参数传对。

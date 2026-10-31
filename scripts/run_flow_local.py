@@ -68,7 +68,8 @@ def gateway_alive(port):
         return s.connect_ex(("127.0.0.1", port)) == 0
 
 
-def run(robot_id, process_id="", gateway_port=None, timeout=300, verbose=False):
+def run(robot_id, process_id="", gateway_port=None, timeout=300, verbose=False,
+        log_ws="n", wait_web_ws="n"):
     gateway_port = int(gateway_port or cfg.local_gateway_port())
     py = client_python()
     if not os.path.exists(py):
@@ -90,8 +91,8 @@ def run(robot_id, process_id="", gateway_port=None, timeout=300, verbose=False):
         "--mode", "EDIT_PAGE",
         "--gateway_port", str(gateway_port),
         "--port", str(port),
-        "--log_ws", "n",      # 不连前端 websocket（无人看界面）
-        "--wait_web_ws", "n",
+        "--log_ws", str(log_ws),
+        "--wait_web_ws", str(wait_web_ws),
     ]
     if process_id:
         cmd += ["--process_id", str(process_id)]
@@ -175,9 +176,18 @@ def main():
                     help="设计器本地网关端口（默认取 rpa_config.json 的 client.local_gateway_port）")
     ap.add_argument("--timeout", type=int, default=300, help="超时秒数")
     ap.add_argument("--show-log", action="store_true", help="打印日志尾部")
+    ap.add_argument(
+        "--log-ws", default="n", choices=["y", "n"],
+        help="是否把执行日志推到前端 websocket（默认 n：无人看界面）",
+    )
+    ap.add_argument(
+        "--wait-web-ws", default="n", choices=["y", "n"],
+        help="是否等待前端 websocket 接入（Dialog.* 弹窗要靠它渲染，默认 n）",
+    )
     args = ap.parse_args()
 
-    r = run(args.robot_id, args.process_id, args.gateway_port, args.timeout, verbose=True)
+    r = run(args.robot_id, args.process_id, args.gateway_port, args.timeout, verbose=True,
+            log_ws=args.log_ws, wait_web_ws=args.wait_web_ws)
     print("=" * 60)
     for k in ("ok", "status", "exit_code", "elapsed_sec", "process_id"):
         if k in r:

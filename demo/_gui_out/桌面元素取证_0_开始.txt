@@ -1,0 +1,7 @@
+流程已开始执行。宿主：C:\Windows\System32\mstsc.exe
+【窗口由本流程第一节点启动】跑完窗口会随引擎进程一起被清理，
+所以 set_size / top 的证据靠 scripts/win_watch.py 在跑的过程中采样（矩形变化 / 谁在前台）。
+
+如果只有本文件、没有「桌面元素取证.txt」，说明 Window.exist 判为 False，
+后续节点整体被跳过但流程仍报 SUCCESS —— Window.exist 是 IF 型原子，
+引擎把「它之后的全部节点」编进 if 分支里。

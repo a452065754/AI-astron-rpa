@@ -35,6 +35,10 @@ CASES = [
     ("A9", "A9_iebrowser_missing.py", "IE 模块整块缺失"),
     ("A10", "A10_bridge_idle_disconnect.py", "扩展空闲断连不唤醒"),
     ("A11", "A11_insert_sep_no_break.py", "insert_sep 不分段"),
+    ("A12", "A12_dialog_ws_loop_none.py", "Dialog.* 无头执行必崩"),
+    ("A13", "A13_dialog_no_timeout_hang.py", "Dialog 四个原子永久挂起"),
+    ("A14", "A14_system_screen_lock_notimpl.py", "锁屏原子是空实现"),
+    ("A15", "A15_cv_template_rgb2gray.py", "模板灰度用错颜色通道"),
 ]
 
 VERDICT_RE = re.compile(r"^结论：(REPRODUCED|NOT_REPRODUCED|BLOCKED)$", re.M)

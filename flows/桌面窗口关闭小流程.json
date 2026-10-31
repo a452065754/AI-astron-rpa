@@ -1,0 +1,131 @@
+{
+  "name": "桌面窗口关闭小流程",
+  "nl_examples": [
+    "打开一个窗口再把它关掉，确认窗口真的消失了",
+    "验证关闭窗口原子：关完再用窗口存在判断确认为不存在",
+    "开关一个 Windows 对话框，并用采样记录窗口出现到消失的全过程"
+  ],
+  "keywords": [
+    "关闭窗口",
+    "窗口存在判断",
+    "桌面窗口",
+    "Window.close"
+  ],
+  "params": [
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_gui_out",
+      "describe": "取证输出目录"
+    },
+    {
+      "name": "host_exe",
+      "type": "Str",
+      "default": "C:\\Windows\\System32\\mstsc.exe",
+      "describe": "被测宿主程序（远程桌面连接：不会真的连出去，关闭时也不会弹确认框）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "Software.open",
+      "alias": "打开被测窗口",
+      "out": {
+        "software_open": "opened"
+      },
+      "inputs": {
+        "app_absolute_path": "$p:host_exe",
+        "app_arguments": ""
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "开始标记（IF 体外）",
+      "out": {
+        "write_file_path": "mark"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/窗口关闭取证_0_开始.txt"
+        ],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": [
+          "已启动宿主：",
+          "$p:host_exe",
+          "\n接下来：判断窗口存在 → 关闭 → 再判断窗口不存在。\n",
+          "如果只有本文件，说明第一层 Window.exist 就是假：窗口没起来。\n"
+        ]
+      }
+    },
+    {
+      "atom": "Window.exist",
+      "alias": "IF 窗口存在（第一层；后续节点都会被编进这个 if 体）",
+      "out": {},
+      "inputs": {
+        "check_type": "exist",
+        "wait_time": 10
+      },
+      "elements": {
+        "pick": {
+          "kind": "uia",
+          "name": "mstsc_窗口"
+        }
+      }
+    },
+    {
+      "atom": "Window.close",
+      "alias": "关闭窗口",
+      "out": {},
+      "inputs": {},
+      "elements": {
+        "pick": {
+          "kind": "uia",
+          "name": "mstsc_窗口"
+        }
+      }
+    },
+    {
+      "atom": "Window.exist",
+      "alias": "IF 窗口不存在（嵌套在上一层 if 里，等最多 10 秒）",
+      "out": {},
+      "inputs": {
+        "check_type": "not_exist",
+        "wait_time": 10
+      },
+      "elements": {
+        "pick": {
+          "kind": "uia",
+          "name": "mstsc_窗口"
+        }
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "写取证：能走到这里 = 两层判断都成立（窗口存在 → 关闭 → 不存在）",
+      "out": {
+        "write_file_path": "evidence"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/窗口关闭取证.txt"
+        ],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": [
+          "【结论】窗口 存在 → 已关闭 → 确认为不存在。宿主：",
+          "$p:host_exe",
+          "\n\n【为什么这条流程能当证据】\n",
+          "Window.exist 没有输出（字典 outputList 为空，实现 return bool），\n",
+          "引擎把它编译成 if 语句，条件为假时后续节点整段跳过、流程仍报 SUCCESS。\n",
+          "所以「本文件存在」这件事本身就证明了两层判断都为真：\n",
+          "  第一层：窗口确实起来了（否则本文件根本不会产生）；\n",
+          "  第二层：Window.close 之后窗口确实不存在了（否则第二层 if 不成立，本文件也不会产生）。\n",
+          "反过来，如果只看到「窗口关闭取证_0_开始.txt」而没有本文件，就说明窗口没起来或没关掉。\n",
+          "\n【交叉证据】scripts/win_watch.py 的采样日志能看到窗口出现、消失的时间点。\n"
+        ]
+      }
+    }
+  ]
+}

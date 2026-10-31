@@ -1,0 +1,2 @@
+CV.wait_image(wait_type=appear) 返回：True
+（期望 True。这个值是原子自己 return 出来的，不是流程编的。）

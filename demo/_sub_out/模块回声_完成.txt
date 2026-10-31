@@ -1,0 +1,1 @@
+模块执行完毕，echo_text = MODULE-ECHO-OK

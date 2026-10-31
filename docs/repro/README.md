@@ -1,6 +1,6 @@
 # 平台缺陷复现包（Astron RPA v1.1.11）
 
-给平台方的**可执行**复现包：11 条缺陷，每条一个独立脚本，跑完自动给出
+给平台方的**可执行**复现包：15 条缺陷，每条一个独立脚本，跑完自动给出
 `REPRODUCED / NOT_REPRODUCED / BLOCKED` 结论，不需要人读日志判断。
 
 所有脚本都是**断言式**的——它们不打印一堆输出让人猜，而是直接对比「期望行为」和
@@ -22,7 +22,7 @@
 ## 1. 怎么跑
 
 ```bat
-:: 一条命令跑完全部 11 条
+:: 一条命令跑完全部 15 条
 "%APPDATA%/astron-rpa/python_core/python.exe" run_all.py
 
 :: 只跑某几条
@@ -55,6 +55,10 @@
 | A9 | IE 系原子整块缺失 | 字典/前端有 35+ 个，发布包不带 `astronverse.iebrowser` | P2 | 对照组 6 个域包都能导入，排除路径问题 |
 | A10 | 扩展空闲断连、桥接不唤醒 | 闲置后所有 `Browser*` 原子报「插件无响应」（`code 1001`） | P0 | 从日志统计 103 次会话，20 次空档 > 30s；开新窗口立刻恢复 |
 | A11 | `insert_sep`（段落）不分段 | `InsertParagraph()` 只插标记、光标不动，三段文字挤成一段 | P1 | 对照 `TypeParagraph()` 得到正确 3 段，证明修复建议有效 |
+| A12 | `Dialog.*` 无头执行必崩 | `cfg["WS"]` 无条件赋值、`Ws.loop` 却在起服务时才赋值 → `AttributeError: 'NoneType' has no attribute 'call_soon_threadsafe'` | P0 | 调引擎真实 `Dialog.message_box` 复现；对照组把 `Ws.loop` 赋成真实 loop 后错误消失 |
+| A13 | Dialog 四个输入类原子永久挂起 | `input_box`/`select_box`/`select_time_box`/`select_file_box` 用裸 `done.wait()`，无超时 | P0 | 6 秒后线程仍存活；对照组 `message_box(wait_time=3)` 3.1 秒返回 |
+| A14 | 锁屏/解锁原子是空实现 | 原子字典里摆得出来，实现体却是 `raise NotImplementedError()` | P2 | 全引擎扫描，同类占位原子就这 2 个 |
+| A15 | 模板灰度用错颜色通道 | 模板已转 BGR 却按 RGB 权重转灰度 → 彩色目标匹配分被拉低到 0.9395 < 阈值 0.95，判「元素不存在」 | P1 | 调引擎真实 `process_image`：彩色目标找不到、灰色目标 1.0 匹配成功 |
 
 ## 3. 每条建议怎么改
 
@@ -73,6 +77,10 @@
 | A9 | 发布包带上 `iebrowser`，或字典标 unsupported + 前端隐藏 |
 | A10 | 桥接侧调用前检查连接存活并主动唤醒；扩展改用 `alarms` 心跳而非依赖 SW 常驻 |
 | A11 | `word/core_win.py:519` 的 `InsertParagraph()` → `TypeParagraph()` |
+| A12 | `ws.py:71` 不要无条件写 `cfg["WS"]`；或把 `Ws.loop` 的初始化挪进 `Ws.__init__`；`send_reply` 先判 `Ws.loop is None` 并抛业务异常 |
+| A13 | 四处 `done.wait()` → `wait_with_timeout(lambda: done.is_set(), reset_timeout_on_activity=auto_check, wait_time=wait_time)`，并补 `wait_time` 参数 |
+| A14 | 把这两个原子从原子字典摘掉 / 元数据加 `unsupported` 标记；中期用 `user32.LockWorkStation()` 实现锁屏 |
+| A15 | `cv_match.py:146`、`:152`、`:33` 的 `COLOR_RGB2GRAY` → `COLOR_BGR2GRAY`；顺手把 `process_image` 的 `ratio` 默认值从 `None` 改成 `"1,1"` |
 
 ## 4. 文件清单
 
@@ -93,7 +101,11 @@ repro/
 ├── A8_param_to_eval_unpack.py
 ├── A9_iebrowser_missing.py
 ├── A10_bridge_idle_disconnect.py
-└── A11_insert_sep_no_break.py
+├── A11_insert_sep_no_break.py
+├── A12_dialog_ws_loop_none.py
+├── A13_dialog_no_timeout_hang.py
+├── A14_system_screen_lock_notimpl.py
+└── A15_cv_template_rgb2gray.py
 ```
 
 脚本自己产生的中间文件都落在 `_tmp/<编号>/<pid>/`，可随时整个删掉。
@@ -105,7 +117,7 @@ repro/
 | `Docx.insert_hyperlink` | 生成的是 Word **HYPERLINK 域**（`fldChar` 三件套），Word 里可点、样式正确。只是没有 `w:hyperlink` 元素和 `.rels`，部分解析库读不到 |
 | `BrowserSoftware.browser_open` | 用 UIA 找窗口，找不到就再开一个窗口。Chrome 在跑也可能多开 —— 属于行为约定，不是失败 |
 | `DataTable.export_data_table_to_file` 导 csv | 非 JSON 类型底层走 openpyxl，`.csv` 得到的是**改了后缀的 xlsx**。属于文档缺失 |
-| `System.screen_lock` | 实现就是 `raise NotImplementedError()`，属于未实现，不算 bug |
+| `System.screen_lock` | 实现就是 `raise NotImplementedError()`。**本轮改判为 A14**：单独看「没实现」不算 bug，但平台把它原样摆进原子字典、参数面板也正常渲染，用户拖进流程才炸 —— 缺陷在于「对外宣称可用」，而不是「没实现」本身 |
 | `System.terminate_process`（按名） | 恒返回 True，返回值不可作为证据 |
 | FTP 中文目录名 | IIS FTP 回 `451 No mapping for the Unicode character...`，服务器侧编码问题，不是原子缺陷 |
 
@@ -115,3 +127,6 @@ repro/
 2. **每条的边界都写清楚**：比如 A3 如果笼统说「覆盖已存在文件必失败」就是错的，实测文件存在但无人占用时是成功的。
 3. **不靠返回值自证**：能解包文件结构就解包（A6 看 `xl/media`、A11 看 `<w:p>`），能查服务端就查（A4 看 501）。
 4. **结论可重跑**：`run_all.py` 的汇总表就是最终结论，任何一条翻转都会体现出来。
+5. **尽量调引擎真函数**：A12 调的是真实 `Dialog.message_box`，A15 调的是真实
+   `AnchorMatch.process_image`，A14 调的是真实 `System.screen_lock` ——
+   不是"读源码推断"，而是直接让引擎自己跑出那句错误。

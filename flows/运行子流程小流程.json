@@ -1,0 +1,114 @@
+{
+  "name": "运行子流程小流程",
+  "nl_examples": [
+    "在主流程里用 Script.process 调用另一个子流程并拿到返回值",
+    "运行子流程：验证动态调用与参数透传",
+    "主流程调子流程"
+  ],
+  "keywords": [
+    "运行子流程",
+    "动态调用",
+    "参数透传"
+  ],
+  "params": [
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_sub_out",
+      "describe": "取证输出目录"
+    },
+    {
+      "name": "process_id",
+      "type": "Str",
+      "default": "2116451043997327360",
+      "describe": "被调用子流程的 processId（字符串！module() 拿它去 process_info 查模块名）"
+    },
+    {
+      "name": "echo_text",
+      "type": "Str",
+      "default": "SUB-ECHO-OK",
+      "describe": "要透传给子流程的文字"
+    },
+    {
+      "name": "module_id",
+      "type": "Str",
+      "default": "2116451252018028544",
+      "describe": "被 Script.module 调用的子流程 processId（同样查 process_info）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "File.file_write",
+      "alias": "开始标记（IF 体外）：证明流程真的跑起来了",
+      "out": {
+        "write_file_path": "mark"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/子流程调用_0_开始.txt"
+        ],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": [
+          "主流程开始调用子流程，processId = ",
+          "$p:process_id",
+          "\n透传文字 = ",
+          "$p:echo_text",
+          "\n"
+        ]
+      }
+    },
+    {
+      "atom": "Script.process",
+      "alias": "动态调用子流程（编译成 module(<processId>) 再 import 该子流程模块执行 main(args)）",
+      "out": {
+        "process_res": "sub_res"
+      },
+      "inputs": {
+        "process": "$p:process_id",
+        "process_param": "$json:[{\"varName\": \"out_dir\", \"varValue\": \"$p:out_dir\"}, {\"varName\": \"echo_text\", \"varValue\": \"$p:echo_text\"}]"
+      }
+    },
+    {
+      "atom": "Script.module",
+      "alias": "动态调用子流程模块（Script.module：走 _module_call，按 main(args) 签名传字典）",
+      "out": {
+        "program_script": "mod_res"
+      },
+      "inputs": {
+        "content": "$p:module_id",
+        "module_param": "$json:[{\"varName\": \"out_dir\", \"varValue\": \"$p:out_dir\"}, {\"varName\": \"echo_text\", \"varValue\": \"MODULE-ECHO-OK\"}]"
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "写取证文件：Script.process 的返回值（就是传给子流程的 kwargs 字典）",
+      "out": {
+        "write_file_path": "evidence"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/子流程调用取证.txt"
+        ],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": [
+          "【Script.process 返回值】\n",
+          "$sub_res",
+          "\n【Script.module 返回值】\n",
+          "$mod_res",
+          "\n【被调用的子流程 processId】",
+          "$p:process_id",
+          "\n【模块子流程 processId】",
+          "$p:module_id",
+          "\n【透传下去的文字】",
+          "$p:echo_text",
+          "\n\n【交叉证据】同目录下的「子流程回声.txt」「模块回声.txt」分别是两个子流程自己写的，\n",
+          "里面的文字必须和上面一致 —— 那才说明参数真的传到了子流程里。\n"
+        ]
+      }
+    }
+  ]
+}

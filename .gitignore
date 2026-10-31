@@ -26,6 +26,9 @@ docs/relocate-report.json
 # 每次落库都会把旧的主流程快照存到这里（本地留档即可，不进仓库）
 flows/_archive/
 
+# 复现包的中间产物（每次跑都重新生成，可随时整个删掉）
+docs/repro/_tmp/
+
 # 网页流程的截图存证产物（每次运行都会覆盖，不入库）
 demo/_web_out/
 
@@ -37,6 +40,17 @@ demo/_browser_out/*.jpg
 demo/_excel_out/*.png
 demo/_code_out/*.png
 demo/_probe/*.png
+
+# 桌面/视觉靶场产出（2026-10-31 新增）：截图与浏览器 profile 一律不入库
+#（全屏截图会带桌面/其它窗口内容，属隐私；profile 体积大且可再生），只留文本取证
+demo/_cv_out/*.png
+demo/_cv_out/*.jpg
+demo/_gui_out/*.png
+demo/_gui_out/*.jpg
+demo/_cv_out/chrome-profile/
+demo/_gui_out/chrome-profile*/
+demo/_cv_out/site/
+demo/_gui_out/site/
 
 # ============ 临时 / 锁文件 ============
 .dsh-tmp-*.py

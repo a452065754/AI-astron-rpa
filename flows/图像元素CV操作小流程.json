@@ -1,0 +1,194 @@
+{
+  "name": "图像元素CV操作小流程",
+  "nl_examples": [
+    "用图像元素做判断、等待、悬停、输入和点击，最后读窗口标题核对",
+    "验证 CV 五个原子：图像存在 / 等待图像 / 图像悬停 / 图像输入 / 图像点击",
+    "在 CV 靶场页面上按图找控件并操作，用标题栏事件日志取证"
+  ],
+  "keywords": [
+    "图像元素",
+    "图像点击",
+    "图像输入",
+    "CV",
+    "IMGPick"
+  ],
+  "params": [
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_cv_out",
+      "describe": "取证输出目录"
+    },
+    {
+      "name": "mark_text",
+      "type": "Str",
+      "default": "RPA-CV-OK",
+      "describe": "要输入到靶场输入框的文字（纯 ASCII，便于核对标题）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "File.file_write",
+      "alias": "开始标记（IF 体外：有这个文件才说明流程真的跑起来了）",
+      "out": {
+        "write_file_path": "mark"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/CV取证_0_开始.txt"
+        ],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": [
+          "CV 靶场流程开始。输入文字=",
+          "$p:mark_text",
+          "\n接下来：图像存在判断（IF）→ 等待图像 → 悬停 → 输入 → 点击。\n",
+          "如果只看到本文件而没有 CV取证.txt，说明第一步 CV.is_image_exist 为假。\n"
+        ]
+      }
+    },
+    {
+      "atom": "CV.is_image_exist",
+      "alias": "IF 背景噪声图存在（IF 型原子：后续节点全部被编进这个 if 体）",
+      "out": {},
+      "inputs": {
+        "exist_type": "exist",
+        "match_similarity": 0.95,
+        "wait_time": 8
+      },
+      "elements": {
+        "input_data": {
+          "kind": "cv",
+          "name": "CV靶场_背景噪声"
+        }
+      }
+    },
+    {
+      "atom": "CV.wait_image",
+      "alias": "等待背景图出现（真正有返回值：image_wait_result）",
+      "out": {
+        "image_wait_result": "img_wait"
+      },
+      "inputs": {
+        "wait_type": "appear",
+        "wait_time": 8,
+        "match_similarity": 0.95
+      },
+      "elements": {
+        "input_data": {
+          "kind": "cv",
+          "name": "CV靶场_背景噪声"
+        }
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "记录 CV.wait_image 的返回值（唯一真正有输出的 CV 原子）",
+      "out": {
+        "write_file_path": "wait_ev"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/CV取证_1_等待结果.txt"
+        ],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": [
+          "CV.wait_image(wait_type=appear) 返回：",
+          "$img_wait",
+          "\n（期望 True。这个值是原子自己 return 出来的，不是流程编的。）\n"
+        ]
+      }
+    },
+    {
+      "atom": "CV.hover_image",
+      "alias": "鼠标悬停到青色边框块（页面 mouseenter 会把 HOVER 写进标题）",
+      "out": {},
+      "inputs": {
+        "click_position": "center",
+        "match_similarity": 0.95,
+        "wait_time": 8,
+        "move_type": "linear",
+        "move_speed": "fast"
+      },
+      "elements": {
+        "input_data": {
+          "kind": "cv",
+          "name": "CV靶场_悬停块"
+        }
+      }
+    },
+    {
+      "atom": "CV.image_input",
+      "alias": "点击品红边框输入框并输入文字（oninput 会把 IN: 写进标题）",
+      "out": {},
+      "inputs": {
+        "input_type": "text",
+        "input_content": "$p:mark_text",
+        "simulate_flag": "yes",
+        "interval": 0.05,
+        "match_similarity": 0.95,
+        "wait_time": 8
+      },
+      "elements": {
+        "input_data": {
+          "kind": "cv",
+          "name": "CV靶场_输入框"
+        }
+      }
+    },
+    {
+      "atom": "CV.cv_click",
+      "alias": "点击背景噪声区（onclick 把 CLICK 写进标题，并把整页刷成暗红）",
+      "out": {},
+      "inputs": {
+        "btn_type": "left",
+        "btn_model": "click",
+        "click_position": "center",
+        "specified_position": 5,
+        "horizontal_move": 0,
+        "vertical_move": 0,
+        "match_similarity": 0.95,
+        "move_type": "linear",
+        "move_speed": "fast",
+        "wait_time": 8
+      },
+      "elements": {
+        "input_data": {
+          "kind": "cv",
+          "name": "CV靶场_背景噪声"
+        }
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "写取证：能走到这里 = 五个 CV 原子全部执行完（且第一步判断为真）",
+      "out": {
+        "write_file_path": "evidence"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/CV取证.txt"
+        ],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": [
+          "【结论】CV 五个原子全部执行完成。输入文字=",
+          "$p:mark_text",
+          "\n\n【为什么这条流程能当证据】\n",
+          "CV.is_image_exist 是引擎里 4 个 IF 型原子之一（executor/flow/syntax/token.py:52 exist_atomic_dict），\n",
+          "它没有输出、实现 return bool，引擎把它编译成 if 语句；条件为假时后续节点整段跳过、流程仍报 SUCCESS。\n",
+          "所以「本文件存在」= 第一步判断为真 + 后面四个动作原子都真的跑过（没被跳过、没抛异常）。\n",
+          "\n【真正的行为证据在外部】\n",
+          "1) 靶场页把事件写进了 document.title：正常应看到 CV靶场|HOVER|IN:<输入文字>|CLICK\n",
+          "   —— 标题是浏览器自己维护的，流程碰不到它，无法伪造。\n",
+          "2) 点击成功后背景会被 JS 刷成 #B00020，抓屏取色即可二次确认。\n",
+          "3) CV.wait_image 的返回值写在此：见 CV取证_1_等待结果.txt。\n"
+        ]
+      }
+    }
+  ]
+}

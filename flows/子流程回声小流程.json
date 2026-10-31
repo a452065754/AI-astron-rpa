@@ -1,0 +1,69 @@
+{
+  "name": "子流程回声小流程",
+  "nl_examples": [
+    "被主流程调用的子流程，把传进来的参数原样写进文件",
+    "子流程回声：验证 Script.process 真的把参数传下去了",
+    "子流程侧证据"
+  ],
+  "keywords": [
+    "子流程",
+    "回声",
+    "参数传递"
+  ],
+  "params": [
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_sub_out",
+      "describe": "取证输出目录"
+    },
+    {
+      "name": "echo_text",
+      "type": "Str",
+      "default": "SUB-ECHO-OK",
+      "describe": "主流程透传过来的文字；子流程把它原样写进证据文件"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "File.file_write",
+      "alias": "子流程把收到的参数写进文件（这是「参数真的传下来了」的证据）",
+      "out": {
+        "write_file_path": "echo_mark"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/子流程回声.txt"
+        ],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": [
+          "【子流程已执行】收到主流程透传的 echo_text = ",
+          "$p:echo_text",
+          "\n如果这里的文字和主流程里填的不一样，说明 Script.process 没把参数传对。\n"
+        ]
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "子流程完成标记（这个文件出现 = 子流程跑到了最后一步）",
+      "out": {
+        "write_file_path": "echo_done"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/子流程回声_完成.txt"
+        ],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": [
+          "子流程执行完毕，echo_text = ",
+          "$p:echo_text",
+          "\n"
+        ]
+      }
+    }
+  ]
+}

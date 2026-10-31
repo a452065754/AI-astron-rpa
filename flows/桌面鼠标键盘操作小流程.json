@@ -1,0 +1,325 @@
+{
+  "name": "桌面鼠标键盘操作小流程",
+  "nl_examples": [
+    "用鼠标键盘原子在桌面上点击、输入、滚动、拖拽，并读取鼠标位置核对",
+    "Gui 八个原子实测：移动 / 点击 / 滚轮 / 拖拽 / 键盘输入 / 组合键 / 鼠标位置",
+    "对着一个记录事件日志的网页靶场做裸鼠标裸键盘操作，用标题栏日志核对每一步"
+  ],
+  "keywords": [
+    "桌面鼠标",
+    "键盘输入",
+    "组合键",
+    "鼠标拖拽",
+    "鼠标位置",
+    "Gui"
+  ],
+  "params": [
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_gui_out",
+      "describe": "取证输出目录"
+    },
+    {
+      "name": "click_x",
+      "type": "Int",
+      "default": 418,
+      "describe": "点击目标的屏幕绝对 X（由 scripts/gui_e2e.py 按实测视口原点回填）"
+    },
+    {
+      "name": "click_y",
+      "type": "Int",
+      "default": 397,
+      "describe": "点击目标的屏幕绝对 Y（回填）"
+    },
+    {
+      "name": "drag_x1",
+      "type": "Int",
+      "default": 252,
+      "describe": "拖拽起点屏幕绝对 X（回填）"
+    },
+    {
+      "name": "drag_y1",
+      "type": "Int",
+      "default": 501,
+      "describe": "拖拽起点屏幕绝对 Y（回填）"
+    },
+    {
+      "name": "drag_x2",
+      "type": "Int",
+      "default": 548,
+      "describe": "拖拽终点屏幕绝对 X（回填）"
+    },
+    {
+      "name": "drag_y2",
+      "type": "Int",
+      "default": 617,
+      "describe": "拖拽终点屏幕绝对 Y（回填）"
+    },
+    {
+      "name": "move_x",
+      "type": "Int",
+      "default": 732,
+      "describe": "Gui.mouse_move_new（全屏）目标屏幕绝对 X（回填）"
+    },
+    {
+      "name": "move_y",
+      "type": "Int",
+      "default": 517,
+      "describe": "Gui.mouse_move_new（全屏）目标屏幕绝对 Y（回填）"
+    },
+    {
+      "name": "rel_x",
+      "type": "Int",
+      "default": 60,
+      "describe": "Gui.mouse_move_new（相对窗口）相对被拾取窗口左上角的 X 偏移"
+    },
+    {
+      "name": "rel_y",
+      "type": "Int",
+      "default": 40,
+      "describe": "Gui.mouse_move_new（相对窗口）相对被拾取窗口左上角的 Y 偏移"
+    },
+    {
+      "name": "keys_text",
+      "type": "Str",
+      "default": "RPA-GUI-KEY",
+      "describe": "Gui.keyboard 要输入的文字（纯 ASCII，便于核对页面日志）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "File.file_write",
+      "alias": "开始标记（IF 体外）：有这个文件才说明流程真的跑起来了",
+      "out": {
+        "write_file_path": "mark"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/桌面鼠标键盘取证_0_开始.txt"
+        ],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": [
+          "Gui 靶场流程开始。",
+          "$p:keys_text",
+          "\n本流程覆盖 Gui 域 8 个原子：mouse_move / mouse / mouse_wheel / mouse_drag /\n",
+          "mouse_move_new（全屏 + 相对窗口）/ mouse_position / keyboard / key_input。\n",
+          "\n坐标参数（点击点、拖拽点）由 scripts/gui_e2e.py 按页面视口原点实测后回填：\n",
+          "点击点 = ",
+          "$p:click_x",
+          ",",
+          "$p:click_y",
+          "\n\n【前提】被拾取窗口（远程桌面连接）必须已由外部打开并移动到固定位置，\n",
+          "因为 mstsc 不是单实例（实测连开两个会得到两个同名窗口），\n",
+          "流程里不再调用 Software.open，避免出现第二个同名窗口让 FindWindow 命中错的那个。\n"
+        ]
+      }
+    },
+    {
+      "atom": "Gui.mouse_move",
+      "alias": "把鼠标移动到点击点（屏幕绝对坐标）",
+      "out": {},
+      "inputs": {
+        "window_type": "fullscreen",
+        "position_x": "$p:click_x",
+        "position_y": "$p:click_y",
+        "move_type": "linear",
+        "move_speed": "fast"
+      }
+    },
+    {
+      "atom": "Gui.mouse_position",
+      "alias": "读鼠标位置（应等于上面填的点击点 —— 这是 mouse_move 的直接数值证据）",
+      "out": {
+        "point_x": "pos_move_x",
+        "point_y": "pos_move_y"
+      },
+      "inputs": {}
+    },
+    {
+      "atom": "Gui.mouse",
+      "alias": "在当前位置左键单击（落在靶场输入框上，顺带把焦点交给页面）",
+      "out": {},
+      "inputs": {
+        "btn_type": "left",
+        "btn_model": "click",
+        "ctrl_type": "none"
+      }
+    },
+    {
+      "atom": "Gui.keyboard",
+      "alias": "键盘输入文字（页面输入框的 oninput 会把 IN: 写进标题）",
+      "out": {},
+      "inputs": {
+        "keyboard_type": "normal",
+        "message": "$p:keys_text",
+        "simulate_flag": "no",
+        "interval": 0.02
+      }
+    },
+    {
+      "atom": "Gui.key_input",
+      "alias": "组合键 ctrl+a（页面 keydown 会依次记到 Control 和 a）",
+      "out": {},
+      "inputs": {
+        "keys_str": "ctrl+a",
+        "key_model": "click"
+      }
+    },
+    {
+      "atom": "Gui.mouse_position",
+      "alias": "再读一次鼠标位置（点击/输入/按键都不该移动指针）",
+      "out": {
+        "point_x": "pos_click_x",
+        "point_y": "pos_click_y"
+      },
+      "inputs": {}
+    },
+    {
+      "atom": "Gui.mouse_wheel",
+      "alias": "滚轮向下滚 3 下（页面 wheel 事件会写进标题）",
+      "out": {},
+      "inputs": {
+        "scroll_type": "time",
+        "times": 3,
+        "scroll_px": 120,
+        "direction": "down",
+        "ctrl_type": "none"
+      }
+    },
+    {
+      "atom": "Gui.mouse_drag",
+      "alias": "从拖拽起点拖到终点（页面 mousedown/mouseup 会写进标题）",
+      "out": {},
+      "inputs": {
+        "start_pos_x": "$p:drag_x1",
+        "start_pos_y": "$p:drag_y1",
+        "end_pos_x": "$p:drag_x2",
+        "end_pos_y": "$p:drag_y2",
+        "btn_type": "left",
+        "move_type": "linear",
+        "move_speed": "normal",
+        "ctrl_type": "none"
+      }
+    },
+    {
+      "atom": "Gui.mouse_position",
+      "alias": "拖拽后读鼠标位置（应等于拖拽终点 —— mouse_drag 的直接数值证据）",
+      "out": {
+        "point_x": "pos_drag_x",
+        "point_y": "pos_drag_y"
+      },
+      "inputs": {}
+    },
+    {
+      "atom": "Gui.mouse_move_new",
+      "alias": "mouse_move_new（全屏模式）：移动到另一个绝对坐标",
+      "out": {},
+      "inputs": {
+        "window_type": "fullscreen",
+        "position_x": "$p:move_x",
+        "position_y": "$p:move_y",
+        "move_type": "linear",
+        "move_speed": "fast"
+      }
+    },
+    {
+      "atom": "Gui.mouse_position",
+      "alias": "读鼠标位置（应等于 move_x / move_y）",
+      "out": {
+        "point_x": "pos_mm_x",
+        "point_y": "pos_mm_y"
+      },
+      "inputs": {}
+    },
+    {
+      "atom": "Gui.mouse_move_new",
+      "alias": "mouse_move_new（相对窗口模式）：以「远程桌面连接」窗口左上角为基准偏移移动（内部会先置顶该窗口）",
+      "out": {},
+      "inputs": {
+        "window_type": "active_window",
+        "position_x": "$p:rel_x",
+        "position_y": "$p:rel_y",
+        "move_type": "linear",
+        "move_speed": "fast"
+      },
+      "elements": {
+        "window_pick": {
+          "kind": "uia",
+          "name": "mstsc_窗口"
+        }
+      }
+    },
+    {
+      "atom": "Gui.mouse_position",
+      "alias": "读鼠标位置（应等于「被拾取窗口左上角 + 偏移」，可与外部 GetWindowRect 交叉核对）",
+      "out": {
+        "point_x": "pos_win_x",
+        "point_y": "pos_win_y"
+      },
+      "inputs": {}
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "写取证文件：把流程读到的鼠标位置全部落盘，供流程外核对",
+      "out": {
+        "write_file_path": "evidence"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/桌面鼠标键盘取证.txt"
+        ],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": [
+          "【Gui 域 8 原子实测 · 流程内读到的鼠标位置】\n",
+          "1) mouse_move 之后  : ",
+          "$pos_move_x",
+          ",",
+          "$pos_move_y",
+          "\n2) 点击/输入/按键之后: ",
+          "$pos_click_x",
+          ",",
+          "$pos_click_y",
+          "\n3) mouse_drag 之后  : ",
+          "$pos_drag_x",
+          ",",
+          "$pos_drag_y",
+          "\n4) mouse_move_new 之后: ",
+          "$pos_mm_x",
+          ",",
+          "$pos_mm_y",
+          "\n5) 相对窗口移动之后  : ",
+          "$pos_win_x",
+          ",",
+          "$pos_win_y",
+          "\n\n【参数】点击点 ",
+          "$p:click_x",
+          ",",
+          "$p:click_y",
+          "  拖拽 ",
+          "$p:drag_x1",
+          ",",
+          "$p:drag_y1",
+          " -> ",
+          "$p:drag_x2",
+          ",",
+          "$p:drag_y2",
+          "\n      move_new ",
+          "$p:move_x",
+          ",",
+          "$p:move_y",
+          "  相对窗口偏移 ",
+          "$p:rel_x",
+          ",",
+          "$p:rel_y",
+          "\n\n【说明】这些数字来自 Gui.mouse_position 原子（实现是 pyautogui.position()），\n",
+          "不是流程编的。页面侧的事件日志在另一个通道（窗口标题），两者互为交叉证据。\n"
+        ]
+      }
+    }
+  ]
+}

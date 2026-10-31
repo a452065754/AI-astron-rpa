@@ -313,8 +313,12 @@ def lint(spec, atoms):
                         "先放一个产出该变量的节点（如 File.get_file_list 的 file_list）")
 
         # out 声明是否在 schema 里
+        #
+        # 例外：字典没声明输出、实现却 return 了值的判断型原子（Window.exist 等），
+        # 由 flow_generator.EXTRA_OUTPUT_ATOMS 显式登记，这里同步认它，否则每次跑都告警。
+        extra_outs = set(fg.EXTRA_OUTPUT_ATOMS.get(atom_key, []))
         for ok_, vname in (node.get("out") or {}).items():
-            if ok_ not in outs_schema:
+            if ok_ not in outs_schema and ok_ not in extra_outs:
                 warn("%s（%s）：out 里的 %s 不是该原子的输出项" % (where, atom_key, ok_),
                      "可用输出：" + (", ".join(sorted(outs_schema)) or "（无）"))
             if vname:

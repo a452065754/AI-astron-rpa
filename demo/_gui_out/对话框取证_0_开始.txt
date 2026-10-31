@@ -1,0 +1,3 @@
+Dialog 弹窗流程开始。每个弹窗等待 6 秒。
+弹窗由「引擎 ↔ 设计器前端」的 WebSocket 通道渲染（dialog/dialog.py:170 ws.send_reply）。
+本地无前端接入时，auto_check 会在超时后按默认按钮返回，流程仍能走完。

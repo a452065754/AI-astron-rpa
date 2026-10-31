@@ -1,0 +1,271 @@
+{
+  "name": "桌面元素与窗口操作小流程",
+  "nl_examples": [
+    "打开远程桌面连接窗口，读取输入框内容，改写它再读回来核对",
+    "用桌面元素原子操作一个 Windows 对话框：读文本 / 点击 / 填写输入框 / 元素截图 / 鼠标悬停",
+    "判断窗口是否存在、调整窗口大小、把窗口置顶",
+    "桌面元素（WinEle）与窗口（Window）原子实测：元素能不能定位、输入能不能落到控件里"
+  ],
+  "keywords": [
+    "桌面元素",
+    "窗口操作",
+    "UIA",
+    "元素截图",
+    "置顶窗口",
+    "调整窗口大小",
+    "填写输入框"
+  ],
+  "params": [
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_gui_out",
+      "describe": "取证输出目录（截图与取证文本都落这里）"
+    },
+    {
+      "name": "host_exe",
+      "type": "Str",
+      "default": "C:\\Windows\\System32\\mstsc.exe",
+      "describe": "被测宿主程序。选远程桌面连接是因为它是经典 Win32 对话框：标题固定、有可编辑输入框、改了内容标题也不变"
+    },
+    {
+      "name": "host_text",
+      "type": "Str",
+      "default": "RPA-TEST-01",
+      "describe": "要写进计算机输入框的新内容（纯 ASCII，避开 SendKeys 对中文/输入法的差异）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "Software.open",
+      "alias": "打开被测窗口（远程桌面连接；不点连接所以不会真的连出去）",
+      "out": {
+        "software_open": "opened"
+      },
+      "inputs": {
+        "app_absolute_path": "$p:host_exe",
+        "app_arguments": ""
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "开始标记（IF 体外）：用来识别「条件为假 → 后续节点被静默跳过」",
+      "out": {
+        "write_file_path": "start_mark"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/桌面元素取证_0_开始.txt"
+        ],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": [
+          "流程已开始执行。宿主：",
+          "$p:host_exe",
+          "\n【窗口由本流程第一节点启动】跑完窗口会随引擎进程一起被清理，\n",
+          "所以 set_size / top 的证据靠 scripts/win_watch.py 在跑的过程中采样（矩形变化 / 谁在前台）。\n",
+          "\n如果只有本文件、没有「桌面元素取证.txt」，说明 Window.exist 判为 False，\n",
+          "后续节点整体被跳过但流程仍报 SUCCESS —— Window.exist 是 IF 型原子，\n",
+          "引擎把「它之后的全部节点」编进 if 分支里。\n"
+        ]
+      }
+    },
+    {
+      "atom": "Window.exist",
+      "alias": "IF 窗口存在（最多等 10 秒；注意它会把后续节点整体编进 if 体）",
+      "out": {},
+      "inputs": {
+        "check_type": "exist",
+        "wait_time": 10
+      },
+      "elements": {
+        "pick": {
+          "kind": "uia",
+          "name": "mstsc_窗口"
+        }
+      }
+    },
+    {
+      "atom": "Window.set_size",
+      "alias": "把窗口调成 900×560（跑完用 GetWindowRect 核对）",
+      "out": {},
+      "inputs": {
+        "size_type": "custom",
+        "width": 900,
+        "height": 560
+      },
+      "elements": {
+        "pick": {
+          "kind": "uia",
+          "name": "mstsc_窗口"
+        }
+      }
+    },
+    {
+      "atom": "WinEle.get_element_text",
+      "alias": "读计算机输入框内容（改之前）",
+      "out": {
+        "ele_text": "value_before"
+      },
+      "inputs": {
+        "wait_time": 10
+      },
+      "elements": {
+        "pick": {
+          "kind": "uia",
+          "name": "mstsc_计算机输入框"
+        }
+      }
+    },
+    {
+      "atom": "WinEle.click_element",
+      "alias": "点击输入框（把焦点移进去）",
+      "out": {},
+      "inputs": {
+        "click_button": "left",
+        "click_type": "click",
+        "wait_time": 10,
+        "horizontals_offset": 0,
+        "verticals_offset": 0,
+        "keyboard_input": "none"
+      },
+      "elements": {
+        "pick": {
+          "kind": "uia",
+          "name": "mstsc_计算机输入框"
+        }
+      }
+    },
+    {
+      "atom": "WinEle.input_text_element",
+      "alias": "填写输入框：清空后写入新内容",
+      "out": {},
+      "inputs": {
+        "input_type": "keyboard",
+        "text": "$p:host_text",
+        "credential_text": "",
+        "clear_first": true,
+        "wait_time": 10
+      },
+      "elements": {
+        "pick": {
+          "kind": "uia",
+          "name": "mstsc_计算机输入框"
+        }
+      }
+    },
+    {
+      "atom": "WinEle.get_element_text",
+      "alias": "再读一次输入框（改之后）—— 输入真的生效的主证据",
+      "out": {
+        "ele_text": "value_after"
+      },
+      "inputs": {
+        "wait_time": 10
+      },
+      "elements": {
+        "pick": {
+          "kind": "uia",
+          "name": "mstsc_计算机输入框"
+        }
+      }
+    },
+    {
+      "atom": "WinEle.screenshot_element",
+      "alias": "元素截图落 PNG（看文件在不在、多大）",
+      "out": {},
+      "inputs": {
+        "file_path": "$p:out_dir",
+        "file_name": "mstsc输入框截图",
+        "exist_type": "overwrite"
+      },
+      "elements": {
+        "pick": {
+          "kind": "uia",
+          "name": "mstsc_计算机输入框"
+        }
+      }
+    },
+    {
+      "atom": "WinEle.get_element_text",
+      "alias": "对照：读帮助按钮文本（Button 的 Name 就是文本，能读到；和输入框结果对比）",
+      "out": {
+        "ele_text": "btn_text"
+      },
+      "inputs": {
+        "wait_time": 10
+      },
+      "elements": {
+        "pick": {
+          "kind": "uia",
+          "name": "mstsc_帮助按钮"
+        }
+      }
+    },
+    {
+      "atom": "WinEle.hover_element",
+      "alias": "鼠标悬停到帮助按钮（无输出，靠不报错 + 鼠标真的移过去判断）",
+      "out": {},
+      "inputs": {
+        "wait_time": 10
+      },
+      "elements": {
+        "pick": {
+          "kind": "uia",
+          "name": "mstsc_帮助按钮"
+        }
+      }
+    },
+    {
+      "atom": "Window.top",
+      "alias": "置顶窗口（放最后，跑完用 GetForegroundWindow 核对前台是不是它）",
+      "out": {},
+      "inputs": {},
+      "elements": {
+        "pick": {
+          "kind": "uia",
+          "name": "mstsc_窗口"
+        }
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "写取证文件：读到的值 vs 新输入的值",
+      "out": {
+        "write_file_path": "evidence"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/桌面元素取证.txt"
+        ],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": [
+          "【宿主】",
+          "$p:host_exe",
+          "\n【改之前 WinEle.get_element_text(输入框)】\n",
+          "$value_before",
+          "\n【改之后 WinEle.get_element_text(输入框)】\n",
+          "$value_after",
+          "\n【对照 WinEle.get_element_text(帮助按钮)】\n",
+          "$btn_text",
+          "\n【本次写入的目标值】",
+          "$p:host_text",
+          "\n\n【实测结论 2026-10-31】\n",
+          "1) 输入框两次读到的都是「计算机(C):」= 控件名，不是内容。因为\n",
+          "   WinEle.get_element_text 实现就是 return locator.control().Name（winele.py:191-193）。\n",
+          "   对 Edit 控件 Name 是标签、Value 才是内容，所以拿不到用户输入。这是行为缺陷。\n",
+          "2) 输入到底有没有生效？看 mstsc输入框截图.png：图里清楚显示 RPA-TEST-01，\n",
+          "   说明 input_text_element（先清空再 SendKeys）确实写进去了。\n",
+          "   结论：验证「填写」必须靠截图或外部读值，不能信 get_element_text。\n",
+          "3) 对照：Button 的 Name 就是文本，读帮助按钮能正常拿到内容。\n",
+          "4) Window.exist 是 IF 型原子：字典没声明输出、实现 return bool，引擎把它编译成\n",
+          "   if Window().exist(...): 并把后续全部节点缩进进去。条件为假时整段跳过、仍报 SUCCESS。\n",
+          "5) set_size / top 的证据在流程外：跑完立刻用 scripts/win_probe.py 读窗口矩形与前台窗口。\n"
+        ]
+      }
+    }
+  ]
+}

@@ -52,6 +52,14 @@ SINGLE_RETURN_ATOMS = {
     "BrowserElement.element_operation",
 }
 
+# 字典里 **一个输出都没声明**、但实现确实 `return` 了值（判断型原子）。
+# 想让流程能对返回值下断言，只能在 spec 的 `out` 里显式要，这里按名字补一个变量。
+# 例：Window.exist 返回 bool（window/window.py:49 `return True/False`），
+#     字典 outputList 为空 —— 不补这一条，判断结果就只能靠「节点有没有抛异常」猜。
+EXTRA_OUTPUT_ATOMS = {
+    "Window.exist": ["window_exist"],
+}
+
 
 # ----------------------------- 原子字典（真实 schema） -----------------------------
 def _parse_atom(raw):
@@ -757,6 +765,14 @@ def build_process_content(template, atom_dict, elements=None, robot_id=DEFAULT_R
             vname = spec["out"].get(okey)
             if vname is None:
                 vname = f"{okey}_{node_id[-4:]}"
+            var_defined.add(vname)
+            output_list.append({"key": okey, "value": mk_val("var", vname)})
+
+        # 字典没声明输出、实现却有返回值的原子（见 EXTRA_OUTPUT_ATOMS）
+        for okey in EXTRA_OUTPUT_ATOMS.get(atom_key, []):
+            vname = (spec.get("out") or {}).get(okey)
+            if not vname:
+                continue
             var_defined.add(vname)
             output_list.append({"key": okey, "value": mk_val("var", vname)})
 

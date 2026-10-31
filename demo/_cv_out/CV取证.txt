@@ -1,0 +1,12 @@
+【结论】CV 五个原子全部执行完成。输入文字=RPA-CV-OK
+
+【为什么这条流程能当证据】
+CV.is_image_exist 是引擎里 4 个 IF 型原子之一（executor/flow/syntax/token.py:52 exist_atomic_dict），
+它没有输出、实现 return bool，引擎把它编译成 if 语句；条件为假时后续节点整段跳过、流程仍报 SUCCESS。
+所以「本文件存在」= 第一步判断为真 + 后面四个动作原子都真的跑过（没被跳过、没抛异常）。
+
+【真正的行为证据在外部】
+1) 靶场页把事件写进了 document.title：正常应看到 CV靶场|HOVER|IN:<输入文字>|CLICK
+   —— 标题是浏览器自己维护的，流程碰不到它，无法伪造。
+2) 点击成功后背景会被 JS 刷成 #B00020，抓屏取色即可二次确认。
+3) CV.wait_image 的返回值写在此：见 CV取证_1_等待结果.txt。

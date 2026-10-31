@@ -1,0 +1,279 @@
+{
+  "name": "对话框弹窗小流程",
+  "nl_examples": [
+    "弹出消息提示框、输入框、选择框、文件选择框、时间选择框和自定义对话框",
+    "Dialog 六个原子实测：弹窗走引擎↔设计器前端的 WebSocket 通道",
+    "验证弹窗类原子能否在无人值守下按默认按钮返回"
+  ],
+  "keywords": [
+    "对话框",
+    "消息提示框",
+    "输入框",
+    "选择框",
+    "弹窗",
+    "Dialog"
+  ],
+  "params": [
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_gui_out",
+      "describe": "取证输出目录"
+    },
+    {
+      "name": "wait_time",
+      "type": "Int",
+      "default": 6,
+      "describe": "每个弹窗等待自动应答的秒数（auto_check=true 时的超时）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "File.file_write",
+      "alias": "开始标记（IF 体外）：证明流程真的跑起来了",
+      "out": {
+        "write_file_path": "mark"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/对话框取证_0_开始.txt"
+        ],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": [
+          "Dialog 弹窗流程开始。每个弹窗等待 ",
+          "$p:wait_time",
+          " 秒。\n",
+          "弹窗由「引擎 ↔ 设计器前端」的 WebSocket 通道渲染（dialog/dialog.py:170 ws.send_reply）。\n",
+          "本地无前端接入时，auto_check 会在超时后按默认按钮返回，流程仍能走完。\n"
+        ]
+      }
+    },
+    {
+      "atom": "Dialog.message_box",
+      "alias": "消息提示框（仅确定按钮）",
+      "out": {
+        "result_button": "btn_confirm"
+      },
+      "inputs": {
+        "box_title": "星辰RPA 对话框实测",
+        "message_type": "message",
+        "message_content": "这是 Dialog.message_box 的消息正文",
+        "button_type": "confirm",
+        "auto_check": true,
+        "wait_time": "$p:wait_time",
+        "default_button_c": "confirm"
+      }
+    },
+    {
+      "atom": "Dialog.message_box",
+      "alias": "消息提示框（确定/取消）",
+      "out": {
+        "result_button": "btn_cn"
+      },
+      "inputs": {
+        "box_title": "星辰RPA 对话框实测",
+        "message_type": "warning",
+        "message_content": "确定=confirm，取消=cancel",
+        "button_type": "confirm_cancel",
+        "auto_check": true,
+        "wait_time": "$p:wait_time",
+        "default_button_cn": "cancel"
+      }
+    },
+    {
+      "atom": "Dialog.message_box",
+      "alias": "消息提示框（是/否）",
+      "out": {
+        "result_button": "btn_yn"
+      },
+      "inputs": {
+        "box_title": "星辰RPA 对话框实测",
+        "message_type": "question",
+        "message_content": "是=yes，否=no",
+        "button_type": "yes_no",
+        "auto_check": true,
+        "wait_time": "$p:wait_time",
+        "default_button_y": "no"
+      }
+    },
+    {
+      "atom": "Dialog.message_box",
+      "alias": "消息提示框（是/否/取消）",
+      "out": {
+        "result_button": "btn_ync"
+      },
+      "inputs": {
+        "box_title": "星辰RPA 对话框实测",
+        "message_type": "error",
+        "message_content": "是=yes，否=no，取消=cancel",
+        "button_type": "yes_no_cancel",
+        "auto_check": true,
+        "wait_time": "$p:wait_time",
+        "default_button_yn": "cancel"
+      }
+    },
+    {
+      "atom": "Dialog.input_box",
+      "alias": "输入对话框（文本型）",
+      "out": {
+        "input_content": "inp_text"
+      },
+      "inputs": {
+        "box_title": "星辰RPA 输入框实测",
+        "input_type": "text",
+        "input_title": "请输入内容",
+        "default_input_text": "DEFAULT-TEXT"
+      }
+    },
+    {
+      "atom": "Dialog.select_box",
+      "alias": "选择对话框（单选）",
+      "out": {
+        "select_result": "sel_single"
+      },
+      "inputs": {
+        "box_title": "星辰RPA 选择框实测",
+        "select_type": "single",
+        "options": "$json:[\"选项A\", \"选项B\", \"选项C\"]",
+        "options_title": "请选择"
+      }
+    },
+    {
+      "atom": "Dialog.select_box",
+      "alias": "选择对话框（多选）",
+      "out": {
+        "select_result": "sel_multi"
+      },
+      "inputs": {
+        "box_title": "星辰RPA 选择框实测",
+        "select_type": "multi",
+        "options": "$json:[\"选项A\", \"选项B\", \"选项C\"]",
+        "options_title": "可多选"
+      }
+    },
+    {
+      "atom": "Dialog.select_file_box",
+      "alias": "文件选择框（打开文件）",
+      "out": {
+        "select_file": "sel_file"
+      },
+      "inputs": {
+        "box_title_file": "星辰RPA 文件选择实测",
+        "box_title_folder": "星辰RPA 文件夹选择实测",
+        "open_type": "file",
+        "file_type": "*",
+        "multiple_choice": false,
+        "select_title": "选个文件",
+        "default_path": ""
+      }
+    },
+    {
+      "atom": "Dialog.select_file_box",
+      "alias": "文件夹选择框",
+      "out": {
+        "select_file": "sel_folder"
+      },
+      "inputs": {
+        "box_title_file": "星辰RPA 文件选择实测",
+        "box_title_folder": "星辰RPA 文件夹选择实测",
+        "open_type": "folder",
+        "file_type": "*",
+        "multiple_choice": false,
+        "select_title": "选个文件夹",
+        "default_path": ""
+      }
+    },
+    {
+      "atom": "Dialog.select_time_box",
+      "alias": "日期时间选择框（单点时间）",
+      "out": {
+        "select_time": "sel_time"
+      },
+      "inputs": {
+        "box_title": "星辰RPA 时间选择实测",
+        "time_type": "time",
+        "time_format": "YYYY-MM-DD",
+        "default_time": "",
+        "input_title": "选择日期"
+      }
+    },
+    {
+      "atom": "Dialog.select_time_box",
+      "alias": "日期时间选择框（时间区间）",
+      "out": {
+        "select_time": "sel_range"
+      },
+      "inputs": {
+        "box_title": "星辰RPA 时间选择实测",
+        "time_type": "time_range",
+        "time_format": "YYYY-MM-DD",
+        "default_time": "",
+        "default_time_range": [
+          "",
+          ""
+        ],
+        "input_title": "选择区间"
+      }
+    },
+    {
+      "atom": "Dialog.custom_box",
+      "alias": "自定义对话框",
+      "out": {
+        "dialog_result": "custom_res"
+      },
+      "inputs": {
+        "box_title": "星辰RPA 自定义弹窗实测",
+        "design_interface": "$json:{\"value\": {\"table_required\": false}, \"formList\": []}",
+        "auto_check": true,
+        "wait_time": "$p:wait_time",
+        "default_button": "confirm"
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "写取证文件：把 6 个弹窗原子的返回值全部落盘",
+      "out": {
+        "write_file_path": "evidence"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/对话框取证.txt"
+        ],
+        "file_option": "create",
+        "write_type": "overwrite",
+        "msg": [
+          "【Dialog 域 12 次弹窗的返回值】\n",
+          "message_box(confirm)        = ",
+          "$btn_confirm",
+          "\nmessage_box(confirm_cancel) = ",
+          "$btn_cn",
+          "\nmessage_box(yes_no)         = ",
+          "$btn_yn",
+          "\nmessage_box(yes_no_cancel) = ",
+          "$btn_ync",
+          "\ninput_box                   = ",
+          "$inp_text",
+          "\nselect_box(single)          = ",
+          "$sel_single",
+          "\nselect_box(multi)           = ",
+          "$sel_multi",
+          "\nselect_file_box(file)       = ",
+          "$sel_file",
+          "\nselect_file_box(folder)     = ",
+          "$sel_folder",
+          "\nselect_time_box(time)       = ",
+          "$sel_time",
+          "\nselect_time_box(range)      = ",
+          "$sel_range",
+          "\ncustom_box                  = ",
+          "$custom_res",
+          "\n\n【口径】这些值是原子自己 return 的，不是流程编的。\n",
+          "弹窗本体由设计器前端渲染（引擎↔前端 WebSocket），无人接入时 auto_check 超时后按默认按钮返回。\n"
+        ]
+      }
+    }
+  ]
+}

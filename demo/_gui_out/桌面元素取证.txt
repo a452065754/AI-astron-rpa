@@ -1,0 +1,20 @@
+【宿主】C:\Windows\System32\mstsc.exe
+【改之前 WinEle.get_element_text(输入框)】
+计算机(C):
+【改之后 WinEle.get_element_text(输入框)】
+计算机(C):
+【对照 WinEle.get_element_text(帮助按钮)】
+帮助(H)
+【本次写入的目标值】RPA-TEST-01
+
+【实测结论 2026-10-31】
+1) 输入框两次读到的都是「计算机(C):」= 控件名，不是内容。因为
+   WinEle.get_element_text 实现就是 return locator.control().Name（winele.py:191-193）。
+   对 Edit 控件 Name 是标签、Value 才是内容，所以拿不到用户输入。这是行为缺陷。
+2) 输入到底有没有生效？看 mstsc输入框截图.png：图里清楚显示 RPA-TEST-01，
+   说明 input_text_element（先清空再 SendKeys）确实写进去了。
+   结论：验证「填写」必须靠截图或外部读值，不能信 get_element_text。
+3) 对照：Button 的 Name 就是文本，读帮助按钮能正常拿到内容。
+4) Window.exist 是 IF 型原子：字典没声明输出、实现 return bool，引擎把它编译成
+   if Window().exist(...): 并把后续全部节点缩进进去。条件为假时整段跳过、仍报 SUCCESS。
+5) set_size / top 的证据在流程外：跑完立刻用 scripts/win_probe.py 读窗口矩形与前台窗口。

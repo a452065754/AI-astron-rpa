@@ -1,0 +1,10 @@
+Gui 靶场流程开始。RPA-GUI-KEY
+本流程覆盖 Gui 域 8 个原子：mouse_move / mouse / mouse_wheel / mouse_drag /
+mouse_move_new（全屏 + 相对窗口）/ mouse_position / keyboard / key_input。
+
+坐标参数（点击点、拖拽点）由 scripts/gui_e2e.py 按页面视口原点实测后回填：
+点击点 = 418,397
+
+【前提】被拾取窗口（远程桌面连接）必须已由外部打开并移动到固定位置，
+因为 mstsc 不是单实例（实测连开两个会得到两个同名窗口），
+流程里不再调用 Software.open，避免出现第二个同名窗口让 FindWindow 命中错的那个。

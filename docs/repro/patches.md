@@ -211,3 +211,115 @@ except (ValueError, SyntaxError):
 ```
 
 > 本包对照组已验证：换成 `TypeParagraph()` 后，三段文字正确落到三个段落。
+
+---
+
+## A12 · `executor/debug/apis/ws.py:71` / `:112`
+
+```diff
+  class Ws:
+      loop = None
+
+      def __init__(self, svc):
+          self.svc = svc
+
+-         atomicMg.cfg()["WS"] = self
++         # 只有当 WS 服务真的起来（loop 已就绪）时，才对外暴露，
++         # 否则 dialog.py 会判 `if ws:` 为真 → 进入 send_reply → run_coroutine_threadsafe(coro, None) → AttributeError
++         if Ws.loop is not None:
++             atomicMg.cfg()["WS"] = self
+```
+
+同时给 `send_reply` 加一道保护，避免任何路径再漏出 `NoneType` 这种没法看的错：
+
+```diff
+  @staticmethod
+  def send_reply(msg, timeout, callback_func=None):
+      """发送消息并等待回复"""
++     if Ws.loop is None:
++         raise BaseException("当前环境未连接设计器，无法显示弹窗", "WS 未就绪")
+      ...
+```
+
+> 二选一即可（改 `__init__` 或加保护）。若同时做，效果更稳。
+> 另一条更彻底的路线：把 `Ws.loop = loop`（`ws.py:226`）从「起 WS 服务」里挪到
+> `Ws.__init__`，起一个后台 loop，保证 `cfg["WS"]` 有值时 loop 一定可用。
+
+---
+
+## A13 · `dialog/dialog.py:267` / `:329` / `:420` / `:539`
+
+四处 `done.wait()` 都没有超时参数，而同文件的 `message_box`（`:174`）和
+`custom_box`（`:621`）用的是 `wait_with_timeout`。统一改成后者：
+
+```diff
+-        done.wait()
++        wait_with_timeout(
++            lambda: done.is_set(),
++            reset_timeout_on_activity=auto_check,
++            wait_time=wait_time,
++        )
+```
+
+同时给这四个原子补一个 `wait_time` 参数（默认 60），并在字典 `inputList` 里声明，
+否则调用方没法控制等待时长。
+
+> 本包对照组已验证：`message_box(wait_time=3)` 3.1 秒正常返回；
+> 而这四个原子在 6 秒后线程仍然存活。
+
+---
+
+## A14 · `system/system.py:152` / `:190`
+
+短期（二选一）：
+
+```diff
+-    def screen_lock():
+-        raise NotImplementedError()
++    def screen_lock():
++        raise BaseException("当前环境暂不支持锁屏（需 Windows 桌面会话 + 管理员权限）", "暂不支持")
+```
+
+或者干脆在生成原子字典时过滤掉这类「函数体只有 `raise NotImplementedError`」的原子，
+让设计器直接灰掉并提示「暂不支持」——**别让用户拖进流程才炸**。
+
+中期实现（锁屏）：
+
+```python
+import ctypes
+ctypes.windll.user32.LockWorkStation()
+```
+
+解锁需要校验域账号口令，签名里已经预留了 `pwd_type`（`PwdType.PASSWORD` / `PwdType.RSA`）
+两套参数，照着补实现即可。
+
+> 本包已全引擎扫描：`raise NotImplementedError` 占位原子就 `screen_lock` / `screen_unlock` 这 2 个。
+
+---
+
+## A15 · `vision/cv_match.py:146` / `:152` / `:33`
+
+模板和锚点在 `:110` / `:113` 已经从 RGB 转成了 BGR，后面再按 **RGB** 权重转灰度，
+等于把 R 和 B 的权重反了：
+
+```diff
+-        small_gray = cv2.cvtColor(element, cv2.COLOR_RGB2GRAY)
++        small_gray = cv2.cvtColor(element, cv2.COLOR_BGR2GRAY)
+```
+
+`:152` 的 `anchor_gray` 同理；`:33` 的 `check_if_multiple_elements`（判定元素是否唯一）
+也拿的是 BGR 语义的 `element`，一并改。
+
+顺带把 `process_image` 的 `ratio` 默认值从 `None` 改成 `"1,1"`：
+
+```diff
+-        ratio=None,
++        ratio="1,1",
+```
+
+> 不传 `ratio` 时 `ratio != ""` 成立 → `None.split(",")` → `AttributeError`。
+> 两个内部调用方（`vision/core.py:58`、`vision_picker/core/core.py:160`）都显式传了
+> `ratio='w,h'`，所以线上没暴露，但默认值本身是坏的。
+>
+> 本包对照实验已验证：同一块彩色像素，引擎写法匹配分 **0.9395**（低于默认阈值 0.95
+> → 判「元素不存在」），正确写法 **1.0000**；同样的目标改成灰色后引擎能正常匹配。
