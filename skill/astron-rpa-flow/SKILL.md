@@ -66,18 +66,56 @@ python scripts/ai_flow.py --nl "<用户原话>" --stage draft
 
 | 顺序 | 手段 | 什么时候用 |
 | --- | --- | --- |
-| ① | **现有原子** | 能用原子拼出来就用（`Excel.*` / `File.*` / `Word.*` / `PDF.*` / `Browser.*`） |
+| ① | **现有原子** | 能用原子拼出来就用（`Excel.*` / `File.*` / `Docx.*` / `PDF.*` / `BrowserElement.*`） |
 | ② | **Python 子流程** | 原子做不到（如「分组后输出多个文件」这种一次写多个目标） |
 | ③ | **新原子** | 前两条都不行，且用户明确同意才考虑 |
 
+#### 第 1 步：先查有哪些原子（**别凭印象写原子名**）
+
+```bash
+python scripts/atom_catalog.py                        # 有哪些域、各多少原子
+python scripts/atom_catalog.py --domain Excel --detail # 该域的原子 + 必填参数 + 枚举值
+python scripts/atom_catalog.py --atom Excel.read_excel # 单个原子的完整参数表
+python scripts/atom_catalog.py --search 拆分           # 按关键词找
+```
+
+原子名写错、参数名写错、枚举值写错，`spec_lint` 都会拦下并给候选——但先查一次能少走两轮。
+
+#### 第 2 步：写规格
+
+写进 `flows/<流程名>.json`，字段 `{name, nl_examples, keywords, params, nodes}`。
+每个节点形如：
+
+```json
+{
+  "atom": "Excel.read_excel",
+  "alias": "读数据",
+  "out": {"read_excel_contents": "data"},
+  "inputs": {"excel": "$wb", "read_range": "all"}
+}
+```
+
+引用规则：`$p:参数名` = 流程参数、`$变量名` = 上游节点产出、`$json:[...]` = 复杂参数（可内含 `$var:`/`$p:`）。
+
+#### 第 3 步：必须过 lint（**不要跳过**）
+
+```bash
+python scripts/spec_lint.py flows/<流程名>.json
+```
+
+它按文本逐项查，报错**带第几个节点和怎么改**：原子不存在（给相近候选）、缺必填参数、枚举非法、
+`$p:` 未声明、变量未产出、`ForList/If` 没闭合、`module_id` 没参数化。
+
+改到 `✅ 无阻塞问题` 再往下。**这一步能省掉 80% 的试跑失败。**
+
 写规格时注意（都是踩过的坑）：
 
-1. **规格就是契约**：写进 `flows/<流程名>.json`，字段 `{name, nl_examples, keywords, params, nodes}`。
-2. **循环块结束标记是 `Code.ForEnd`**，不是 `Code.ForListEnd`（写错会编译成 `None(...)` 塞进循环体）。
-3. **循环变量传进子流程要写 `"$var:item"`**，纯字符串永远是字面量。
-4. **`Script.module` 的 `module_id` 做成流程参数**（不要写死在节点里），换环境才不用改流程。
-5. **`keywords` 决定自然语言能否命中**：放用户真会说的词，不要放「批量/文件夹」这类会误伤的歧义词。
-6. 写完先 `--stage draft` 校验，`IS_PASS: YES` 才继续。
+1. **循环块结束标记是 `Code.ForEnd`**，不是 `Code.ForListEnd`（写错会编译成 `None(...)` 塞进循环体）。
+2. **循环变量传进子流程要写 `"$var:item"`**，纯字符串永远是字面量。
+3. **`Script.module` 的 `module_id` 做成流程参数**（不要写死在节点里），换环境才不用改流程。
+4. **`keywords` 决定自然语言能否命中**：放用户真会说的词，不要放「批量/文件夹」这类会误伤的歧义词。
+5. **`out` 的 key 必须是该原子的真实输出项**（用 `atom_catalog --atom` 查），写错就拿不到值。
+6. `--stage draft` 还会再跑一遍「构建 + 校验」，两道都过才落库。
 
 ### 3.3 需要新的 Python 子流程时
 
@@ -138,6 +176,6 @@ python scripts/ai_flow.py --spec flows/<流程>.json --stage invoke --params '{"
 
 如果客户端支持 MCP，装了本项目后可直接调这些工具，不必手敲命令：
 
-`rpa_setup` / `rpa_doctor` / `rpa_list_flows` / `rpa_generate` / `rpa_run` / `rpa_publish` / `rpa_invoke` / `rpa_make_module`
+`rpa_setup` / `rpa_doctor` / `rpa_list_flows` / `rpa_generate` / `rpa_run` / `rpa_publish` / `rpa_invoke` / `rpa_make_module` / `rpa_atom_catalog` / `rpa_lint_spec`
 
 配置见 `docs/MCP与技能包.md`。

@@ -57,6 +57,8 @@ python scripts/ai_flow.py --spec flows/<流程>.json --stage publish --version 1
 星辰开源/
 ├── scripts/
 │   ├── install.py            # 一键安装（依赖 / 配置 / 技能包 / MCP / 自检）
+│   ├── atom_catalog.py       # 原子目录（357 个，按域分组，带必填参数与枚举）
+│   ├── spec_lint.py          # 规格校验（报错带「第几个节点 + 怎么改」）
 │   ├── ai_flow.py            # 交付流水线：生成→校验→预检→落库→真跑→评审单→发布
 │   ├── flow_generator.py     # 规格 → process_content（真实原子 schema 校验）
 │   ├── nl_params.py          # 从自然语言抽具体参数（路径/页码/输出名/批量识别）

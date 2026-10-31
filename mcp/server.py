@@ -294,6 +294,49 @@ def tool_make_module(a):
     return ok(out) if good else bad(out)
 
 
+def tool_atom_catalog(a):
+    """查可用原子：按域 / 关键词 / 单个原子。写新流程前先看这个。"""
+    args = []
+    if a.get("domain"):
+        args += ["--domain", a["domain"]]
+    if a.get("atom"):
+        args += ["--atom", a["atom"]]
+    if a.get("search"):
+        args += ["--search", a["search"]]
+    if a.get("detail"):
+        args.append("--detail")
+    good, out = run_script("atom_catalog.py", args, timeout=180)
+    return ok(out) if good else bad(out)
+
+
+def tool_lint_spec(a):
+    """校验流程规格：报错带「第几个节点 + 怎么改」，AI 据此自纠错。"""
+    spec_json = a.get("spec_json")
+    spec = a.get("spec")
+    tmp = None
+    if spec_json:
+        # 只校验不落盘：写临时文件，避免半成品污染 flows/
+        import tempfile
+        try:
+            d = json.loads(spec_json) if isinstance(spec_json, str) else spec_json
+        except Exception as e:
+            return bad("规格不是合法 JSON：%s" % e)
+        fd, tmp = tempfile.mkstemp(suffix=".json", prefix="spec_draft_")
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(d, f, ensure_ascii=False, indent=2)
+        path = tmp
+    elif spec:
+        path = spec if os.path.isabs(spec) else os.path.join(FLOWS, os.path.basename(spec))
+    else:
+        return bad("要么给 spec（flows/xxx.json），要么给 spec_json")
+    try:
+        good, out = run_script("spec_lint.py", [path], timeout=180)
+    finally:
+        if tmp and os.path.exists(tmp):
+            os.remove(tmp)
+    return ok(out) if good else bad(out)
+
+
 # --------------------------------------------------------------------------
 # 工具清单（name → (处理函数, 说明, inputSchema)）
 # --------------------------------------------------------------------------
@@ -390,6 +433,33 @@ TOOLS = {
                 "module_id": {"type": "string", "description": "已有模块 id（覆盖内容时给）"},
             },
             "required": ["py"],
+        },
+    ),
+    "rpa_atom_catalog": (
+        tool_atom_catalog,
+        "查可用原子（357 个，按域分组）。写新流程前必须先用它挑原子：不给参数=看有哪些域；"
+        "给 domain=看该域的原子（detail=true 带必填参数与枚举值）；给 atom=看单个原子完整参数表；"
+        "给 search=按关键词找。",
+        {
+            "type": "object",
+            "properties": {
+                "domain": {"type": "string", "description": "域，如 Excel / File / Docx / PDF / Code / Script"},
+                "atom": {"type": "string", "description": "原子全名，如 Excel.read_excel"},
+                "search": {"type": "string", "description": "关键词，如 拆分 / 合并"},
+                "detail": {"type": "boolean", "description": "true = 带出必填参数与可选枚举值"},
+            },
+        },
+    ),
+    "rpa_lint_spec": (
+        tool_lint_spec,
+        "校验流程规格，报错带「第几个节点 + 具体怎么改」（原子不存在给相近候选、缺参数、枚举非法、"
+        "变量未产出、循环未闭合、module_id 没参数化）。AI 写完规格先过这一关，改到无错误再 rpa_run。",
+        {
+            "type": "object",
+            "properties": {
+                "spec": {"type": "string", "description": "规格文件名，如 flows/x.json"},
+                "spec_json": {"type": "string", "description": "直接提交规格 JSON 字符串（会先落盘再校验）"},
+            },
         },
     ),
 }

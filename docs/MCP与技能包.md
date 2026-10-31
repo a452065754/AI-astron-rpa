@@ -142,29 +142,55 @@ python scripts/install.py --print-mcp-config
 > **注意**：`command` 必须指向一个**装了 `requests`** 的 Python。
 > 服务端也会自己再挑一次（`RPA_PYTHON` > 当前解释器 > 常见路径），但显式指定最稳。
 
-### 8 个工具
+### 10 个工具
 
 | 工具 | 作用 | 有副作用吗 |
 | --- | --- | --- |
 | `rpa_setup` | 写配置 + 自检（用户发 Key 后调这个） | 写 `rpa_config.json` |
 | `rpa_doctor` | 环境自检，逐项给修法 | 无（只读） |
 | `rpa_list_flows` | 列出现有流程规格（名称/示例/参数） | 无（只读） |
+| `rpa_atom_catalog` | 查可用原子（357 个，按域分组，带必填参数与枚举） | 无（只读） |
+| `rpa_lint_spec` | 校验规格，报错带「第几个节点 + 怎么改」 | 无（`spec_json` 走临时文件） |
 | `rpa_generate` | 自然语言 → 匹配或校验规格（draft） | 只在给了 `spec_json` 时写 `flows/` |
 | `rpa_run` | **主入口**：校验→预检→落库→真跑→评审单 | 写平台主流程、执行 |
 | `rpa_publish` | 发布机器人版本 | 发布版本 |
 | `rpa_invoke` | 用 Key 触发已发布版本 | 执行 |
 | `rpa_make_module` | 本地 `.py` → 平台子流程模块 | 建机器人/模块、改规格 |
 
+### AI 自动拆解的闭环
+
+「自然语言 → 固定流程」真正跑通，靠的是这四步循环：
+
+```
+rpa_list_flows       有没有现成的？有就复用
+      ↓ 没有
+rpa_atom_catalog     查有哪些原子（--domain / --search / --atom）
+      ↓
+rpa_lint_spec        写完规格先校验，报错带定位与修法 → 改到无错误
+      ↓
+rpa_run              落库 + 真跑 + 评审单
+```
+
+对应的命令行：
+
+```bash
+python scripts/atom_catalog.py --domain Excel --detail
+python scripts/spec_lint.py flows/新流程.json
+python scripts/ai_flow.py --spec flows/新流程.json
+```
+
 ### 典型调用序列
 
 ```
 1. rpa_doctor            → 确认环境没问题
 2. rpa_list_flows        → 看有没有现成的
-3. rpa_generate(nl=...)  → 匹配 + 结构校验（不落库）
-4. rpa_run(nl=...)       → 落库 + 真跑 + 出评审单
-5. （人工评审通过后）
-6. rpa_publish(version)  → 发布
-7. rpa_invoke(params)    → 用 Key 调用
+3. rpa_atom_catalog      → 没现成的，查该用哪些原子
+4. rpa_lint_spec         → 写完规格先校验（反复改到无错误）
+5. rpa_generate          → 构建 + 结构校验（不落库）
+6. rpa_run               → 落库 + 真跑 + 出评审单
+7. （人工评审通过后）
+8. rpa_publish(version)  → 发布
+9. rpa_invoke(params)    → 用 Key 调用
 ```
 
 ---
