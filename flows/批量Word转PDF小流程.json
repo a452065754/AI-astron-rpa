@@ -1,0 +1,141 @@
+{
+  "name": "批量Word转PDF小流程",
+  "nl_examples": [
+    "把这个文件夹里的Word都转成PDF",
+    "批量把docx导出成pdf",
+    "整个文件夹的word都转pdf",
+    "批量word转pdf"
+  ],
+  "keywords": [
+    "批量word转pdf",
+    "都转成pdf",
+    "文件夹里的word转pdf",
+    "批量转pdf",
+    "docx都转pdf"
+  ],
+  "params": [
+    {
+      "name": "in_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_word_in",
+      "describe": "待转换的 Word 所在文件夹（只扫第一层）"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_pdf_out",
+      "describe": "PDF 输出目录"
+    },
+    {
+      "name": "pattern",
+      "type": "Str",
+      "default": ".docx",
+      "describe": "只处理文件名里包含这个串的文件（默认 .docx）"
+    },
+    {
+      "name": "prefix",
+      "type": "Str",
+      "default": "导出",
+      "describe": "输出 PDF 文件名前缀（生成 导出_0.pdf …）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "File.get_file_list",
+      "alias": "列出文件夹里的文件",
+      "out": {
+        "file_list": "file_list"
+      },
+      "inputs": {
+        "folder_path": "$p:in_dir",
+        "traverse_subfolder": "no",
+        "tempfile_include": false,
+        "output_type": "list",
+        "sort_method": "mtime"
+      }
+    },
+    {
+      "atom": "Code.ForList",
+      "alias": "逐个 Word 转换",
+      "out": {
+        "index": "idx",
+        "item": "item"
+      },
+      "inputs": {
+        "list": "$file_list"
+      }
+    },
+    {
+      "atom": "Code.If",
+      "alias": "只要 Word",
+      "out": {},
+      "inputs": {
+        "args1": "$item",
+        "condition": "in",
+        "args2": "$p:pattern"
+      }
+    },
+    {
+      "atom": "Docx.open_docx",
+      "alias": "打开这个 Word",
+      "out": {
+        "doc_obj": "doc"
+      },
+      "inputs": {
+        "file_path": "$item",
+        "default_application": "Default",
+        "visible_flag": false,
+        "encoding": "utf-8",
+        "open_pwd_flag": false,
+        "write_pwd_flag": false
+      }
+    },
+    {
+      "atom": "Docx.convert_format",
+      "alias": "导出为 PDF",
+      "out": {},
+      "inputs": {
+        "doc": "$doc",
+        "output_path": "$p:out_dir",
+        "default_name": false,
+        "output_name": [
+          "$p:prefix",
+          "_",
+          "$idx"
+        ],
+        "output_file_type": "pdf",
+        "page_type": 0,
+        "page_start": 1,
+        "page_end": 1,
+        "save_type": "overwrite"
+      }
+    },
+    {
+      "atom": "Docx.close_docx",
+      "alias": "关闭 Word（不保存）",
+      "out": {},
+      "on_error": "skip",
+      "inputs": {
+        "doc": "$doc",
+        "close_range_flag": "one",
+        "save_type": "abort",
+        "file_path": "",
+        "file_name": "",
+        "exist_handle_type": "overwrite",
+        "pkill_flag": false
+      }
+    },
+    {
+      "atom": "Code.IfEnd",
+      "alias": "条件结束",
+      "out": {},
+      "inputs": {}
+    },
+    {
+      "atom": "Code.ForEnd",
+      "alias": "循环结束",
+      "out": {},
+      "inputs": {}
+    }
+  ]
+}

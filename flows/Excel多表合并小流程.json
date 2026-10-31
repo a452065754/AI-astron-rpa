@@ -1,0 +1,61 @@
+{
+  "name": "Excel多表合并小流程",
+  "nl_examples": [
+    "把这个文件夹里的Excel都合并成一张表",
+    "多个xlsx合成一个文件",
+    "把每个月的报表汇总成一张",
+    "批量合并表格"
+  ],
+  "keywords": [
+    "合并excel",
+    "合并表格",
+    "多表合并",
+    "汇总成一张表",
+    "xlsx合并"
+  ],
+  "params": [
+    {
+      "name": "in_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_merge_in",
+      "describe": "待合并的 Excel 所在文件夹（只扫第一层）"
+    },
+    {
+      "name": "out_file",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_merge_out\\合并.xlsx",
+      "describe": "合并后的输出文件（已存在会自动编号，不覆盖）"
+    },
+    {
+      "name": "pattern",
+      "type": "Str",
+      "default": ".xlsx",
+      "describe": "只处理文件名以此结尾的文件（默认 .xlsx）"
+    },
+    {
+      "name": "copy_header",
+      "type": "Str",
+      "default": "true",
+      "describe": "true = 保留表头（只保留第一张表的）"
+    },
+    {
+      "name": "module_id",
+      "type": "Str",
+      "default": "2116342817880481792",
+      "describe": "Excel 合并子流程模块 id"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "Script.module",
+      "alias": "合并多表（Python子流程）",
+      "out": {
+        "program_script": "merge_result"
+      },
+      "inputs": {
+        "content": "$p:module_id",
+        "module_param": "$json:[{\"varName\": \"in_dir\", \"varValue\": \"$p:in_dir\"}, {\"varName\": \"out_file\", \"varValue\": \"$p:out_file\"}, {\"varName\": \"pattern\", \"varValue\": \"$p:pattern\"}, {\"varName\": \"copy_header\", \"varValue\": \"$p:copy_header\"}]"
+      }
+    }
+  ]
+}

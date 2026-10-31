@@ -1,0 +1,74 @@
+{
+  "name": "网页填写输入框小流程",
+  "nl_examples": [
+    "打开网页在输入框里填内容",
+    "在网页表单里输入文字",
+    "web 输入流程",
+    "自动填写网页输入框"
+  ],
+  "keywords": [
+    "网页输入",
+    "填写输入框",
+    "网页填表",
+    "自动填写"
+  ],
+  "params": [
+    {
+      "name": "url",
+      "type": "Str",
+      "default": "http://192.168.76.130:8899/test.html",
+      "describe": "要打开的网页地址"
+    },
+    {
+      "name": "text",
+      "type": "Str",
+      "default": "测试输入内容",
+      "describe": "要填入输入框的文字"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "BrowserSoftware.browser_open",
+      "alias": "打开浏览器",
+      "out": {
+        "web_open": "web"
+      },
+      "inputs": {
+        "url": "$p:url",
+        "browser_type": "chrome",
+        "timeout": 20,
+        "timeout_handle_type": "execError",
+        "wait_load_success": true,
+        "open_with_incognito": false
+      }
+    },
+    {
+      "atom": "BrowserElement.input",
+      "alias": "填写输入框",
+      "out": {
+        "form_input": "filled"
+      },
+      "inputs": {
+        "browser_obj": "$web",
+        "fill_type": "text",
+        "fill_input": "$p:text",
+        "fill_input_credential": "",
+        "element_timeout": 10,
+        "input_type": "overwrite",
+        "simulate_flag": false,
+        "scroll_into_center": true
+      },
+      "elements": {
+        "element_data": "web"
+      }
+    },
+    {
+      "atom": "BrowserSoftware.browser_close",
+      "alias": "关闭浏览器",
+      "out": {},
+      "inputs": {
+        "browser_obj": "$web"
+      }
+    }
+  ]
+}

@@ -1,0 +1,66 @@
+{
+  "name": "Excel按列去重小流程",
+  "nl_examples": [
+    "把这张表按订单号去重",
+    "Excel按某列删除重复行",
+    "表格里有重复的去掉",
+    "按客户名去重保留一条"
+  ],
+  "keywords": [
+    "excel去重",
+    "表格去重",
+    "删除重复行",
+    "按列去重"
+  ],
+  "params": [
+    {
+      "name": "src_excel",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_dedup.xlsx",
+      "describe": "要去重的源 Excel（只取第一个 sheet）"
+    },
+    {
+      "name": "key_col",
+      "type": "Str",
+      "default": "订单号",
+      "describe": "按哪一列判断重复：列名（如 订单号）或列号（A 或 1）"
+    },
+    {
+      "name": "out_file",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_merge_out\\去重.xlsx",
+      "describe": "输出去重结果（已存在自动编号，不覆盖）"
+    },
+    {
+      "name": "keep",
+      "type": "Str",
+      "default": "first",
+      "describe": "重复时保留哪条：first 第一条 / last 最后一条"
+    },
+    {
+      "name": "keep_blank",
+      "type": "Str",
+      "default": "true",
+      "describe": "true = 该列为空的行也保留（默认当一组）"
+    },
+    {
+      "name": "module_id",
+      "type": "Str",
+      "default": "2116342820233486336",
+      "describe": "Excel 去重子流程模块 id"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "Script.module",
+      "alias": "按列去重（Python子流程）",
+      "out": {
+        "program_script": "dedup_result"
+      },
+      "inputs": {
+        "content": "$p:module_id",
+        "module_param": "$json:[{\"varName\": \"src_excel\", \"varValue\": \"$p:src_excel\"}, {\"varName\": \"key_col\", \"varValue\": \"$p:key_col\"}, {\"varName\": \"out_file\", \"varValue\": \"$p:out_file\"}, {\"varName\": \"keep\", \"varValue\": \"$p:keep\"}, {\"varName\": \"keep_blank\", \"varValue\": \"$p:keep_blank\"}]"
+      }
+    }
+  ]
+}

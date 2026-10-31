@@ -1,0 +1,74 @@
+{
+  "name": "HTTP请求小流程",
+  "nl_examples": [
+    "调用这个接口把返回结果存下来",
+    "请求一个网址并保存响应",
+    "调API取数据存成文件",
+    "发一个HTTP请求"
+  ],
+  "keywords": [
+    "http请求",
+    "调用接口",
+    "调api",
+    "请求网址",
+    "get请求",
+    "post请求"
+  ],
+  "params": [
+    {
+      "name": "url",
+      "type": "Str",
+      "default": "https://api.github.com",
+      "describe": "请求地址（http/https）"
+    },
+    {
+      "name": "method",
+      "type": "Str",
+      "default": "get",
+      "describe": "请求方法：get / post / put / patch / delete / head"
+    },
+    {
+      "name": "headers",
+      "type": "Str",
+      "default": "",
+      "describe": "请求头（JSON 字符串，可留空）"
+    },
+    {
+      "name": "body",
+      "type": "Str",
+      "default": "",
+      "describe": "请求体（POST 时用，可留空）"
+    },
+    {
+      "name": "save_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_http_out",
+      "describe": "响应保存目录"
+    },
+    {
+      "name": "save_name",
+      "type": "Str",
+      "default": "响应.json",
+      "describe": "响应文件名（不含扩展名）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "Network.http_request",
+      "alias": "发请求并存响应",
+      "out": {
+        "http_response": "resp"
+      },
+      "inputs": {
+        "url": "$p:url",
+        "request_type": "$p:method",
+        "headers": "$p:headers",
+        "body": "$p:body",
+        "save_type": "yes",
+        "save_path": "$p:save_dir",
+        "save_name": "$p:save_name",
+        "time_out": 60
+      }
+    }
+  ]
+}

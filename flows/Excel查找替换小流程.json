@@ -1,0 +1,96 @@
+{
+  "name": "Excel查找替换小流程",
+  "nl_examples": [
+    "把这个Excel里的旧名称全部换成新名称",
+    "Excel批量替换文字",
+    "把表格里的某个词替换掉",
+    "查找并替换Excel内容"
+  ],
+  "keywords": [
+    "excel替换",
+    "表格替换",
+    "查找替换excel",
+    "替换表格内容"
+  ],
+  "params": [
+    {
+      "name": "src_excel",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\订单.xlsx",
+      "describe": "要处理的源 Excel"
+    },
+    {
+      "name": "find_str",
+      "type": "Str",
+      "default": "沙发",
+      "describe": "要查找的文字"
+    },
+    {
+      "name": "replace_str",
+      "type": "Str",
+      "default": "布艺沙发",
+      "describe": "替换成的文字"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_excel_out",
+      "describe": "替换后另存的目录（**不动原文件**）"
+    },
+    {
+      "name": "out_name",
+      "type": "Str",
+      "default": "替换结果",
+      "describe": "输出文件名（不含扩展名）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "Excel.open_excel",
+      "alias": "打开源表",
+      "out": {
+        "open_excel_obj": "wb"
+      },
+      "inputs": {
+        "file_path": "$p:src_excel",
+        "default_application": "Default",
+        "visible_flag": false,
+        "update_links": false
+      }
+    },
+    {
+      "atom": "Excel.search_and_replace_excel_content",
+      "alias": "全表查找替换",
+      "out": {},
+      "inputs": {
+        "excel": "$wb",
+        "find_str": "$p:find_str",
+        "replace_flag": true,
+        "replace_str": "$p:replace_str",
+        "lookup_range_excel": "all",
+        "search_range": "all",
+        "row": "",
+        "col": "",
+        "start_row": "",
+        "end_row": "",
+        "start_col": "",
+        "end_col": "",
+        "exact_match": false,
+        "case_flag": false
+      }
+    },
+    {
+      "atom": "Excel.save_excel",
+      "alias": "另存到输出目录",
+      "out": {},
+      "inputs": {
+        "excel": "$wb",
+        "save_type": "save_as",
+        "exist_handle_type": "overwrite",
+        "close_flag": true,
+        "file_path": "$p:out_dir",
+        "file_name": "$p:out_name"
+      }
+    }
+  ]
+}

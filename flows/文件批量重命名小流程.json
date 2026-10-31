@@ -1,0 +1,100 @@
+{
+  "name": "文件批量重命名小流程",
+  "nl_examples": [
+    "把这个文件夹里的文件批量重命名",
+    "给文件夹里的文件加统一前缀",
+    "批量改文件名",
+    "按序号重命名这些文件"
+  ],
+  "keywords": [
+    "批量重命名",
+    "文件改名",
+    "统一前缀",
+    "按序号改名"
+  ],
+  "params": [
+    {
+      "name": "in_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_rename_in",
+      "describe": "要重命名的文件所在文件夹（只扫第一层）"
+    },
+    {
+      "name": "prefix",
+      "type": "Str",
+      "default": "改名",
+      "describe": "新文件名前缀（生成 改名_0.txt、改名_1.txt …）"
+    },
+    {
+      "name": "pattern",
+      "type": "Str",
+      "default": ".txt",
+      "describe": "只处理文件名里包含这个串的文件"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "File.get_file_list",
+      "alias": "列出文件夹里的文件",
+      "out": {
+        "file_list": "file_list"
+      },
+      "inputs": {
+        "folder_path": "$p:in_dir",
+        "traverse_subfolder": "no",
+        "tempfile_include": false,
+        "output_type": "list",
+        "sort_method": "mtime"
+      }
+    },
+    {
+      "atom": "Code.ForList",
+      "alias": "逐个重命名",
+      "out": {
+        "index": "idx",
+        "item": "item"
+      },
+      "inputs": {
+        "list": "$file_list"
+      }
+    },
+    {
+      "atom": "Code.If",
+      "alias": "只要目标类型",
+      "out": {},
+      "inputs": {
+        "args1": "$item",
+        "condition": "in",
+        "args2": "$p:pattern"
+      }
+    },
+    {
+      "atom": "File.file_rename",
+      "alias": "重命名",
+      "out": {
+        "rename_file_path": "renamed"
+      },
+      "inputs": {
+        "file_path": "$item",
+        "new_name": [
+          "$p:prefix",
+          "_",
+          "$idx"
+        ],
+        "exist_options": "generate"
+      }
+    },
+    {
+      "atom": "Code.IfEnd",
+      "alias": "条件结束",
+      "out": {},
+      "inputs": {}
+    },
+    {
+      "atom": "Code.ForEnd",
+      "alias": "循环结束",
+      "out": {},
+      "inputs": {}
+    }
+  ]
+}
