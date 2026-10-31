@@ -1,0 +1,381 @@
+{
+  "name": "网页元素操作与截图小流程",
+  "nl_examples": [
+    "把网页滚到底、悬停、勾选复选框、改下拉框，再截几张图",
+    "网页元素操作：滚动、悬停、勾选、下拉选择、截图",
+    "操作测试页表单并把每项状态记下来",
+    "网页元素操作演示"
+  ],
+  "keywords": [
+    "元素滚动",
+    "元素可视",
+    "鼠标悬停",
+    "勾选复选框",
+    "下拉框选择",
+    "元素截图",
+    "元素位置截图",
+    "循环相似元素"
+  ],
+  "params": [
+    {
+      "name": "url",
+      "type": "Str",
+      "default": "http://127.0.0.1:8765/",
+      "describe": "测试页地址"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_browser_out",
+      "describe": "截图与证据输出目录"
+    },
+    {
+      "name": "city",
+      "type": "Str",
+      "default": "上海",
+      "describe": "下拉框要选中的城市文本"
+    }
+  ],
+  "element_requirements": [
+    {
+      "name": "测试页_底部标记",
+      "kind": "web",
+      "pick": {
+        "url": "http://127.0.0.1:8765/",
+        "css": "#bottom"
+      }
+    },
+    {
+      "name": "测试页_悬停区",
+      "kind": "web",
+      "pick": {
+        "url": "http://127.0.0.1:8765/",
+        "css": "#hover"
+      }
+    },
+    {
+      "name": "测试页_复选框",
+      "kind": "web",
+      "pick": {
+        "url": "http://127.0.0.1:8765/",
+        "css": "#agree"
+      }
+    },
+    {
+      "name": "测试页_下拉框",
+      "kind": "web",
+      "pick": {
+        "url": "http://127.0.0.1:8765/",
+        "css": "#city"
+      }
+    },
+    {
+      "name": "测试页_表格",
+      "kind": "web",
+      "pick": {
+        "url": "http://127.0.0.1:8765/",
+        "css": "#tbl"
+      }
+    },
+    {
+      "name": "测试页_标题",
+      "kind": "web",
+      "pick": {
+        "url": "http://127.0.0.1:8765/",
+        "css": "#title"
+      }
+    },
+    {
+      "name": "测试页_列表项",
+      "kind": "web",
+      "pick": {
+        "url": "http://127.0.0.1:8765/",
+        "css": "#list li.item:first-of-type"
+      }
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "BrowserSoftware.browser_open",
+      "alias": "打开测试页",
+      "out": {
+        "web_open": "web"
+      },
+      "inputs": {
+        "url": "$p:url",
+        "browser_type": "chrome",
+        "timeout": 20,
+        "timeout_handle_type": "execError",
+        "wait_load_success": true,
+        "open_with_incognito": false
+      }
+    },
+    {
+      "atom": "BrowserElement.scroll_into_view",
+      "alias": "把页面底部滚进可视区",
+      "out": {},
+      "inputs": {
+        "browser_obj": "$web",
+        "element_timeout": 10,
+        "scroll_into_center": true
+      },
+      "elements": {
+        "element_data": {
+          "kind": "web",
+          "name": "测试页_底部标记"
+        }
+      }
+    },
+    {
+      "atom": "BrowserElement.hover_over",
+      "alias": "鼠标悬停",
+      "out": {},
+      "inputs": {
+        "browser_obj": "$web",
+        "element_timeout": 10,
+        "scroll_into_center": true
+      },
+      "elements": {
+        "element_data": {
+          "kind": "web",
+          "name": "测试页_悬停区"
+        }
+      }
+    },
+    {
+      "atom": "BrowserElement.screenshot",
+      "alias": "悬停后截图存证",
+      "out": {
+        "xpath_shot": "shot_hover"
+      },
+      "inputs": {
+        "browser_obj": "$web",
+        "file_path": "$p:out_dir",
+        "image_name": "悬停后截图",
+        "element_timeout": 10
+      },
+      "elements": {
+        "element_data": {
+          "kind": "web",
+          "name": "测试页_悬停区"
+        }
+      }
+    },
+    {
+      "atom": "BrowserElement.scroll",
+      "alias": "整页滚回顶部",
+      "out": {},
+      "inputs": {
+        "browser_obj": "$web",
+        "scrollbar_type": "window",
+        "scroll_direction": "vertical",
+        "x_scroll_type": "left",
+        "x_custom_scroll_dis": 0,
+        "y_scroll_type": "top",
+        "y_custom_scroll_dis": 0,
+        "element_timeout": 10
+      },
+      "elements": {
+        "element_data": {
+          "kind": "web",
+          "name": "测试页_底部标记"
+        }
+      }
+    },
+    {
+      "atom": "BrowserElement.set_checked",
+      "alias": "勾选复选框",
+      "out": {},
+      "inputs": {
+        "browser_obj": "$web",
+        "checked_type": "checked",
+        "element_timeout": 10
+      },
+      "elements": {
+        "element_data": {
+          "kind": "web",
+          "name": "测试页_复选框"
+        }
+      }
+    },
+    {
+      "atom": "BrowserElement.get_checked",
+      "alias": "读复选框状态",
+      "out": {
+        "get_checkbox_checked": "checked_after"
+      },
+      "inputs": {
+        "browser_obj": "$web",
+        "element_timeout": 10
+      },
+      "elements": {
+        "element_data": {
+          "kind": "web",
+          "name": "测试页_复选框"
+        }
+      }
+    },
+    {
+      "atom": "BrowserElement.set_select",
+      "alias": "下拉框选择城市",
+      "out": {},
+      "inputs": {
+        "browser_obj": "$web",
+        "pattern": "equal",
+        "value": "$p:city",
+        "element_timeout": 10
+      },
+      "elements": {
+        "element_data": {
+          "kind": "web",
+          "name": "测试页_下拉框"
+        }
+      }
+    },
+    {
+      "atom": "BrowserElement.get_select",
+      "alias": "读下拉框当前值",
+      "out": {
+        "get_selected": "selected_after"
+      },
+      "inputs": {
+        "browser_obj": "$web",
+        "current_content": true,
+        "element_timeout": 10
+      },
+      "elements": {
+        "element_data": {
+          "kind": "web",
+          "name": "测试页_下拉框"
+        }
+      }
+    },
+    {
+      "atom": "BrowserElement.screenshot",
+      "alias": "表格元素截图",
+      "out": {
+        "xpath_shot": "shot1"
+      },
+      "inputs": {
+        "browser_obj": "$web",
+        "file_path": "$p:out_dir",
+        "image_name": "元素截图_表格",
+        "element_timeout": 10
+      },
+      "elements": {
+        "element_data": {
+          "kind": "web",
+          "name": "测试页_表格"
+        }
+      }
+    },
+    {
+      "atom": "BrowserElement.position_screenshot",
+      "alias": "标题元素位置截图",
+      "out": {
+        "position_shot": "shot2"
+      },
+      "inputs": {
+        "browser_obj": "$web",
+        "file_path": "$p:out_dir",
+        "image_name": "位置截图_标题",
+        "element_timeout": 10
+      },
+      "elements": {
+        "element_data": {
+          "kind": "web",
+          "name": "测试页_标题"
+        }
+      }
+    },
+    {
+      "atom": "BrowserElement.loop_similar",
+      "alias": "循环相似列表项",
+      "out": {
+        "index": "li_idx",
+        "item": "li_item"
+      },
+      "inputs": {
+        "browser_obj": "$web",
+        "get_type": "getText",
+        "start": 0,
+        "end": -1,
+        "attribute_name": "",
+        "element_timeout": 10
+      },
+      "elements": {
+        "element_data": {
+          "kind": "web",
+          "name": "测试页_列表项"
+        }
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "记录每个列表项",
+      "out": {
+        "write_file_path": "logged"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/",
+          "元素操作记录.txt"
+        ],
+        "file_option": "create",
+        "msg": [
+          "第",
+          "$li_idx",
+          "项：",
+          "$li_item",
+          "\n"
+        ],
+        "write_type": "append",
+        "encode_type": "utf-8"
+      }
+    },
+    {
+      "atom": "Code.ForEnd",
+      "alias": "循环结束",
+      "out": {},
+      "inputs": {}
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "结果写成证据文件",
+      "out": {
+        "write_file_path": "written"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/",
+          "元素操作结果.txt"
+        ],
+        "file_option": "create",
+        "msg": [
+          "悬停后截图：",
+          "$shot_hover",
+          "\n勾选后状态：",
+          "$checked_after",
+          "\n下拉框选中：",
+          "$selected_after",
+          "\n表格截图：",
+          "$shot1",
+          "\n标题位置截图：",
+          "$shot2"
+        ],
+        "write_type": "overwrite",
+        "encode_type": "utf-8"
+      }
+    },
+    {
+      "atom": "BrowserSoftware.browser_close",
+      "alias": "关闭浏览器",
+      "out": {},
+      "inputs": {
+        "browser_obj": "$web"
+      }
+    }
+  ]
+}

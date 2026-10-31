@@ -1,0 +1,221 @@
+{
+  "name": "数据表行列与公式小流程",
+  "nl_examples": [
+    "把 Excel 读进数据表，加列表头、写公式、插行、粘贴一行再删掉",
+    "数据表插入行列与公式",
+    "数据表粘贴整行后删除",
+    "数据表结构操作演示"
+  ],
+  "keywords": [
+    "数据表插入行",
+    "数据表插入列",
+    "数据表公式",
+    "数据表列标题",
+    "数据表粘贴",
+    "数据表删除"
+  ],
+  "params": [
+    {
+      "name": "src_excel",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\订单.xlsx",
+      "describe": "源 Excel"
+    },
+    {
+      "name": "sheet_name",
+      "type": "Str",
+      "default": "Sheet1",
+      "describe": "读哪个工作表"
+    },
+    {
+      "name": "new_col",
+      "type": "Str",
+      "default": "E",
+      "describe": "要新增表头/公式的列"
+    },
+    {
+      "name": "new_title",
+      "type": "Str",
+      "default": "金额",
+      "describe": "新列的表头文字"
+    },
+    {
+      "name": "formula",
+      "type": "Str",
+      "default": "=C2*D2",
+      "describe": "写入的公式"
+    },
+    {
+      "name": "paste_row",
+      "type": "Str",
+      "default": "['DD004','样品',1,88]",
+      "describe": "要粘贴进表格的一行（Python 列表字面量，含引号）"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_excel_out",
+      "describe": "导出目录"
+    },
+    {
+      "name": "out_name",
+      "type": "Str",
+      "default": "数据表行列公式",
+      "describe": "导出文件名（不含扩展名）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "DataTable.import_data_table_from_file",
+      "alias": "Excel读进数据表",
+      "out": {},
+      "inputs": {
+        "import_file_path": "$p:src_excel",
+        "sheet_name": "$p:sheet_name"
+      }
+    },
+    {
+      "atom": "DataTable.set_column_title",
+      "alias": "给新列设表头",
+      "out": {},
+      "inputs": {
+        "col": "$p:new_col",
+        "title": "$p:new_title"
+      }
+    },
+    {
+      "atom": "DataTable.get_column_title",
+      "alias": "读回新列表头",
+      "out": {
+        "column_title": "head_title"
+      },
+      "inputs": {
+        "col": "$p:new_col"
+      }
+    },
+    {
+      "atom": "DataTable.insert_formula",
+      "alias": "写入公式",
+      "out": {},
+      "inputs": {
+        "row": 2,
+        "col": "$p:new_col",
+        "formula": "$p:formula"
+      }
+    },
+    {
+      "atom": "DataTable.insert_row_column",
+      "alias": "第6行位置插入空行",
+      "out": {},
+      "inputs": {
+        "insert_type": "row",
+        "row": 6,
+        "col": "A",
+        "amount": 1,
+        "row_insert_shift": "down",
+        "column_insert_shift": "right"
+      }
+    },
+    {
+      "atom": "System.copy_clip",
+      "alias": "把一行数据写进剪贴板",
+      "out": {},
+      "inputs": {
+        "content_type": "msg",
+        "message": "$p:paste_row",
+        "file_path": "",
+        "folder_path": ""
+      }
+    },
+    {
+      "atom": "DataTable.paste_data",
+      "alias": "粘贴到第6行",
+      "out": {},
+      "inputs": {
+        "paste_type": "row",
+        "row": 6,
+        "col": "A",
+        "start_row": 6,
+        "start_col": "A"
+      }
+    },
+    {
+      "atom": "DataTable.export_data_table_to_file",
+      "alias": "粘贴后先导出一份",
+      "out": {
+        "export_file_path": "exported1"
+      },
+      "inputs": {
+        "export_dest_path": "$p:out_dir",
+        "export_file_name": [
+          "$p:out_name",
+          "_粘贴后"
+        ],
+        "export_file_type": "json",
+        "is_overwrite": true
+      }
+    },
+    {
+      "atom": "DataTable.delete_data",
+      "alias": "删掉第6行",
+      "out": {},
+      "inputs": {
+        "delete_type": "row",
+        "row": 6,
+        "col": "A",
+        "start_row": 6,
+        "start_col": "A",
+        "end_row": 6,
+        "end_col": "E",
+        "delete_cell_move": "up",
+        "delete_col_move": true,
+        "delete_row_move": true
+      }
+    },
+    {
+      "atom": "DataTable.export_data_table_to_file",
+      "alias": "删除后再导出一份",
+      "out": {
+        "export_file_path": "exported2"
+      },
+      "inputs": {
+        "export_dest_path": "$p:out_dir",
+        "export_file_name": [
+          "$p:out_name",
+          "_删除后"
+        ],
+        "export_file_type": "json",
+        "is_overwrite": true
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "结果写成证据文件",
+      "out": {
+        "write_file_path": "written"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/",
+          "数据表行列公式_结果.txt"
+        ],
+        "file_option": "create",
+        "msg": [
+          "新列表头（读回）：",
+          "$head_title",
+          "\n写入公式：",
+          "$p:formula",
+          "\n粘贴行：",
+          "$p:paste_row",
+          "\n粘贴后导出：",
+          "$exported1",
+          "\n删除后导出：",
+          "$exported2"
+        ],
+        "write_type": "overwrite",
+        "encode_type": "utf-8"
+      }
+    }
+  ]
+}

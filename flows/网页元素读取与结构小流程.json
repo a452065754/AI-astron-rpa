@@ -1,0 +1,301 @@
+{
+  "name": "网页元素读取与结构小流程",
+  "nl_examples": [
+    "打开测试页把标题、表格、下拉框、复选框的内容都读出来",
+    "网页元素读取：是否存在、文本、表格、相似元素、关联元素",
+    "读取网页表格与表单元素的值",
+    "网页元素属性读取演示"
+  ],
+  "keywords": [
+    "元素是否存在",
+    "元素文本",
+    "等待元素",
+    "网页表格读取",
+    "相似元素",
+    "复选框读取",
+    "下拉框读取",
+    "元素属性",
+    "关联元素",
+    "获取元素对象"
+  ],
+  "params": [
+    {
+      "name": "url",
+      "type": "Str",
+      "default": "http://127.0.0.1:8765/",
+      "describe": "测试页地址"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_browser_out",
+      "describe": "截图与证据输出目录"
+    }
+  ],
+  "element_requirements": [
+    {
+      "name": "测试页_标题",
+      "kind": "web",
+      "pick": {
+        "url": "http://127.0.0.1:8765/",
+        "css": "#title"
+      }
+    },
+    {
+      "name": "测试页_复选框",
+      "kind": "web",
+      "pick": {
+        "url": "http://127.0.0.1:8765/",
+        "css": "#agree"
+      }
+    },
+    {
+      "name": "测试页_下拉框",
+      "kind": "web",
+      "pick": {
+        "url": "http://127.0.0.1:8765/",
+        "css": "#city"
+      }
+    },
+    {
+      "name": "测试页_表格",
+      "kind": "web",
+      "pick": {
+        "url": "http://127.0.0.1:8765/",
+        "css": "#tbl"
+      }
+    },
+    {
+      "name": "测试页_列表项",
+      "kind": "web",
+      "pick": {
+        "url": "http://127.0.0.1:8765/",
+        "css": "#list li.item:first-of-type"
+      }
+    },
+    {
+      "name": "测试页_底部标记",
+      "kind": "web",
+      "pick": {
+        "url": "http://127.0.0.1:8765/",
+        "css": "#bottom"
+      }
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "BrowserSoftware.browser_open",
+      "alias": "打开测试页",
+      "out": {
+        "web_open": "web"
+      },
+      "inputs": {
+        "url": "$p:url",
+        "browser_type": "chrome",
+        "timeout": 20,
+        "timeout_handle_type": "execError",
+        "wait_load_success": true,
+        "open_with_incognito": false
+      }
+    },
+    {
+      "atom": "BrowserElement.wait_element",
+      "alias": "等待标题出现",
+      "out": {
+        "wait_element": "waited"
+      },
+      "inputs": {
+        "browser_obj": "$web",
+        "ele_status": "y",
+        "element_timeout": 10
+      },
+      "elements": {
+        "element_data": {
+          "kind": "web",
+          "name": "测试页_标题"
+        }
+      }
+    },
+    {
+      "atom": "BrowserElement.element_exist",
+      "alias": "判断表格是否存在",
+      "out": {
+        "element_exist": "tbl_exist"
+      },
+      "inputs": {
+        "browser_obj": "$web"
+      },
+      "elements": {
+        "element_data": {
+          "kind": "web",
+          "name": "测试页_表格"
+        }
+      }
+    },
+    {
+      "atom": "BrowserElement.element_text",
+      "alias": "读标题文本",
+      "out": {
+        "data_pick": "title_text"
+      },
+      "inputs": {
+        "browser_obj": "$web",
+        "element_timeout": 10
+      },
+      "elements": {
+        "element_data": {
+          "kind": "web",
+          "name": "测试页_标题"
+        }
+      }
+    },
+    {
+      "atom": "BrowserElement.get_table",
+      "alias": "读表格数据",
+      "out": {
+        "table_pick": "table_data"
+      },
+      "inputs": {
+        "browser_obj": "$web",
+        "to_excel": false,
+        "excel_path": "",
+        "element_timeout": 10
+      },
+      "elements": {
+        "element_data": {
+          "kind": "web",
+          "name": "测试页_表格"
+        }
+      }
+    },
+    {
+      "atom": "BrowserElement.similar",
+      "alias": "读相似元素列表",
+      "out": {
+        "get_similar_ele": "items"
+      },
+      "inputs": {
+        "browser_obj": "$web",
+        "get_type": "getText",
+        "attribute_name": "",
+        "element_timeout": 10
+      },
+      "elements": {
+        "element_data": {
+          "kind": "web",
+          "name": "测试页_列表项"
+        }
+      }
+    },
+    {
+      "atom": "BrowserElement.get_checked",
+      "alias": "读复选框状态",
+      "out": {
+        "get_checkbox_checked": "checked"
+      },
+      "inputs": {
+        "browser_obj": "$web",
+        "element_timeout": 10
+      },
+      "elements": {
+        "element_data": {
+          "kind": "web",
+          "name": "测试页_复选框"
+        }
+      }
+    },
+    {
+      "atom": "BrowserElement.get_select",
+      "alias": "读下拉框当前值",
+      "out": {
+        "get_selected": "selected"
+      },
+      "inputs": {
+        "browser_obj": "$web",
+        "current_content": true,
+        "element_timeout": 10
+      },
+      "elements": {
+        "element_data": {
+          "kind": "web",
+          "name": "测试页_下拉框"
+        }
+      }
+    },
+    {
+      "atom": "BrowserElement.get_relative_element",
+      "alias": "取标题的父级元素",
+      "out": {
+        "element_obj": "parent_el"
+      },
+      "inputs": {
+        "browser_obj": "$web",
+        "relative_type": "parent",
+        "child_element_type": "all",
+        "child_element_xpath": "",
+        "child_element_index": 1,
+        "sibling_element_type": "next",
+        "element_timeout": 10,
+        "is_multiple": false
+      },
+      "elements": {
+        "element_data": {
+          "kind": "web",
+          "name": "测试页_标题"
+        }
+      }
+    },
+    {
+      "atom": "BrowserElement.create_element",
+      "alias": "按选择器取元素对象",
+      "out": {
+        "element_obj": "bottom_el"
+      },
+      "inputs": {
+        "browser_obj": "$web",
+        "locate_type": "cssSelector",
+        "locate_value": "#bottom",
+        "return_type": "single"
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "结果写成证据文件",
+      "out": {
+        "write_file_path": "written"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/",
+          "元素读取结果.txt"
+        ],
+        "file_option": "create",
+        "msg": [
+          "标题文本：",
+          "$title_text",
+          "\n表格存在：",
+          "$tbl_exist",
+          "\n下拉框当前值：",
+          "$selected",
+          "\n复选框选中：",
+          "$checked",
+          "\n相似元素：",
+          "$items",
+          "\n表格数据：",
+          "$table_data"
+        ],
+        "write_type": "overwrite",
+        "encode_type": "utf-8"
+      }
+    },
+    {
+      "atom": "BrowserSoftware.browser_close",
+      "alias": "关闭浏览器",
+      "out": {},
+      "inputs": {
+        "browser_obj": "$web"
+      }
+    }
+  ]
+}

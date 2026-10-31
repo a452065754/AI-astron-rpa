@@ -1,0 +1,117 @@
+{
+  "name": "数据表循环遍历小流程",
+  "nl_examples": [
+    "把表格每一行挨个读出来记到文件里",
+    "数据表按区域循环遍历",
+    "逐行遍历数据表并记录",
+    "数据表循环"
+  ],
+  "keywords": [
+    "数据表循环",
+    "遍历数据表",
+    "逐行遍历",
+    "循环表格行"
+  ],
+  "params": [
+    {
+      "name": "src_excel",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\订单.xlsx",
+      "describe": "源 Excel"
+    },
+    {
+      "name": "sheet_name",
+      "type": "Str",
+      "default": "Sheet1",
+      "describe": "读哪个工作表"
+    },
+    {
+      "name": "start_row",
+      "type": "Str",
+      "default": "2",
+      "describe": "遍历起始行（跳过表头）"
+    },
+    {
+      "name": "end_row",
+      "type": "Str",
+      "default": "4",
+      "describe": "遍历结束行"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_excel_out",
+      "describe": "记录文件输出目录"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "DataTable.import_data_table_from_file",
+      "alias": "Excel读进数据表",
+      "out": {},
+      "inputs": {
+        "import_file_path": "$p:src_excel",
+        "sheet_name": "$p:sheet_name"
+      }
+    },
+    {
+      "atom": "DataTable.loop_data_table",
+      "alias": "逐行遍历 A2:D 区域",
+      "out": {
+        "index": "idx",
+        "value": "rowvals"
+      },
+      "inputs": {
+        "loop_type": "area",
+        "row": 2,
+        "col": "A",
+        "start_row": "$p:start_row",
+        "start_col": "A",
+        "end_row": "$p:end_row",
+        "end_col": "D"
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "记录这一行",
+      "out": {
+        "write_file_path": "logged"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/",
+          "循环遍历记录.txt"
+        ],
+        "file_option": "create",
+        "msg": [
+          "第",
+          "$idx",
+          "行：",
+          "$rowvals",
+          "\n"
+        ],
+        "write_type": "append",
+        "encode_type": "utf-8"
+      }
+    },
+    {
+      "atom": "Code.ForEnd",
+      "alias": "循环结束",
+      "out": {},
+      "inputs": {}
+    },
+    {
+      "atom": "Report.print",
+      "alias": "打印收尾",
+      "out": {},
+      "inputs": {
+        "report_type": "info",
+        "msg": [
+          "遍历完成，记录文件：",
+          "$logged"
+        ]
+      }
+    }
+  ]
+}

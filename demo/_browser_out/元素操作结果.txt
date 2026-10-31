@@ -1,0 +1,5 @@
+悬停后截图：F:\AI-Workbench\10-Projects\星辰开源\demo\_browser_out\悬停后截图.jpg
+勾选后状态：True
+下拉框选中：[{'label': '上海', 'value': 'sh'}]
+表格截图：F:\AI-Workbench\10-Projects\星辰开源\demo\_browser_out\元素截图_表格.jpg
+标题位置截图：F:\AI-Workbench\10-Projects\星辰开源\demo\_browser_out\位置截图_标题.jpg

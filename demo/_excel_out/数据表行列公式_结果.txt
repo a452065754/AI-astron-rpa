@@ -1,0 +1,5 @@
+新列表头（读回）：金额
+写入公式：=C2*D2
+粘贴行：['DD004', '样品', 1, 88]
+粘贴后导出：F:\AI-Workbench\10-Projects\星辰开源\demo\_excel_out\数据表行列公式_粘贴后.json
+删除后导出：F:\AI-Workbench\10-Projects\星辰开源\demo\_excel_out\数据表行列公式_删除后.json

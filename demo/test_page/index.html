@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>RPA 元素测试页</title>
+<style>
+  body { font-family: "Microsoft YaHei", sans-serif; margin: 24px; }
+  table { border-collapse: collapse; margin: 12px 0; }
+  td, th { border: 1px solid #999; padding: 6px 12px; }
+  #hover { width: 160px; padding: 10px; background: #eef; border: 1px dashed #66c; }
+  #bottom { margin-top: 12px; padding: 12px; background: #efe; }
+</style>
+</head>
+<body>
+  <h1 id="title">RPA 元素测试页</h1>
+
+  <p>
+    <input id="name" placeholder="姓名" value="">
+    <button id="btn" onclick="document.getElementById('status').innerText='已点击';document.getElementById('agree').checked=true;">提交</button>
+  </p>
+
+  <p>
+    <label><input type="checkbox" id="agree"> 我同意</label>
+    <select id="city">
+      <option value="bj">北京</option>
+      <option value="sh">上海</option>
+      <option value="gz">广州</option>
+      <option value="sz">深圳</option>
+    </select>
+  </p>
+
+  <p id="status">初始状态</p>
+
+  <table id="tbl">
+    <thead>
+      <tr><th>编号</th><th>名称</th><th>数量</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>R01</td><td>沙发</td><td>1</td></tr>
+      <tr><td>R02</td><td>茶几</td><td>2</td></tr>
+      <tr><td>R03</td><td>电视柜</td><td>3</td></tr>
+    </tbody>
+  </table>
+
+  <ul id="list">
+    <li class="item">列表项一</li>
+    <li class="item">列表项二</li>
+    <li class="item">列表项三</li>
+  </ul>
+
+  <div id="hover" onmouseover="document.getElementById('status').innerText='已悬停';">把鼠标移上来</div>
+
+  <p>
+    <input type="range" id="slider" min="0" max="100" value="10" style="width:220px;">
+  </p>
+
+  <div style="height: 1200px; background: linear-gradient(#fff,#ddd);">（滚动占位区，往下滚才能看到底部）</div>
+
+  <div id="bottom">页面底部标记 BOTTOM-MARK</div>
+</body>
+</html>

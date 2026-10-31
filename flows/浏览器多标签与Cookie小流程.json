@@ -1,0 +1,258 @@
+{
+  "name": "浏览器多标签与Cookie小流程",
+  "nl_examples": [
+    "打开两个标签页来回切换，再设个 cookie 看看能不能取到",
+    "浏览器新开标签、后退前进、读出 cookie",
+    "演示标签页切换和 cookie 增删查",
+    "多标签页操作并清理 cookie"
+  ],
+  "keywords": [
+    "多标签页",
+    "切换标签页",
+    "浏览器后退",
+    "浏览器前进",
+    "设置cookie",
+    "获取cookie",
+    "清除cookie",
+    "等待页面加载",
+    "停止加载"
+  ],
+  "params": [
+    {
+      "name": "url_a",
+      "type": "Str",
+      "default": "https://github.com/a452065754/AI-astron-rpa",
+      "describe": "第一个标签页网址"
+    },
+    {
+      "name": "url_b",
+      "type": "Str",
+      "default": "https://www.baidu.com",
+      "describe": "新开标签页网址"
+    },
+    {
+      "name": "cookie_url",
+      "type": "Str",
+      "default": "https://github.com",
+      "describe": "cookie 作用网址"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_browser_out",
+      "describe": "结果证据文件输出目录"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "BrowserSoftware.browser_open",
+      "alias": "打开第一个标签页",
+      "out": {
+        "web_open": "browser"
+      },
+      "inputs": {
+        "url": "$p:url_a",
+        "browser_type": "chrome",
+        "timeout": 20,
+        "timeout_handle_type": "execError",
+        "wait_load_success": true,
+        "open_with_incognito": false
+      }
+    },
+    {
+      "atom": "BrowserSoftware.get_current_tab_id",
+      "alias": "记下第一个标签页ID",
+      "out": {
+        "get_tab_id": "tab1"
+      },
+      "inputs": {
+        "browser_obj": "$browser"
+      }
+    },
+    {
+      "atom": "BrowserSoftware.web_open",
+      "alias": "新开一个标签页",
+      "out": {
+        "web_new_page": "browser2"
+      },
+      "inputs": {
+        "browser_obj": "$browser",
+        "new_tab_url": "$p:url_b",
+        "wait_page": true
+      }
+    },
+    {
+      "atom": "BrowserSoftware.stop_web_load",
+      "alias": "停止加载（已加载完则无副作用）",
+      "out": {},
+      "inputs": {
+        "browser_obj": "$browser2"
+      }
+    },
+    {
+      "atom": "BrowserSoftware.wait_web_load",
+      "alias": "等待页面加载完成",
+      "out": {},
+      "inputs": {
+        "browser_obj": "$browser2",
+        "timeout": 15
+      }
+    },
+    {
+      "atom": "BrowserSoftware.browser_back",
+      "alias": "网页后退",
+      "out": {},
+      "inputs": {
+        "browser_obj": "$browser2"
+      }
+    },
+    {
+      "atom": "BrowserSoftware.browser_forward",
+      "alias": "网页前进",
+      "out": {},
+      "inputs": {
+        "browser_obj": "$browser2"
+      }
+    },
+    {
+      "atom": "BrowserSoftware.web_switch",
+      "alias": "切回第一个标签页",
+      "out": {},
+      "inputs": {
+        "browser_obj": "$browser2",
+        "switch_type": "tabId",
+        "tab_id": "$tab1",
+        "tab_url": "",
+        "tab_title": ""
+      }
+    },
+    {
+      "atom": "BrowserSoftware.get_current_url",
+      "alias": "确认已切换（读当前地址）",
+      "out": {
+        "get_url": "cur_url"
+      },
+      "inputs": {
+        "browser_obj": "$browser2"
+      }
+    },
+    {
+      "atom": "BrowserSoftware.set_cookies",
+      "alias": "写一个 cookie",
+      "out": {
+        "cookie_input": "cookie_set"
+      },
+      "inputs": {
+        "browser_obj": "$browser2",
+        "url": "$p:cookie_url",
+        "cookie_name": "rpa_demo",
+        "cookie_val": "hello",
+        "cookie_path": "/",
+        "page_timeout": 10
+      }
+    },
+    {
+      "atom": "BrowserSoftware.get_cookies",
+      "alias": "读刚写的 cookie",
+      "out": {
+        "get_cookie": "cookie_get"
+      },
+      "inputs": {
+        "browser_obj": "$browser2",
+        "url": "$p:cookie_url",
+        "cookie_name": "rpa_demo",
+        "cookie_path": "/",
+        "page_timeout": 10
+      }
+    },
+    {
+      "atom": "BrowserSoftware.empty_cookies",
+      "alias": "清空该网址 cookie",
+      "out": {},
+      "inputs": {
+        "browser_obj": "$browser2",
+        "url": "$p:cookie_url",
+        "cookie_path": "/",
+        "page_timeout": 10
+      }
+    },
+    {
+      "atom": "BrowserSoftware.get_cookies",
+      "alias": "清空后再读一次",
+      "out": {
+        "get_cookie": "cookie_after"
+      },
+      "inputs": {
+        "browser_obj": "$browser2",
+        "url": "$p:cookie_url",
+        "cookie_name": "rpa_demo",
+        "cookie_path": "/",
+        "page_timeout": 10
+      }
+    },
+    {
+      "atom": "BrowserSoftware.get_current_obj",
+      "alias": "接管已打开的浏览器对象",
+      "out": {
+        "browser_obj": "opened"
+      },
+      "inputs": {
+        "browser_type": "chrome"
+      }
+    },
+    {
+      "atom": "BrowserSoftware.web_close",
+      "alias": "关闭网页",
+      "out": {},
+      "inputs": {
+        "browser_obj": "$browser2",
+        "url": ""
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "结果写成证据文件",
+      "out": {
+        "write_file_path": "written"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/",
+          "多标签cookie结果.txt"
+        ],
+        "file_option": "create",
+        "msg": [
+          "切换后地址：",
+          "$cur_url",
+          "\n写入cookie：",
+          "$cookie_set",
+          "\n读到cookie：",
+          "$cookie_get",
+          "\n清空后cookie：",
+          "$cookie_after"
+        ],
+        "write_type": "overwrite",
+        "encode_type": "utf-8"
+      }
+    },
+    {
+      "atom": "Report.print",
+      "alias": "打印结果",
+      "out": {},
+      "inputs": {
+        "report_type": "info",
+        "msg": [
+          "切换后地址：",
+          "$cur_url",
+          " · 写入cookie：",
+          "$cookie_set",
+          " · 读到cookie：",
+          "$cookie_get",
+          " · 清空后：",
+          "$cookie_after"
+        ]
+      }
+    }
+  ]
+}

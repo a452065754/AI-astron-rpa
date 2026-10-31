@@ -1,0 +1,186 @@
+{
+  "name": "Excel批注与格式小流程",
+  "nl_examples": [
+    "给某个单元格加批注、调整行高，再看一眼单元格颜色和下一个空列",
+    "Excel 加批注、设行高、取颜色、删除批注",
+    "表格加个批注并改行高再另存",
+    "Excel 批注与单元格格式演示"
+  ],
+  "keywords": [
+    "excel批注",
+    "添加批注",
+    "删除批注",
+    "设置行高",
+    "单元格颜色",
+    "第一个空列",
+    "可用列"
+  ],
+  "params": [
+    {
+      "name": "src_excel",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\订单.xlsx",
+      "describe": "要处理的 Excel"
+    },
+    {
+      "name": "sheet_name",
+      "type": "Str",
+      "default": "Sheet1",
+      "describe": "工作表名"
+    },
+    {
+      "name": "cell",
+      "type": "Str",
+      "default": "B2",
+      "describe": "加批注 / 取颜色的单元格"
+    },
+    {
+      "name": "comment_text",
+      "type": "Str",
+      "default": "这是 RPA 加的批注",
+      "describe": "批注内容"
+    },
+    {
+      "name": "row_no",
+      "type": "Str",
+      "default": "1",
+      "describe": "要设置行高的行号（支持 1:3,5）"
+    },
+    {
+      "name": "height",
+      "type": "Str",
+      "default": "28",
+      "describe": "行高（0-409.5）"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_excel_out",
+      "describe": "输出目录（不动原文件）"
+    },
+    {
+      "name": "out_name",
+      "type": "Str",
+      "default": "批注与格式",
+      "describe": "输出文件名（不含扩展名）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "Excel.open_excel",
+      "alias": "打开表格",
+      "out": {
+        "open_excel_obj": "wb"
+      },
+      "inputs": {
+        "file_path": "$p:src_excel",
+        "default_application": "Default",
+        "visible_flag": false,
+        "update_links": false
+      }
+    },
+    {
+      "atom": "Excel.create_excel_comment",
+      "alias": "给单元格加批注",
+      "out": {},
+      "inputs": {
+        "excel": "$wb",
+        "comment_type": "position",
+        "comment": "$p:comment_text",
+        "sheet_name": "$p:sheet_name",
+        "cell_position": "$p:cell",
+        "comment_range": "one",
+        "find_str": "",
+        "comment_all": false
+      }
+    },
+    {
+      "atom": "Excel.excel_set_row_height",
+      "alias": "设置行高",
+      "out": {},
+      "inputs": {
+        "excel_obj": "$wb",
+        "sheet_name": "$p:sheet_name",
+        "set_type": "value",
+        "row": "$p:row_no",
+        "height": "$p:height"
+      }
+    },
+    {
+      "atom": "Excel.excel_get_cell_color",
+      "alias": "读单元格颜色",
+      "out": {
+        "get_cell_color": "cell_color"
+      },
+      "inputs": {
+        "excel": "$wb",
+        "coordinate": "$p:cell",
+        "sheet_name": "$p:sheet_name"
+      }
+    },
+    {
+      "atom": "Excel.get_excel_first_available_col",
+      "alias": "取第一个可用列",
+      "out": {
+        "get_first_available_col": "next_col"
+      },
+      "inputs": {
+        "excel": "$wb",
+        "sheet_name": "$p:sheet_name",
+        "output_type": "letter"
+      }
+    },
+    {
+      "atom": "Excel.delete_excel_comment",
+      "alias": "删除全部批注",
+      "out": {},
+      "inputs": {
+        "excel": "$wb",
+        "delete_all": true,
+        "cell_position": "",
+        "sheet_name": "$p:sheet_name"
+      }
+    },
+    {
+      "atom": "Excel.save_excel",
+      "alias": "另存结果",
+      "out": {},
+      "inputs": {
+        "excel": "$wb",
+        "save_type": "save_as",
+        "exist_handle_type": "overwrite",
+        "close_flag": true,
+        "file_path": "$p:out_dir",
+        "file_name": "$p:out_name"
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "结果写成证据文件",
+      "out": {
+        "write_file_path": "written"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/",
+          "批注与格式_结果.txt"
+        ],
+        "file_option": "create",
+        "msg": [
+          "批注写入单元格：",
+          "$p:cell",
+          "\n单元格颜色(R,G,B)：",
+          "$cell_color",
+          "\n第一个可用列：",
+          "$next_col",
+          "\n批注已删除，结果另存为：",
+          "$p:out_name",
+          ".xlsx"
+        ],
+        "write_type": "overwrite",
+        "encode_type": "utf-8"
+      }
+    }
+  ]
+}

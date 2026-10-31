@@ -1,0 +1,184 @@
+{
+  "name": "Excel复制粘贴与删除小流程",
+  "nl_examples": [
+    "把一块区域复制到别的位置，删掉多余的行和一个工作表",
+    "Excel 复制区域粘贴、删行、删工作表",
+    "表格区域复制粘贴并清理多余行",
+    "Excel 复制粘贴与删除演示"
+  ],
+  "keywords": [
+    "复制单元格",
+    "粘贴单元格",
+    "删除单元格",
+    "删除行",
+    "删除工作表",
+    "复制工作表"
+  ],
+  "params": [
+    {
+      "name": "src_excel",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\订单.xlsx",
+      "describe": "要处理的 Excel"
+    },
+    {
+      "name": "sheet_name",
+      "type": "Str",
+      "default": "Sheet1",
+      "describe": "工作表名"
+    },
+    {
+      "name": "copy_range",
+      "type": "Str",
+      "default": "A1:D2",
+      "describe": "要复制的单元格区域"
+    },
+    {
+      "name": "paste_at",
+      "type": "Str",
+      "default": "F1",
+      "describe": "粘贴起始位置"
+    },
+    {
+      "name": "del_row",
+      "type": "Str",
+      "default": "4",
+      "describe": "要删除的行号"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_excel_out",
+      "describe": "输出目录（不动原文件）"
+    },
+    {
+      "name": "out_name",
+      "type": "Str",
+      "default": "复制粘贴与删除",
+      "describe": "输出文件名（不含扩展名）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "Excel.open_excel",
+      "alias": "打开表格",
+      "out": {
+        "open_excel_obj": "wb"
+      },
+      "inputs": {
+        "file_path": "$p:src_excel",
+        "default_application": "Default",
+        "visible_flag": false,
+        "update_links": false
+      }
+    },
+    {
+      "atom": "Excel.copy_excel",
+      "alias": "复制区域",
+      "out": {
+        "copy_excel_contents": "copied"
+      },
+      "inputs": {
+        "excel": "$wb",
+        "sheet_name": "$p:sheet_name",
+        "copy_range_type": "area",
+        "range_position": "$p:copy_range",
+        "cell_position": "A1",
+        "row": "1",
+        "col": "A"
+      }
+    },
+    {
+      "atom": "Excel.paste_excel",
+      "alias": "粘贴到指定位置",
+      "out": {},
+      "inputs": {
+        "excel": "$wb",
+        "sheet_name": "$p:sheet_name",
+        "paste_type": "all",
+        "start_location": "$p:paste_at",
+        "skip_blanks": false,
+        "transpose": false
+      }
+    },
+    {
+      "atom": "Excel.delete_excel_cell",
+      "alias": "删除整行",
+      "out": {},
+      "inputs": {
+        "excel": "$wb",
+        "sheet_name": "$p:sheet_name",
+        "delete_range_excel": "row",
+        "row": "$p:del_row",
+        "coordinate": "",
+        "col": "",
+        "data_region": "",
+        "direction": "lower_move_up"
+      }
+    },
+    {
+      "atom": "Excel.copy_excel_worksheet",
+      "alias": "复制一个临时工作表",
+      "out": {},
+      "inputs": {
+        "excel": "$wb",
+        "source_sheet_name": "$p:sheet_name",
+        "new_sheet_name": "临时页",
+        "location": "last",
+        "copy_type": "current_workbook",
+        "other_excel_obj": "$wb",
+        "is_cover": false
+      }
+    },
+    {
+      "atom": "Excel.delete_excel_worksheet",
+      "alias": "删除临时工作表",
+      "out": {},
+      "inputs": {
+        "excel": "$wb",
+        "del_sheet_name": "临时页"
+      }
+    },
+    {
+      "atom": "Excel.save_excel",
+      "alias": "另存结果",
+      "out": {},
+      "inputs": {
+        "excel": "$wb",
+        "save_type": "save_as",
+        "exist_handle_type": "overwrite",
+        "close_flag": true,
+        "file_path": "$p:out_dir",
+        "file_name": "$p:out_name"
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "结果写成证据文件",
+      "out": {
+        "write_file_path": "written"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/",
+          "复制粘贴与删除_结果.txt"
+        ],
+        "file_option": "create",
+        "msg": [
+          "复制区域：",
+          "$p:copy_range",
+          " → 粘贴到 ",
+          "$p:paste_at",
+          "\n删除第 ",
+          "$p:del_row",
+          " 行（下方上移）\n临时工作表已建并删除\n结果另存为：",
+          "$p:out_name",
+          ".xlsx"
+        ],
+        "write_type": "overwrite",
+        "encode_type": "utf-8"
+      }
+    }
+  ]
+}
