@@ -234,17 +234,39 @@ def _combo_target(atom, ins, params):
 
 
 def _created_dirs(spec):
-    """规格里会被 `File.create_folder` 节点**自己创建**的目录（避免误报「目录不存在」）。"""
+    """规格里会被流程**自己创建**的目录（避免误报「目录不存在」）。
+
+    覆盖三种写法（坑 117）：
+      1. 原子名里带 create_folder（如 Network.create_folder）
+      2. `Folder.folder_create`：target_path + folder_name
+      3. 任何 `state_type=create` 的节点（File.file_copy / File.file_move /
+         Folder.folder_copy …）——它们的 target 目录会被自动建出来
+    """
     params = {p.get("name"): p for p in (spec.get("params") or [])}
     out = []
+
+    def add_dir(v):
+        if isinstance(v, str) and _is_path(v):
+            out.append(os.path.normcase(os.path.normpath(v)))
+
     for n in spec.get("nodes") or []:
-        if "create_folder" not in (n.get("atom") or ""):
+        atom = n.get("atom") or ""
+        ins = n.get("inputs") or {}
+        if "create_folder" in atom or atom == "Folder.folder_create":
+            for k, raw in ins.items():
+                if any(w in k.lower() for w in ("folder", "path", "dir")):
+                    v = resolve_value(raw, params)
+                    add_dir(v)
+                    # folder_create 还会在 target_path 下建 folder_name 这一级
+                    if atom == "Folder.folder_create":
+                        name = resolve_value(ins.get("folder_name"), params)
+                        if isinstance(v, str) and isinstance(name, str) and name:
+                            add_dir(os.path.join(v, name))
             continue
-        for k, raw in (n.get("inputs") or {}).items():
-            if any(w in k.lower() for w in ("folder", "path", "dir")):
-                v = resolve_value(raw, params)
-                if _is_path(v):
-                    out.append(os.path.normcase(os.path.normpath(v)))
+        if ins.get("state_type") == "create" or ins.get("status_type") == "create":
+            for k, raw in ins.items():
+                if any(w in k.lower() for w in ("target", "folder", "dir")):
+                    add_dir(resolve_value(raw, params))
     return out
 
 
@@ -264,6 +286,13 @@ def check_spec(spec, atom_dict=None, need_gateway=False, gateway_port=13159):
     for it in _iter_path_inputs(spec):
         p = it["value"].rstrip("\\/") or it["value"]
         role = it.get("role") or classify(it["atom"], it["key"], p, it["params"])
+
+        # 流程自己会建的目录（state_type/status_type=create、Folder.folder_create）
+        # 不管它被分类成 in / out 都不该报错（坑 117 / 120）
+        if not os.path.exists(p) and will_create(p):
+            add("ok", "outdir_auto",
+                f"{it['src']} 目录暂不存在，但流程里会自己建：{p}")
+            continue
         # 目录判定优先看「磁盘上真的是不是目录」，其次看有没有扩展名
         is_dir = os.path.isdir(p) or role == "outdir" or (not _is_file_like(p) and role != "in")
 

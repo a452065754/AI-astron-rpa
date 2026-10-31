@@ -39,6 +39,24 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import flow_generator as fg
 
+ROOT = os.path.dirname(HERE)
+
+
+def _load_missing_impl():
+    """读 `docs/atom_missing.json`：字典里有、本机 python_core 没实现的原子。"""
+    p = os.path.join(ROOT, "docs", "atom_missing.json")
+    if not os.path.exists(p):
+        return {}
+    try:
+        with open(p, encoding="utf-8") as f:
+            d = json.load(f)
+        return d.get("missing") or {}
+    except Exception:
+        return {}
+
+
+MISSING_IMPL = _load_missing_impl()
+
 # 常见参数的「怎么写」提示（AI 最容易漏的几个）
 PARAM_HINT = {
     "content": '填模块 id，通常写 "$p:module_id"',
@@ -53,7 +71,17 @@ PARAM_HINT = {
 }
 
 PAIRS = {"Code.ForList": "Code.ForEnd", "Code.If": "Code.IfEnd",
-         "Code.Try": "Code.TryEnd", "Code.While": "Code.WhileEnd"}
+         "Code.Try": "Code.TryEnd", "Code.While": "Code.WhileEnd",
+         "Code.ForDict": "Code.ForDictEnd", "Code.ForStep": "Code.ForStepEnd",
+         "Code.Group": "Code.GroupEnd",
+         # 业务域自带的循环块（没有专属 End 原子，统一用 Code.ForEnd 收尾）
+         # 依据：编译后就是 `for k, v in Excel().loop_excel_content(...):`，见坑 116
+         "Excel.loop_excel_content": "Code.ForEnd",
+         "DataTable.loop_data_table": "Code.ForEnd",
+         "BrowserElement.loop_similar": "Code.ForEnd",
+         # 「IF xxx 存在」类原子本身就是开块，同样用 Code.IfEnd 收尾
+         "File.file_exist": "Code.IfEnd",
+         "Folder.folder_exist": "Code.IfEnd"}
 
 # 元素类参数（要靠 elements 槽位从元素库取真实元素，不能写字面量）
 ELEMENT_TYPES = {"WebPick", "UiaPick", "CvPick", "Pick", "Element"}
@@ -131,6 +159,13 @@ def lint(spec, atoms):
             cand = difflib.get_close_matches(atom_key, list(atoms), n=3, cutoff=0.5)
             err("%s：原子不存在 %r" % (where, atom_key),
                 ("相近的有：" + " / ".join(cand)) if cand else "用 atom_catalog.py 查可用原子")
+            continue
+
+        # 字典里有、但本机 python_core 没实现（版本不一致，跑了必 AttributeError）
+        # 数据来自 `python scripts/atom_impl_check.py` 落盘的 docs/atom_missing.json
+        if atom_key in MISSING_IMPL:
+            err("%s：本机没有实现 %s（%s）" % (where, atom_key, MISSING_IMPL[atom_key]),
+                "换一个原子，或先让平台版本与字典对齐")
             continue
 
         schema = {p.get("key"): p for p in (atom.get("inputList") or []) if isinstance(p, dict)}

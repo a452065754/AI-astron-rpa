@@ -1,0 +1,97 @@
+{
+  "name": "文件批量复制小流程",
+  "nl_examples": [
+    "把这个文件夹里的文件复制到另一个目录",
+    "批量备份文件",
+    "把某个类型的文件都拷过去",
+    "复制文件到指定目录"
+  ],
+  "keywords": [
+    "批量复制",
+    "文件备份",
+    "复制到目录",
+    "拷贝文件"
+  ],
+  "params": [
+    {
+      "name": "in_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_rename_in",
+      "describe": "源文件夹（只扫第一层）"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_copy_out",
+      "describe": "目标文件夹（不存在会自动建）"
+    },
+    {
+      "name": "pattern",
+      "type": "Str",
+      "default": ".txt",
+      "describe": "只复制文件名里包含这个串的文件（留空=全部）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "File.get_file_list",
+      "alias": "列出源文件",
+      "out": {
+        "file_list": "file_list"
+      },
+      "inputs": {
+        "folder_path": "$p:in_dir",
+        "traverse_subfolder": "no",
+        "tempfile_include": false,
+        "output_type": "list",
+        "sort_method": "mtime"
+      }
+    },
+    {
+      "atom": "Code.ForList",
+      "alias": "逐个复制",
+      "out": {
+        "index": "idx",
+        "item": "item"
+      },
+      "inputs": {
+        "list": "$file_list"
+      }
+    },
+    {
+      "atom": "Code.If",
+      "alias": "只要目标类型",
+      "out": {},
+      "inputs": {
+        "args1": "$item",
+        "condition": "in",
+        "args2": "$p:pattern"
+      }
+    },
+    {
+      "atom": "File.file_copy",
+      "alias": "复制到目标目录",
+      "out": {
+        "copy_file_path": "copied"
+      },
+      "inputs": {
+        "file_path": "$item",
+        "target_path": "$p:out_dir",
+        "state_type": "create",
+        "copy_options": "generate"
+      }
+    },
+    {
+      "atom": "Code.IfEnd",
+      "alias": "条件结束",
+      "out": {},
+      "inputs": {}
+    },
+    {
+      "atom": "Code.ForEnd",
+      "alias": "循环结束",
+      "out": {},
+      "inputs": {}
+    }
+  ]
+}

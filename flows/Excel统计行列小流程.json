@@ -1,0 +1,123 @@
+{
+  "name": "Excel统计行列小流程",
+  "nl_examples": [
+    "看看这个Excel有多少行多少列",
+    "统计这个表格的行数列数",
+    "这个Excel里有几个工作表",
+    "读一下表格的基本信息"
+  ],
+  "keywords": [
+    "excel行数",
+    "excel列数",
+    "工作表名称",
+    "表格统计"
+  ],
+  "params": [
+    {
+      "name": "src_excel",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\订单.xlsx",
+      "describe": "要统计的 Excel 文件"
+    },
+    {
+      "name": "sheet_name",
+      "type": "Str",
+      "default": "Sheet1",
+      "describe": "统计哪个工作表（留空=当前活动表）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "Excel.open_excel",
+      "alias": "打开表格",
+      "out": {
+        "open_excel_obj": "wb"
+      },
+      "inputs": {
+        "file_path": "$p:src_excel",
+        "default_application": "Default",
+        "visible_flag": false,
+        "update_links": false
+      }
+    },
+    {
+      "atom": "Excel.get_excel_worksheet_names",
+      "alias": "取全部工作表名",
+      "out": {
+        "sheet_names": "sheets"
+      },
+      "inputs": {
+        "excel": "$wb",
+        "sheet_range": "all"
+      }
+    },
+    {
+      "atom": "Excel.get_excel_row_num",
+      "alias": "取已用行数",
+      "out": {
+        "excel_row_num": "rows"
+      },
+      "inputs": {
+        "excel": "$wb",
+        "sheet_name": "$p:sheet_name",
+        "get_col_type": "all",
+        "col": ""
+      }
+    },
+    {
+      "atom": "Excel.get_excel_col_num",
+      "alias": "取已用列数",
+      "out": {
+        "excel_col_num": "cols"
+      },
+      "inputs": {
+        "excel": "$wb",
+        "sheet_name": "$p:sheet_name",
+        "get_row_type": "all",
+        "row": "",
+        "output_type": "letter"
+      }
+    },
+    {
+      "atom": "Report.print",
+      "alias": "打印工作表列表",
+      "out": {},
+      "inputs": {
+        "report_type": "info",
+        "msg": [
+          "工作表：",
+          "$sheets"
+        ]
+      }
+    },
+    {
+      "atom": "Report.print",
+      "alias": "打印行列数",
+      "out": {},
+      "inputs": {
+        "report_type": "info",
+        "msg": [
+          "已用行数：",
+          "$rows",
+          " · 已用列数：",
+          "$cols"
+        ]
+      }
+    },
+    {
+      "atom": "Excel.close_excel",
+      "alias": "关闭不保存",
+      "out": {},
+      "inputs": {
+        "close_range_flag": "one",
+        "excel": "$wb",
+        "save_type_one": "abort",
+        "save_type_all": "abort",
+        "file_path": "",
+        "file_name": "",
+        "exist_handle_type": "rename",
+        "pkill_flag": false
+      }
+    }
+  ]
+}

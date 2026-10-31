@@ -81,6 +81,11 @@ python scripts/atom_catalog.py --search 拆分           # 按关键词找
 
 原子名写错、参数名写错、枚举值写错，`spec_lint` 都会拦下并给候选——但先查一次能少走两轮。
 
+**注意「字典里有 ≠ 本机能跑」**：服务端字典 357 个，本机 `python_core` 实际只有 291 个实现。
+IE 系 36 个整块缺失（`astronverse.iebrowser` 没装）、`DataTable.sort_table`、`Docx.open_document` 等
+写了必挂 `AttributeError`。选原子前先看 `docs/atom_missing.json`（或跑一次
+`python scripts/atom_impl_check.py` 重新核对），`spec_lint` 也会直接拦。
+
 #### 第 2 步：写规格
 
 写进 `flows/<流程名>.json`，字段 `{name, nl_examples, keywords, params, nodes}`。

@@ -1,0 +1,123 @@
+{
+  "name": "文件按扩展名归档小流程",
+  "nl_examples": [
+    "按文件后缀把文件分到不同子文件夹",
+    "把 .txt 和 .xlsx 各自放到自己的文件夹",
+    "用扩展名给文件分类",
+    "根据后缀自动建文件夹并归类"
+  ],
+  "keywords": [
+    "按扩展名归档",
+    "按后缀分类",
+    "扩展名分文件夹",
+    "后缀归类"
+  ],
+  "params": [
+    {
+      "name": "in_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_archive_in",
+      "describe": "要整理的文件夹（只扫第一层）"
+    },
+    {
+      "name": "out_root",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_archive_in",
+      "describe": "分类子文件夹建在哪个目录下"
+    },
+    {
+      "name": "prefix",
+      "type": "Str",
+      "default": "",
+      "describe": "分类文件夹名前缀（留空=直接叫 txt / xlsx / md）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "File.get_file_list",
+      "alias": "列出待整理文件",
+      "out": {
+        "file_list": "file_list"
+      },
+      "inputs": {
+        "folder_path": "$p:in_dir",
+        "traverse_subfolder": "no",
+        "tempfile_include": false,
+        "output_type": "list",
+        "sort_method": "none"
+      }
+    },
+    {
+      "atom": "Code.ForList",
+      "alias": "逐个文件归档",
+      "out": {
+        "index": "idx",
+        "item": "item"
+      },
+      "inputs": {
+        "list": "$file_list"
+      }
+    },
+    {
+      "atom": "File.file_info",
+      "alias": "取扩展名",
+      "out": {
+        "file_info": "ext"
+      },
+      "inputs": {
+        "file_path": "$item",
+        "info_type": "extension"
+      }
+    },
+    {
+      "atom": "StringProcess.replace_content_in_string",
+      "alias": "去掉扩展名前面的点",
+      "out": {
+        "replaced_content_string": "ext_clean"
+      },
+      "inputs": {
+        "text": "$ext",
+        "replace_type": "string",
+        "replaced_string": ".",
+        "regex_formula": "",
+        "new_value": "",
+        "first_flag": true,
+        "ignore_case_flag": false
+      }
+    },
+    {
+      "atom": "Folder.folder_create",
+      "alias": "建同名的分类文件夹",
+      "out": {
+        "new_folder_path": "target_dir"
+      },
+      "inputs": {
+        "target_path": "$p:out_root",
+        "folder_name": [
+          "$p:prefix",
+          "$ext_clean"
+        ],
+        "exist_options": "skip"
+      }
+    },
+    {
+      "atom": "File.file_move",
+      "alias": "移动进分类文件夹",
+      "out": {
+        "move_file_path": "moved"
+      },
+      "inputs": {
+        "file_path": "$item",
+        "target_folder": "$target_dir",
+        "state_type": "create",
+        "exist_options": "generate"
+      }
+    },
+    {
+      "atom": "Code.ForEnd",
+      "alias": "循环结束",
+      "out": {},
+      "inputs": {}
+    }
+  ]
+}

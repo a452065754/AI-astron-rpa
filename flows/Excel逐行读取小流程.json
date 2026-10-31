@@ -1,0 +1,110 @@
+{
+  "name": "Excel逐行读取小流程",
+  "nl_examples": [
+    "把Excel每一行都读出来打印",
+    "逐行遍历表格内容",
+    "循环读取Excel每一行",
+    "把表格一行一行念出来"
+  ],
+  "keywords": [
+    "循环excel",
+    "逐行读取",
+    "遍历表格",
+    "excel循环"
+  ],
+  "params": [
+    {
+      "name": "src_excel",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\订单.xlsx",
+      "describe": "要遍历的 Excel"
+    },
+    {
+      "name": "sheet_name",
+      "type": "Str",
+      "default": "Sheet1",
+      "describe": "遍历哪个工作表"
+    },
+    {
+      "name": "start_row",
+      "type": "Str",
+      "default": "1",
+      "describe": "从第几行开始"
+    },
+    {
+      "name": "end_row",
+      "type": "Str",
+      "default": "-1",
+      "describe": "到第几行结束（-1=到最后一行）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "Excel.open_excel",
+      "alias": "打开表格",
+      "out": {
+        "open_excel_obj": "wb"
+      },
+      "inputs": {
+        "file_path": "$p:src_excel",
+        "default_application": "Default",
+        "visible_flag": false,
+        "update_links": false
+      }
+    },
+    {
+      "atom": "Excel.loop_excel_content",
+      "alias": "逐行循环",
+      "out": {
+        "key": "pos",
+        "value": "row"
+      },
+      "inputs": {
+        "excel": "$wb",
+        "sheet_name": "$p:sheet_name",
+        "select_type": "row",
+        "start_row": "$p:start_row",
+        "end_row": "$p:end_row",
+        "start_col": "A",
+        "end_col": "-1",
+        "real_text": true,
+        "cell_strip": true
+      }
+    },
+    {
+      "atom": "Report.print",
+      "alias": "打印这一行",
+      "out": {},
+      "inputs": {
+        "report_type": "info",
+        "msg": [
+          "第 ",
+          "$pos",
+          " 行：",
+          "$row"
+        ]
+      }
+    },
+    {
+      "atom": "Code.ForEnd",
+      "alias": "循环结束",
+      "out": {},
+      "inputs": {}
+    },
+    {
+      "atom": "Excel.close_excel",
+      "alias": "关闭不保存",
+      "out": {},
+      "inputs": {
+        "close_range_flag": "one",
+        "excel": "$wb",
+        "save_type_one": "abort",
+        "save_type_all": "abort",
+        "file_path": "",
+        "file_name": "",
+        "exist_handle_type": "rename",
+        "pkill_flag": false
+      }
+    }
+  ]
+}

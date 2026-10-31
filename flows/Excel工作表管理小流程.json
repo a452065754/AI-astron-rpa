@@ -1,0 +1,112 @@
+{
+  "name": "Excel工作表管理小流程",
+  "nl_examples": [
+    "给这个Excel加一个汇总工作表",
+    "新建一个工作表并改名",
+    "在表格里新增一个页签写标题",
+    "Excel加sheet页"
+  ],
+  "keywords": [
+    "新增工作表",
+    "添加sheet",
+    "工作表改名",
+    "excel页签"
+  ],
+  "params": [
+    {
+      "name": "src_excel",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\订单.xlsx",
+      "describe": "要处理的 Excel"
+    },
+    {
+      "name": "new_sheet",
+      "type": "Str",
+      "default": "汇总",
+      "describe": "新工作表的名字"
+    },
+    {
+      "name": "title",
+      "type": "Str",
+      "default": "月度汇总表",
+      "describe": "写在新工作表 A1 的标题文字"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_excel_out",
+      "describe": "输出目录（不动原文件）"
+    },
+    {
+      "name": "out_name",
+      "type": "Str",
+      "default": "加汇总页",
+      "describe": "输出文件名（不含扩展名）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "Excel.open_excel",
+      "alias": "打开表格",
+      "out": {
+        "open_excel_obj": "wb"
+      },
+      "inputs": {
+        "file_path": "$p:src_excel",
+        "default_application": "Default",
+        "visible_flag": false,
+        "update_links": false
+      }
+    },
+    {
+      "atom": "Excel.add_excel_worksheet",
+      "alias": "追加一个临时页签",
+      "out": {},
+      "inputs": {
+        "excel": "$wb",
+        "insert_type": "last",
+        "relative_sheet_name": "",
+        "sheet_name": "临时页签"
+      }
+    },
+    {
+      "atom": "Excel.rename_excel_worksheet",
+      "alias": "改成目标名字",
+      "out": {},
+      "inputs": {
+        "excel": "$wb",
+        "source_sheet_name": "临时页签",
+        "new_sheet_name": "$p:new_sheet"
+      }
+    },
+    {
+      "atom": "Excel.edit_excel",
+      "alias": "写标题",
+      "out": {},
+      "inputs": {
+        "excel": "$wb",
+        "edit_range": "cell",
+        "sheet_name": "$p:new_sheet",
+        "start_col": "A",
+        "start_row": "1",
+        "value": [
+          "$p:title"
+        ],
+        "edit_type": "overwrite"
+      }
+    },
+    {
+      "atom": "Excel.save_excel",
+      "alias": "另存结果",
+      "out": {},
+      "inputs": {
+        "excel": "$wb",
+        "save_type": "save_as",
+        "exist_handle_type": "overwrite",
+        "close_flag": true,
+        "file_path": "$p:out_dir",
+        "file_name": "$p:out_name"
+      }
+    }
+  ]
+}

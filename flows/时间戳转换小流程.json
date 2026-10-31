@@ -1,0 +1,90 @@
+{
+  "name": "时间戳转换小流程",
+  "nl_examples": [
+    "取当前时间并转成时间戳",
+    "把时间戳转成日期",
+    "现在几点，顺便格式化输出",
+    "时间格式转换"
+  ],
+  "keywords": [
+    "时间戳",
+    "当前时间",
+    "时间格式转换",
+    "日期格式化"
+  ],
+  "params": [
+    {
+      "name": "time_format",
+      "type": "Str",
+      "default": "%Y-%m-%d %H:%M:%S",
+      "describe": "取当前时间用的格式"
+    },
+    {
+      "name": "out_format",
+      "type": "Str",
+      "default": "%Y年%m月%d日 %H:%M:%S",
+      "describe": "最终输出的中文格式"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "TimeProcess.get_current_time",
+      "alias": "取当前时间",
+      "out": {
+        "current_time": "now"
+      },
+      "inputs": {
+        "time_format": "$p:time_format"
+      }
+    },
+    {
+      "atom": "TimeProcess.time_to_timestamp",
+      "alias": "转成秒级时间戳",
+      "out": {
+        "converted_timestamp": "ts"
+      },
+      "inputs": {
+        "time": "$now",
+        "timestamp_unit": "second"
+      }
+    },
+    {
+      "atom": "TimeProcess.timestamp_to_time",
+      "alias": "时间戳转回时间对象",
+      "out": {
+        "converted_time": "back"
+      },
+      "inputs": {
+        "timestamp": "$ts",
+        "time_zone": "local"
+      }
+    },
+    {
+      "atom": "TimeProcess.format_datetime",
+      "alias": "格式化成中文",
+      "out": {
+        "format_datetime": "pretty"
+      },
+      "inputs": {
+        "time": "$back",
+        "format_type": "$p:out_format"
+      }
+    },
+    {
+      "atom": "Report.print",
+      "alias": "打印结果",
+      "out": {},
+      "inputs": {
+        "report_type": "info",
+        "msg": [
+          "当前：",
+          "$now",
+          " · 时间戳：",
+          "$ts",
+          " · 还原：",
+          "$pretty"
+        ]
+      }
+    }
+  ]
+}

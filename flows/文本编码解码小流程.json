@@ -1,0 +1,110 @@
+{
+  "name": "文本编码解码小流程",
+  "nl_examples": [
+    "把这段文字做base64编码再解回来",
+    "算一下这段文本的MD5",
+    "生成文本的SHA256摘要",
+    "文本编码转换"
+  ],
+  "keywords": [
+    "base64编码",
+    "base64解码",
+    "md5加密",
+    "sha加密",
+    "文本摘要"
+  ],
+  "params": [
+    {
+      "name": "text",
+      "type": "Str",
+      "default": "星辰RPA自动化测试",
+      "describe": "要编码/加密的文本"
+    },
+    {
+      "name": "sha_method",
+      "type": "Str",
+      "default": "sha256",
+      "describe": "SHA 算法（sha1 / sha256 / sha512 …）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "Encrypt.base64_encoding",
+      "alias": "Base64编码",
+      "out": {
+        "encoded_string": "b64"
+      },
+      "inputs": {
+        "encode_type": "string",
+        "string_data": "$p:text",
+        "file_path": ""
+      }
+    },
+    {
+      "atom": "Encrypt.base64_decoding",
+      "alias": "Base64解码回原文",
+      "out": {
+        "decoded_string": "plain"
+      },
+      "inputs": {
+        "decode_type": "string",
+        "string_data": "$b64",
+        "file_path": "",
+        "file_name": "",
+        "exist_handle_type": "rename"
+      }
+    },
+    {
+      "atom": "Encrypt.md5_encrypt",
+      "alias": "算MD5",
+      "out": {
+        "md5_encrypted_result": "md5"
+      },
+      "inputs": {
+        "source_str": "$p:text",
+        "md5_method": "32",
+        "case_method": "lower"
+      }
+    },
+    {
+      "atom": "Encrypt.sha_encrypt",
+      "alias": "算SHA摘要",
+      "out": {
+        "sha_encrypted_result": "sha"
+      },
+      "inputs": {
+        "source_str": "$p:text",
+        "sha_method": "$p:sha_method",
+        "case_method": "lower"
+      }
+    },
+    {
+      "atom": "Report.print",
+      "alias": "打印编码结果",
+      "out": {},
+      "inputs": {
+        "report_type": "info",
+        "msg": [
+          "Base64：",
+          "$b64",
+          " → 解码：",
+          "$plain"
+        ]
+      }
+    },
+    {
+      "atom": "Report.print",
+      "alias": "打印摘要",
+      "out": {},
+      "inputs": {
+        "report_type": "info",
+        "msg": [
+          "MD5：",
+          "$md5",
+          " · SHA：",
+          "$sha"
+        ]
+      }
+    }
+  ]
+}

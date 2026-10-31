@@ -20,6 +20,9 @@ docs/atom_coverage_report.json
 docs/element-locator-map.json
 docs/relocate-report.json
 
+# 每次落库都会把旧的主流程快照存到这里（本地留档即可，不进仓库）
+flows/_archive/
+
 # ============ 临时 / 锁文件 ============
 .dsh-tmp-*.py
 ~$*

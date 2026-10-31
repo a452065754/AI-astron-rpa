@@ -1,0 +1,96 @@
+{
+  "name": "Excel转JSON小流程",
+  "nl_examples": [
+    "把这个Excel转成JSON",
+    "表格数据导出成json",
+    "把xlsx内容转成json给程序用",
+    "Excel导出JSON"
+  ],
+  "keywords": [
+    "excel转json",
+    "导出json",
+    "表格转json",
+    "xlsx转json"
+  ],
+  "params": [
+    {
+      "name": "src_excel",
+      "type": "Str",
+      "default": "F://AI-Workbench//10-Projects//星辰开源//demo//订单.xlsx",
+      "describe": "源 Excel"
+    },
+    {
+      "name": "sheet_name",
+      "type": "Str",
+      "default": "Sheet1",
+      "describe": "转哪个工作表"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F://AI-Workbench//10-Projects//星辰开源//demo//_excel_out",
+      "describe": "输出目录"
+    },
+    {
+      "name": "out_name",
+      "type": "Str",
+      "default": "订单数据",
+      "describe": "输出文件名（不含扩展名，会自动补 .json）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "DataTable.import_data_table_from_file",
+      "alias": "把Excel读进数据表",
+      "out": {},
+      "inputs": {
+        "import_file_path": "$p:src_excel",
+        "sheet_name": "$p:sheet_name"
+      }
+    },
+    {
+      "atom": "DataTable.get_max_row",
+      "alias": "看有多少行",
+      "out": {
+        "max_row": "rows"
+      },
+      "inputs": {}
+    },
+    {
+      "atom": "DataTable.get_max_column",
+      "alias": "看有多少列",
+      "out": {
+        "max_column": "cols"
+      },
+      "inputs": {}
+    },
+    {
+      "atom": "Report.print",
+      "alias": "打印规模",
+      "out": {},
+      "inputs": {
+        "report_type": "info",
+        "msg": [
+          "读到 ",
+          "$rows",
+          " 行 × ",
+          "$cols",
+          " 列"
+        ]
+      }
+    },
+    {
+      "atom": "DataTable.export_data_table_to_file",
+      "alias": "导出为JSON",
+      "out": {
+        "export_file_path": "exported"
+      },
+      "inputs": {
+        "export_dest_path": "$p:out_dir",
+        "export_file_name": "$p:out_name",
+        "export_file_type": "json",
+        "is_overwrite": true
+      }
+    }
+  ]
+}

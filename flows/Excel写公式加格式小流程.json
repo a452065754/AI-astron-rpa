@@ -1,0 +1,141 @@
+{
+  "name": "Excel写公式加格式小流程",
+  "nl_examples": [
+    "给这个表格加一列计算公式",
+    "把表头加粗居中",
+    "Excel批量写公式并美化表头",
+    "表格加合计列并设置格式"
+  ],
+  "keywords": [
+    "excel公式",
+    "插入公式",
+    "表头加粗",
+    "单元格格式",
+    "列宽自适应"
+  ],
+  "params": [
+    {
+      "name": "src_excel",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\订单.xlsx",
+      "describe": "要处理的 Excel"
+    },
+    {
+      "name": "sheet_name",
+      "type": "Str",
+      "default": "Sheet1",
+      "describe": "在哪个工作表上操作"
+    },
+    {
+      "name": "formula",
+      "type": "Str",
+      "default": "=B2*C2",
+      "describe": "要写入的公式（从第 2 行开始往下填充）"
+    },
+    {
+      "name": "target_col",
+      "type": "Str",
+      "default": "D",
+      "describe": "公式写到哪一列（字母）"
+    },
+    {
+      "name": "header_row",
+      "type": "Str",
+      "default": "1",
+      "describe": "表头在第几行（这一行会被加粗居中）"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_excel_out",
+      "describe": "输出目录（不动原文件）"
+    },
+    {
+      "name": "out_name",
+      "type": "Str",
+      "default": "公式与格式",
+      "describe": "输出文件名（不含扩展名）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "Excel.open_excel",
+      "alias": "打开表格",
+      "out": {
+        "open_excel_obj": "wb"
+      },
+      "inputs": {
+        "file_path": "$p:src_excel",
+        "default_application": "Default",
+        "visible_flag": false,
+        "update_links": false
+      }
+    },
+    {
+      "atom": "Excel.insert_formula",
+      "alias": "写入公式并向下填充",
+      "out": {},
+      "inputs": {
+        "excel": "$wb",
+        "sheet_name": "$p:sheet_name",
+        "insert_direction": "down",
+        "col": "$p:target_col",
+        "start_row": "2",
+        "end_row": "-1",
+        "row": "",
+        "start_col": "A",
+        "end_col": "-1",
+        "formula": "$p:formula"
+      }
+    },
+    {
+      "atom": "Excel.design_cell_type",
+      "alias": "表头加粗居中",
+      "out": {},
+      "inputs": {
+        "excel": "$wb",
+        "sheet_name": "$p:sheet_name",
+        "design_type": "row",
+        "cell_position": "",
+        "range_position": "",
+        "col": "",
+        "row": "$p:header_row",
+        "font_type": "bold",
+        "font_name": "微软雅黑",
+        "font_size": 11,
+        "numberformat": "no_change",
+        "horizontal_align": "center",
+        "vertical_align": "middle",
+        "wrap_text": false,
+        "auto_row_height": true,
+        "auto_column_width": true,
+        "col_width": ""
+      }
+    },
+    {
+      "atom": "Excel.excel_set_col_width",
+      "alias": "公式列宽自适应",
+      "out": {},
+      "inputs": {
+        "excel_obj": "$wb",
+        "sheet_name": "$p:sheet_name",
+        "set_type": "auto",
+        "col": "$p:target_col",
+        "width": ""
+      }
+    },
+    {
+      "atom": "Excel.save_excel",
+      "alias": "另存结果",
+      "out": {},
+      "inputs": {
+        "excel": "$wb",
+        "save_type": "save_as",
+        "exist_handle_type": "overwrite",
+        "close_flag": true,
+        "file_path": "$p:out_dir",
+        "file_name": "$p:out_name"
+      }
+    }
+  ]
+}

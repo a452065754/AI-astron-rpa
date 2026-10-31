@@ -1,0 +1,116 @@
+{
+  "name": "列表与文本处理小流程",
+  "nl_examples": [
+    "把这段逗号分隔的文字去重排序再合并回来",
+    "文本拆成列表处理后拼回去",
+    "标签去重并排序",
+    "列表去重排序"
+  ],
+  "keywords": [
+    "列表去重",
+    "列表排序",
+    "文本分割",
+    "列表合并",
+    "标签整理"
+  ],
+  "params": [
+    {
+      "name": "text",
+      "type": "Str",
+      "default": "苹果,香蕉,苹果,橙子,香蕉,西瓜",
+      "describe": "要处理的文本（会被分割成列表）"
+    },
+    {
+      "name": "separator",
+      "type": "Str",
+      "default": ",",
+      "describe": "分割符"
+    },
+    {
+      "name": "out_separator",
+      "type": "Str",
+      "default": " / ",
+      "describe": "合并回去时用的连接符"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "StringProcess.split_string_to_list",
+      "alias": "按分隔符拆成列表",
+      "out": {
+        "split_list_from_string": "parts"
+      },
+      "inputs": {
+        "string_data": "$p:text",
+        "separator": "$p:separator"
+      }
+    },
+    {
+      "atom": "ListProcess.get_unique_list",
+      "alias": "列表去重",
+      "out": {
+        "unique_list_data": "uniq"
+      },
+      "inputs": {
+        "list_data": "$parts"
+      }
+    },
+    {
+      "atom": "ListProcess.sort_list",
+      "alias": "升序排序",
+      "out": {
+        "sorted_list_data": "sorted"
+      },
+      "inputs": {
+        "list_data": "$uniq",
+        "sort_method": "asc"
+      }
+    },
+    {
+      "atom": "ListProcess.get_length_of_list",
+      "alias": "数一下有几项",
+      "out": {
+        "get_list_length": "count"
+      },
+      "inputs": {
+        "list_data": "$sorted"
+      }
+    },
+    {
+      "atom": "StringProcess.merge_list_to_string",
+      "alias": "合并回文本",
+      "out": {
+        "merged_string_from_list": "joined"
+      },
+      "inputs": {
+        "list_data": "$sorted",
+        "separator": "$p:out_separator"
+      }
+    },
+    {
+      "atom": "StringProcess.change_case_of_string",
+      "alias": "转大写（英文场景用）",
+      "out": {
+        "change_case_string": "upper"
+      },
+      "inputs": {
+        "string_data": "$joined",
+        "case_type": "upper"
+      }
+    },
+    {
+      "atom": "Report.print",
+      "alias": "打印结果",
+      "out": {},
+      "inputs": {
+        "report_type": "info",
+        "msg": [
+          "去重后 ",
+          "$count",
+          " 项：",
+          "$joined"
+        ]
+      }
+    }
+  ]
+}

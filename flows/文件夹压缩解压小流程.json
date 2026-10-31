@@ -1,0 +1,86 @@
+{
+  "name": "文件夹压缩解压小流程",
+  "nl_examples": [
+    "把这个文件夹压缩成zip",
+    "把目录打成压缩包再解压验证",
+    "文件夹打包成压缩文件",
+    "压缩文件夹"
+  ],
+  "keywords": [
+    "压缩文件夹",
+    "打包zip",
+    "解压",
+    "压缩包"
+  ],
+  "params": [
+    {
+      "name": "src_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_folder_in",
+      "describe": "要压缩的文件夹"
+    },
+    {
+      "name": "zip_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_zip_out",
+      "describe": "压缩包放在哪个目录（不存在会自动建）"
+    },
+    {
+      "name": "zip_name",
+      "type": "Str",
+      "default": "打包结果",
+      "describe": "压缩包文件名（不含扩展名）"
+    },
+    {
+      "name": "unzip_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_unzip_out",
+      "describe": "解压到哪个目录（用来验证压缩包可用）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "System.compress",
+      "alias": "压缩文件夹",
+      "out": {
+        "compress_path": "zip_path"
+      },
+      "inputs": {
+        "file_type": "folder",
+        "file_path": "",
+        "folder_path": "$p:src_dir",
+        "compress_dir": "$p:zip_dir",
+        "state_type": "create",
+        "compress_name": "$p:zip_name",
+        "save_type": "save"
+      }
+    },
+    {
+      "atom": "System.uncompress",
+      "alias": "解压验证",
+      "out": {
+        "uncompress_path": "unzip_path"
+      },
+      "inputs": {
+        "source_path": "$zip_path",
+        "target_path": "$p:unzip_dir",
+        "status_type": "create",
+        "save_type": "save"
+      }
+    },
+    {
+      "atom": "Report.print",
+      "alias": "打印产物路径",
+      "out": {},
+      "inputs": {
+        "report_type": "info",
+        "msg": [
+          "压缩包：",
+          "$zip_path",
+          " · 解压到：",
+          "$unzip_path"
+        ]
+      }
+    }
+  ]
+}

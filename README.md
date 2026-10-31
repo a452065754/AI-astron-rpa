@@ -70,7 +70,7 @@ python scripts/ai_flow.py --spec flows/<流程>.json --stage publish --version 1
 │   └── mod_*.py              # Python 子流程实现（PDF 版面还原 / OCR / 文件夹整理 / Excel 拆表）
 ├── mcp/server.py             # MCP 服务（零依赖，stdio JSON-RPC）
 ├── skill/astron-rpa-flow/    # 技能包（AI 操作手册）
-├── flows/                    # 14 条流程规格（契约文件）
+├── flows/                    # 35 条流程规格（契约文件）
 ├── docs/                     # 交接清单、开发进度、部署与 MCP 文档、评审单
 └── demo/                     # 演示数据与实测产物
 ```
@@ -95,7 +95,20 @@ python scripts/ai_flow.py --spec flows/<流程>.json --stage publish --version 1
 | **文件批量重命名** | 按序号统一改名 |
 | **HTTP 请求** | 调用接口并把响应存成文件 |
 | **网页填写输入框** | 打开网页填写指定输入框（需先拾取元素） |
+| **Excel 统计行列** | 读工作表名、已用行数、已用列数并打印 |
+| **Excel 写公式加格式** | 公式向下填充（自动调整相对引用）+ 表头加粗居中 + 列宽自适应 |
+| **Excel 工作表管理** | 新增页签、改名、写标题后另存 |
+| **Excel 逐行读取** | 循环遍历表格每一行（`loop_excel_content`） |
+| **Excel 转 JSON** | 表格数据导出成 JSON（走数据表导入/导出） |
+| **文件按扩展名归档** | 按后缀建子目录并归类（纯原子，无 Python 子流程） |
+| **文件批量复制** / **文件夹批量复制** | 批量拷贝到目标目录（目录不存在自动建） |
+| **列表与文本处理** | 分割 → 去重 → 排序 → 计数 → 合并 → 大小写 |
+| **文本编码解码** | Base64 编/解、MD5、SHA 摘要 |
+| **时间戳转换** | 当前时间 ⇄ 时间戳 ⇄ 指定格式文本 |
 | Excel 订单表导出 / 文本文件转存 / 网页元素点击 | 基础原子流程 |
+
+> 原子覆盖率：357 个原子中已用 **74 个（20.7%）**。`python scripts/coverage_report.py` 随时看缺口；
+> `python scripts/atom_impl_check.py` 核对「字典里有但本机没实现」的原子（当前 39 个，IE 系整块缺失）。
 
 ## 文档
 
