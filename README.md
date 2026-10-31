@@ -16,27 +16,47 @@
 
 ## 快速开始
 
+### 一句话安装（推荐）
+
 ```bash
-# 1. 配置（唯一需要改的地方）
-cp rpa_config.example.json rpa_config.json   # 填 gateway / api_key / 客户端 Python 路径
+git clone https://github.com/a452065754/AI-astron-rpa.git
+cd AI-astron-rpa
+python scripts/install.py                        # 装依赖 + 技能包 + MCP + 自检
+python scripts/install.py --key <API_KEY> --host <host:port>   # 拿到 Key 后补配置
+```
 
-# 2a. 用规格文件跑一条流程（生成→校验→真跑→评审单）
-python scripts/ai_flow.py --spec flows/Excel按条件拆表小流程.json
+装完就能直接说人话了：
 
-# 2b. 或者直接说人话，自动匹配已有流程并抽取参数
+```bash
 python scripts/ai_flow.py --nl "把这张表按部门拆成多个文件"
+```
 
-# 3. 人工评审通过后发布版本
-python scripts/ai_flow.py --spec flows/<流程>.json --stage publish --version 1
+### 手工方式
+
+```bash
+cp rpa_config.example.json rpa_config.json   # 填 gateway / api_key / 客户端 Python 路径
+python scripts/ai_flow.py --spec flows/Excel按条件拆表小流程.json
+python scripts/ai_flow.py --spec flows/<流程>.json --stage publish --version 1   # 评审通过后发布
 ```
 
 产出：`docs/generated_flow.json`（编译结果）+ `docs/reviews/<时间>_<流程>.md`（评审单）。
+
+## 三种用法
+
+| 入口 | 适合 | 说明 |
+| --- | --- | --- |
+| 命令行 `scripts/*.py` | 人 / CI | 工具链本体 |
+| 技能包 `skill/astron-rpa-flow/` | WorkBuddy 等 AI 助手 | 说一句话让 AI 全流程代办 |
+| MCP 服务 `mcp/server.py` | 任何 MCP 客户端 | 8 个工具：setup / doctor / list / generate / run / publish / invoke / make_module |
+
+详见 [技能包与 MCP](docs/MCP与技能包.md)。
 
 ## 目录结构
 
 ```
 星辰开源/
 ├── scripts/
+│   ├── install.py            # 一键安装（依赖 / 配置 / 技能包 / MCP / 自检）
 │   ├── ai_flow.py            # 交付流水线：生成→校验→预检→落库→真跑→评审单→发布
 │   ├── flow_generator.py     # 规格 → process_content（真实原子 schema 校验）
 │   ├── nl_params.py          # 从自然语言抽具体参数（路径/页码/输出名/批量识别）
@@ -45,8 +65,10 @@ python scripts/ai_flow.py --spec flows/<流程>.json --stage publish --version 1
 │   ├── publish_flow.py       # 落库、发布、登记 openapi
 │   ├── make_module.py        # 本地 .py → 平台 Python 子流程模块
 │   └── mod_*.py              # Python 子流程实现（PDF 版面还原 / OCR / 文件夹整理 / Excel 拆表）
+├── mcp/server.py             # MCP 服务（零依赖，stdio JSON-RPC）
+├── skill/astron-rpa-flow/    # 技能包（AI 操作手册）
 ├── flows/                    # 14 条流程规格（契约文件）
-├── docs/                     # 交接清单、开发进度、架构文档、评审单
+├── docs/                     # 交接清单、开发进度、部署与 MCP 文档、评审单
 └── demo/                     # 演示数据与实测产物
 ```
 
@@ -66,6 +88,7 @@ python scripts/ai_flow.py --spec flows/<流程>.json --stage publish --version 1
 ## 文档
 
 - [**部署使用文档**](docs/部署使用文档.md) —— **换到另一台电脑怎么装、怎么配、怎么跑（先看这篇）**
+- [**技能包与 MCP**](docs/MCP与技能包.md) —— 一句话安装、AI 自动生成流程、8 个 MCP 工具
 - [交接清单](docs/交接清单.md) —— 制品地图、环境信息、已知现象、红线
 - [开发进度](docs/开发进度.md) —— 逐条踩坑记录与验证结论
 - [架构设计](docs/架构设计-RPA引擎.md) —— RPA 引擎结构

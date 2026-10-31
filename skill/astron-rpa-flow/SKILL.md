@@ -1,0 +1,143 @@
+---
+name: astron-rpa-flow
+description: 把一句自然语言需求变成可离线运行的固定 RPA 流程（Astron RPA / 星辰 RPA）。触发场景：用户说「帮我用 RPA 做 XX」「自然语言生成 RPA 流程」「让 AI 操作 RPA」「把这张表按部门拆开」「把这个文件夹的 PDF 都转成 Word」「RPA 流程生成」「astron-rpa」「星辰开源 RPA」，或要求安装/配置/调试这套 RPA 工具链时。也用于换电脑后的环境自检、API Key 配置、Python 子流程模块重建。
+agent_created: true
+---
+
+# 自然语言 → 固定 RPA 流程
+
+把用户的**一句话**变成一条能在 Astron RPA 设计器里独立运行的固定流程。
+流程搭好后**不需要 AI**，这是本技能的交付标准。
+
+## 第 0 步：找到项目在哪（每次会话先做）
+
+```bash
+# 技能安装时会写一个 PROJECT_ROOT.txt，里面是仓库绝对路径
+cat ~/.workbuddy-ai/skills/astron-rpa-flow/PROJECT_ROOT.txt
+```
+
+拿到路径后 `cd` 进去，**后面所有命令都在项目根目录执行**。
+找不到这个文件时：问用户仓库在哪，或搜索 `ai_flow.py`。
+
+## 第 1 步：判断现在处于哪个阶段
+
+| 用户说什么 | 你要做 |
+| --- | --- |
+| 「帮我装这个项目」/ 刚 clone 下来 | 跑 `python scripts/install.py`，然后要 Key |
+| 「Key 是 xxx」 | 跑 `python scripts/install.py --key xxx --host h:p --robot-id id` |
+| 「帮我做个 XX 流程」 | 走第 3 步 |
+| 「跑不通 / 报错」 | 先 `python scripts/doctor.py`，按 `→` 提示修 |
+
+## 第 2 步：装 + 配（只有第一次）
+
+```bash
+# 装依赖 + 技能包 + MCP 登记 + 自检
+python scripts/install.py
+
+# 用户发来 Key 之后
+python scripts/install.py --key <API_KEY> --host 192.168.76.130:32742 --robot-id <robotId>
+```
+
+装完必须看到自检没有 ❌。常见红灯与修法（脚本会直接打印）：
+
+- `客户端 conf.yaml ❌` → 没装设计器，或设 `RPA_CLIENT_CONF` 指到 conf.yaml
+- `登录态 ❌` → 让用户打开设计器登录一次
+- `本地网关 ⚠️` → 设计器没启动（只影响本地真跑，落库仍可）
+- `目标机器人 ❌` → 改 `defaults.robot_id`
+
+> **Key 只在用户主动发来时使用，不要编造、不要写进聊天记录之外的地方。**
+> 配置写进 `rpa_config.json`（已在 `.gitignore`，不会入库）。
+
+## 第 3 步：把需求变成流程（核心）
+
+### 3.1 先看有没有现成的（**必须做，别急着自己拼**）
+
+```bash
+python scripts/ai_flow.py --nl "<用户原话>" --stage draft
+```
+
+- **命中已有规格** → 输出会写 `匹配度 x.xx`。先跑 `--stage draft` 让用户确认是不是这条，
+  再跑完整链路（第 4 步）。
+- **没命中**（打印「没听懂这句话」+ 流程清单）→ 进 3.2 自己拆解。
+
+### 3.2 自己拆解成节点（没命中时）
+
+**严格遵守能力降级顺序**，不要一上来就写 Python：
+
+| 顺序 | 手段 | 什么时候用 |
+| --- | --- | --- |
+| ① | **现有原子** | 能用原子拼出来就用（`Excel.*` / `File.*` / `Word.*` / `PDF.*` / `Browser.*`） |
+| ② | **Python 子流程** | 原子做不到（如「分组后输出多个文件」这种一次写多个目标） |
+| ③ | **新原子** | 前两条都不行，且用户明确同意才考虑 |
+
+写规格时注意（都是踩过的坑）：
+
+1. **规格就是契约**：写进 `flows/<流程名>.json`，字段 `{name, nl_examples, keywords, params, nodes}`。
+2. **循环块结束标记是 `Code.ForEnd`**，不是 `Code.ForListEnd`（写错会编译成 `None(...)` 塞进循环体）。
+3. **循环变量传进子流程要写 `"$var:item"`**，纯字符串永远是字面量。
+4. **`Script.module` 的 `module_id` 做成流程参数**（不要写死在节点里），换环境才不用改流程。
+5. **`keywords` 决定自然语言能否命中**：放用户真会说的词，不要放「批量/文件夹」这类会误伤的歧义词。
+6. 写完先 `--stage draft` 校验，`IS_PASS: YES` 才继续。
+
+### 3.3 需要新的 Python 子流程时
+
+```bash
+# 1) 写 .py 到 scripts/mod_xxx.py，函数签名固定为 main(args) -> dict
+# 2) 建机器人 + 上传模块 + 把 module_id 写回规格（一条命令）
+python scripts/make_module.py --py scripts/mod_xxx.py --new-robot "<流程名>" \
+  --name "<模块名>" --spec flows/<流程名>.json
+```
+
+模块**按机器人隔离**：跨机器人引用别人的 `module_id` 会得到 `None`，报「无法导入模块 .None」。
+换环境 / 换机器人**必须重建**。
+
+## 第 4 步：跑完整链路并交付
+
+```bash
+python scripts/ai_flow.py --spec flows/<流程>.json --robot-id <robotId>
+```
+
+它一次做完：结构校验 → 运行前预检 → 写入机器人**主流程** → 本地真跑 → 生成评审单。
+
+看到 `✅ 已就绪，等你人工评审` 才算交付。然后把评审单路径给用户，并说清：
+
+1. 去设计器哪个机器人、点「编辑」、点「运行」；
+2. 要确认哪几件事（能跑通 / 输入对 / 输出对 / 没残留窗口和 `~$` 锁文件）。
+
+## 第 5 步：评审通过后发布 / 调用
+
+```bash
+# 发布版本（必须人工评审通过后才做）
+python scripts/ai_flow.py --spec flows/<流程>.json --stage publish --version N
+
+# 用 API Key 直接触发（不经过界面）
+python scripts/ai_flow.py --spec flows/<流程>.json --stage invoke --params '{"src_excel":"D:/x.xlsx"}'
+```
+
+## 硬性规则（违反就等于没交付）
+
+- **不猜**：听不懂就列出现有流程让用户改说法，**绝不静默跑成别的流程**。
+- **不跳校验**：任何流程都必须 `IS_PASS: YES` + 本地真跑 SUCCESS 才能交给用户评审。
+- **批量要明说**：用户说「整个文件夹都转」而流程是单文件的，**主动拦下并说明**，不要只处理一个文件装没事。
+- **核心目的不偏移**：用户要的是「自然语言 → 固定 RPA 流程」，不是把某个示例流程调通。
+- **不动服务端**：这套工具是外挂，不装插件、不改数据库、不重编镜像。
+- **凭据不外泄**：Key 只写 `rpa_config.json`；不要打印全文，不要提交到 git。
+
+## 常见报错对照
+
+| 报错 | 真因 | 处理 |
+| --- | --- | --- |
+| `无法导入模块 .None` | 模块按机器人隔离，引用了别人的 module_id | `make_module.py --robot <目标id>` 重建 |
+| `本地网关 127.0.0.1:13159 未监听` | 设计器没启动 | 启动客户端，或 `--no-run` |
+| `找不到设计器 cookie 文件` | 没登录过 | 打开设计器登录一次 |
+| 首次点开子流程弹一次错 | 客户端首次编译 venvs 的时序 | 正常现象，刷新即可（不是缺陷） |
+| `MemoryError`（批量） | 图片/数组没释放 | 循环体里 `im.close()` + `del` + `gc.collect()` |
+| 说「都转成 Word」被拦 | 批量意图 vs 单文件流程 | 用 `批量PDF版面还原小流程`，或加 `--skip-batch-check` |
+
+## 也可以走 MCP（可选）
+
+如果客户端支持 MCP，装了本项目后可直接调这些工具，不必手敲命令：
+
+`rpa_setup` / `rpa_doctor` / `rpa_list_flows` / `rpa_generate` / `rpa_run` / `rpa_publish` / `rpa_invoke` / `rpa_make_module`
+
+配置见 `docs/MCP与技能包.md`。
