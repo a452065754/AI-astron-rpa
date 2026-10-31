@@ -1,0 +1,133 @@
+{
+  "name": "Excel文本数字互转小流程",
+  "nl_examples": [
+    "把Excel里的数字转成文本格式",
+    "表格区域文本转数字",
+    "数字和文本格式互转并另存",
+    "Excel格式转换"
+  ],
+  "keywords": [
+    "数字转文本",
+    "文本转数字",
+    "excel格式转换",
+    "首个可用行"
+  ],
+  "params": [
+    {
+      "name": "src_excel",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\订单.xlsx",
+      "describe": "要处理的 Excel"
+    },
+    {
+      "name": "sheet_name",
+      "type": "Str",
+      "default": "Sheet1",
+      "describe": "在哪个工作表上操作"
+    },
+    {
+      "name": "to_number_range",
+      "type": "Str",
+      "default": "C2:D4",
+      "describe": "文本转数字的区域"
+    },
+    {
+      "name": "to_text_range",
+      "type": "Str",
+      "default": "C2:D4",
+      "describe": "数字转文本的区域"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_excel_out",
+      "describe": "输出目录（不动原文件）"
+    },
+    {
+      "name": "out_name",
+      "type": "Str",
+      "default": "格式转换",
+      "describe": "输出文件名（不含扩展名）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "Excel.open_excel",
+      "alias": "打开表格",
+      "out": {
+        "open_excel_obj": "wb"
+      },
+      "inputs": {
+        "file_path": "$p:src_excel",
+        "default_application": "Default",
+        "visible_flag": false,
+        "update_links": false
+      }
+    },
+    {
+      "atom": "Excel.excel_text_to_number",
+      "alias": "区域文本转数字",
+      "out": {},
+      "inputs": {
+        "excel_obj": "$wb",
+        "sheet_name": "$p:sheet_name",
+        "select_type": "area",
+        "cell_position": "",
+        "row": "",
+        "col": "",
+        "range_location": "$p:to_number_range"
+      }
+    },
+    {
+      "atom": "Excel.excel_number_to_text",
+      "alias": "区域数字转文本",
+      "out": {},
+      "inputs": {
+        "excel_obj": "$wb",
+        "sheet_name": "$p:sheet_name",
+        "select_type": "area",
+        "cell_position": "",
+        "row": "",
+        "col": "",
+        "range_location": "$p:to_text_range"
+      }
+    },
+    {
+      "atom": "Excel.get_excel_first_available_row",
+      "alias": "看下一个空行在哪",
+      "out": {
+        "get_first_available_row": "next_row"
+      },
+      "inputs": {
+        "excel": "$wb",
+        "sheet_name": "$p:sheet_name"
+      }
+    },
+    {
+      "atom": "Excel.save_excel",
+      "alias": "另存结果",
+      "out": {},
+      "inputs": {
+        "excel": "$wb",
+        "save_type": "save_as",
+        "exist_handle_type": "overwrite",
+        "close_flag": true,
+        "file_path": "$p:out_dir",
+        "file_name": "$p:out_name"
+      }
+    },
+    {
+      "atom": "Report.print",
+      "alias": "打印下一个可用行",
+      "out": {},
+      "inputs": {
+        "report_type": "info",
+        "msg": [
+          "下一个可用行：第 ",
+          "$next_row",
+          " 行"
+        ]
+      }
+    }
+  ]
+}

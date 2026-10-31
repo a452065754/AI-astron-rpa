@@ -1,0 +1,129 @@
+{
+  "name": "加解密与时间差小流程",
+  "nl_examples": [
+    "把这段文字用密码加密再解密",
+    "对称加解密并算七天后的时间差",
+    "文本加密解密 + 时间加减",
+    "对称加密演示"
+  ],
+  "keywords": [
+    "对称加密",
+    "对称解密",
+    "时间差",
+    "时间加减"
+  ],
+  "params": [
+    {
+      "name": "text",
+      "type": "Str",
+      "default": "星辰RPA机密内容",
+      "describe": "要加密的文本"
+    },
+    {
+      "name": "password",
+      "type": "Str",
+      "default": "rpa-demo-key",
+      "describe": "加解密口令"
+    },
+    {
+      "name": "add_days",
+      "type": "Str",
+      "default": "7",
+      "describe": "往后推几天"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "Encrypt.symmetric_encrypt",
+      "alias": "对称加密",
+      "out": {
+        "symmetric_encrypted_result": "enc"
+      },
+      "inputs": {
+        "source_str": "$p:text",
+        "password": "$p:password"
+      }
+    },
+    {
+      "atom": "Encrypt.symmetric_decrypt",
+      "alias": "对称解密",
+      "out": {
+        "symmetric_decrypted_result": "dec"
+      },
+      "inputs": {
+        "source_str": "$enc",
+        "password": "$p:password"
+      }
+    },
+    {
+      "atom": "TimeProcess.get_current_time",
+      "alias": "取当前时间",
+      "out": {
+        "current_time": "now"
+      },
+      "inputs": {
+        "time_format": "%Y-%m-%d %H:%M:%S"
+      }
+    },
+    {
+      "atom": "TimeProcess.set_time",
+      "alias": "往后推几天",
+      "out": {
+        "set_time": "later"
+      },
+      "inputs": {
+        "time": "$now",
+        "change_type": "add",
+        "seconds": 0,
+        "minutes": 0,
+        "hours": 0,
+        "days": "$p:add_days",
+        "months": 0,
+        "years": 0
+      }
+    },
+    {
+      "atom": "TimeProcess.get_time_difference",
+      "alias": "算两个时间的差",
+      "out": {
+        "time_difference": "diff"
+      },
+      "inputs": {
+        "time_1": "$later",
+        "time_2": "$now",
+        "time_unit": "day"
+      }
+    },
+    {
+      "atom": "Report.print",
+      "alias": "打印加解密结果",
+      "out": {},
+      "inputs": {
+        "report_type": "info",
+        "msg": [
+          "密文：",
+          "$enc",
+          " · 解密回来：",
+          "$dec"
+        ]
+      }
+    },
+    {
+      "atom": "Report.print",
+      "alias": "打印时间差",
+      "out": {},
+      "inputs": {
+        "report_type": "info",
+        "msg": [
+          "现在 ",
+          "$now",
+          " → ",
+          "$later",
+          " · 相差 ",
+          "$diff",
+          " 天"
+        ]
+      }
+    }
+  ]
+}
