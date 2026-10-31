@@ -1,0 +1,150 @@
+{
+  "name": "Word提取文本小流程",
+  "nl_examples": [
+    "把这个文件夹里所有Word的文字提取出来",
+    "把docx内容汇总成一个txt",
+    "批量读取Word文本",
+    "把Word里的文字导出成文本文件"
+  ],
+  "keywords": [
+    "提取word文字",
+    "word转txt",
+    "docx提取文本",
+    "汇总word内容",
+    "批量读word"
+  ],
+  "params": [
+    {
+      "name": "in_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_word_in",
+      "describe": "待读取的 Word 所在文件夹（只扫第一层）"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_word_out",
+      "describe": "汇总 txt 的输出目录"
+    },
+    {
+      "name": "out_name",
+      "type": "Str",
+      "default": "Word文本汇总",
+      "describe": "输出 txt 文件名（不含扩展名）"
+    },
+    {
+      "name": "pattern",
+      "type": "Str",
+      "default": ".docx",
+      "describe": "只处理文件名里包含这个串的文件（默认 .docx）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "File.get_file_list",
+      "alias": "列出文件夹里的文件",
+      "out": {
+        "file_list": "file_list"
+      },
+      "inputs": {
+        "folder_path": "$p:in_dir",
+        "traverse_subfolder": "no",
+        "tempfile_include": false,
+        "output_type": "list",
+        "sort_method": "none"
+      }
+    },
+    {
+      "atom": "Code.ForList",
+      "alias": "逐个 Word 读取",
+      "out": {
+        "index": "idx",
+        "item": "item"
+      },
+      "inputs": {
+        "list": "$file_list"
+      }
+    },
+    {
+      "atom": "Code.If",
+      "alias": "只要 Word",
+      "out": {},
+      "inputs": {
+        "args1": "$item",
+        "condition": "in",
+        "args2": "$p:pattern"
+      }
+    },
+    {
+      "atom": "Docx.open_docx",
+      "alias": "打开这个 Word",
+      "out": {
+        "doc_obj": "doc"
+      },
+      "inputs": {
+        "file_path": "$item",
+        "default_application": "Default",
+        "visible_flag": false,
+        "encoding": "utf-8",
+        "open_pwd_flag": false,
+        "write_pwd_flag": false
+      }
+    },
+    {
+      "atom": "Docx.read_docx",
+      "alias": "读取正文",
+      "out": {
+        "doc_data": "text"
+      },
+      "inputs": {
+        "doc": "$doc",
+        "select_range": "all"
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "追加写入汇总 txt",
+      "out": {
+        "write_file_path": "written"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "/",
+          "$p:out_name",
+          ".txt"
+        ],
+        "file_option": "create",
+        "msg": "$text",
+        "write_type": "append",
+        "encode_type": "utf-8"
+      }
+    },
+    {
+      "atom": "Docx.close_docx",
+      "alias": "关闭 Word（不保存）",
+      "out": {},
+      "inputs": {
+        "doc": "$doc",
+        "close_range_flag": "one",
+        "save_type": "abort",
+        "file_path": "",
+        "file_name": "",
+        "exist_handle_type": "overwrite",
+        "pkill_flag": false
+      }
+    },
+    {
+      "atom": "Code.IfEnd",
+      "alias": "条件结束",
+      "out": {},
+      "inputs": {}
+    },
+    {
+      "atom": "Code.ForEnd",
+      "alias": "循环结束",
+      "out": {},
+      "inputs": {}
+    }
+  ]
+}

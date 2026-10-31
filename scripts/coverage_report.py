@@ -1,0 +1,171 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""原子覆盖报告：357 个原子，现有流程到底用了多少、还差哪些。
+
+## 为什么需要
+
+「有 300 多个原子」和「只有 14 条流程」不是矛盾——原子是零件，流程是产品。
+但**哪些零件已经用上、哪些还没用、哪些根本不需要**，必须能一眼看清，
+否则「下一步做什么」全靠拍脑袋。
+
+本脚本只读，不改任何东西。
+
+## 用法
+
+    python coverage_report.py                  # 总览：按域统计已用/未用
+    python coverage_report.py --domain Docx    # 某域未用原子清单
+    python coverage_report.py --atom Docx.replace   # 某个原子被哪些流程用了
+    python coverage_report.py --json
+"""
+import argparse
+import glob
+import json
+import os
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+import flow_generator as fg
+
+ROOT = os.path.dirname(HERE)
+FLOWS = os.path.join(ROOT, "flows")
+
+ELEMENT_TYPES = {"WebPick", "UiaPick", "CvPick", "Pick", "Element"}
+
+DOMAIN_CN = {
+    "Excel": "Excel 表格", "Docx": "Word 文档", "PDF": "PDF 文档",
+    "File": "文件", "Folder": "文件夹", "DataTable": "数据表",
+    "Code": "流程控制", "Script": "Python 脚本", "StringProcess": "字符串处理",
+    "ListProcess": "列表处理", "DictProcess": "字典处理", "MathProcess": "数学计算",
+    "TimeProcess": "时间日期", "DataConvertProcess": "数据转换", "DataProcess": "数据处理",
+    "Network": "网络/HTTP", "Email": "邮件", "Encrypt": "加解密",
+    "BrowserSoftware": "浏览器（客户端）", "BrowserElement": "浏览器元素（需拾取）",
+    "IeBrowserSoftware": "IE 浏览器", "IeBrowserElement": "IE 元素（需拾取）",
+    "Gui": "桌面界面", "Window": "窗口", "System": "系统", "Mouse": "鼠标",
+    "Keyboard": "键盘", "ComputerUse": "屏幕自动化", "CV": "视觉识别",
+    "VerifyCode": "验证码（需拾取）", "OpenApi": "开放接口", "Agent": "智能体",
+    "ChatAI": "大模型对话", "DocumentAI": "文档智能", "Enterprise": "企业系统",
+    "SAP": "SAP", "Report": "报表", "Software": "软件", "Dialog": "对话框",
+    "WinEle": "Windows 元素", "Smart": "智能", "RecruitAI": "招聘智能",
+    "ContractAI": "合同智能", "BrowserScript": "浏览器脚本",
+    "IeBrowserScript": "IE 脚本",
+}
+
+
+def scan_flows():
+    """{原子: [流程文件名...]}"""
+    used = {}
+    for p in sorted(glob.glob(os.path.join(FLOWS, "*.json"))):
+        try:
+            with open(p, "r", encoding="utf-8") as f:
+                d = json.load(f)
+        except Exception:
+            continue
+        name = d.get("name") or os.path.basename(p)[:-5]
+        for n in d.get("nodes") or []:
+            k = (n or {}).get("atom")
+            if k:
+                used.setdefault(k, [])
+                if name not in used[k]:
+                    used[k].append(name)
+    return used
+
+
+def needs_element(a):
+    for p in (a.get("inputList") or []):
+        if isinstance(p, dict) and p.get("required") and p.get("types") in ELEMENT_TYPES:
+            return True
+    return False
+
+
+def main():
+    ap = argparse.ArgumentParser(description="原子覆盖报告（只读）")
+    ap.add_argument("--domain", default="", help="看某域的未用原子")
+    ap.add_argument("--atom", default="", help="看某个原子被哪些流程用了")
+    ap.add_argument("--offline", action="store_true", default=True, help="用本地缓存（默认）")
+    ap.add_argument("--json", action="store_true")
+    a = ap.parse_args()
+
+    atoms = fg.load_atom_dict(offline=True)
+    used = scan_flows()
+
+    # 单个原子
+    if a.atom:
+        k = a.atom
+        if k not in atoms:
+            print("❌ 没有原子：%s" % k)
+            return 2
+        users = used.get(k) or []
+        if a.json:
+            print(json.dumps({"atom": k, "title": atoms[k].get("title"), "flows": users},
+                             ensure_ascii=False, indent=2))
+        else:
+            print("%s — %s" % (k, atoms[k].get("title")))
+            print("被 %d 条流程使用：%s" % (len(users), "、".join(users) or "（没有，属于未覆盖能力）"))
+        return 0
+
+    # 按域统计
+    stats = {}
+    for k, atom in atoms.items():
+        d = k.split(".")[0]
+        s = stats.setdefault(d, {"total": 0, "used": 0, "elem": 0, "unused": []})
+        s["total"] += 1
+        if needs_element(atom):
+            s["elem"] += 1
+        if k in used:
+            s["used"] += 1
+        else:
+            s["unused"].append(k)
+
+    total = len(atoms)
+    used_n = sum(1 for k in atoms if k in used)
+    zero_elem = sum(1 for k in atoms.values() if not needs_element(k))
+
+    if a.domain:
+        d = a.domain
+        hit = {k: v for k, v in stats.items() if k.lower() == d.lower()}
+        if not hit:
+            print("❌ 没有这个域：%s" % d)
+            print("   可用域：" + ", ".join(sorted(stats)))
+            return 2
+        dom, s = list(hit.items())[0]
+        if a.json:
+            print(json.dumps({"domain": dom, "total": s["total"], "used": s["used"],
+                              "unused": s["unused"]}, ensure_ascii=False, indent=2))
+            return 0
+        print("%s 域（%s）：共 %d 个原子，已用 %d，未用 %d"
+              % (dom, DOMAIN_CN.get(dom, ""), s["total"], s["used"], len(s["unused"])))
+        print("-" * 66)
+        for k in s["unused"]:
+            tag = "（需元素）" if needs_element(atoms[k]) else ""
+            print("  %-30s %s%s" % (k, atoms[k].get("title") or "", tag))
+        return 0
+
+    # 总览
+    if a.json:
+        print(json.dumps({"total": total, "used": used_n, "zero_element": zero_elem,
+                          "flows": len(glob.glob(os.path.join(FLOWS, "*.json"))),
+                          "domains": {d: {"total": v["total"], "used": v["used"]}
+                                      for d, v in stats.items()}}, ensure_ascii=False, indent=2))
+        return 0
+
+    nflows = len(glob.glob(os.path.join(FLOWS, "*.json")))
+    print("原子覆盖报告")
+    print("=" * 66)
+    print("流程规格 %d 条 · 原子总数 %d · 已用 %d · 覆盖率 %.1f%%"
+          % (nflows, total, used_n, used_n * 100.0 / total))
+    print("零元素可跑 %d 个（其余 %d 个需要拾取界面元素）" % (zero_elem, total - zero_elem))
+    print()
+    print("%-22s %6s %6s %6s  %s" % ("域", "原子", "已用", "未用", "说明"))
+    print("-" * 66)
+    for d, s in sorted(stats.items(), key=lambda x: -(x[1]["total"] - x[1]["used"])):
+        print("%-22s %6d %6d %6d  %s"
+              % (d, s["total"], s["used"], len(s["unused"]), DOMAIN_CN.get(d, "")))
+    print("-" * 66)
+    print("\n看某域还没用什么：--domain Excel")
+    print("看某原子被谁用了：--atom Excel.read_excel")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

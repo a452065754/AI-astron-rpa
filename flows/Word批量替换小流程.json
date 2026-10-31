@@ -1,0 +1,151 @@
+{
+  "name": "Word批量替换小流程",
+  "nl_examples": [
+    "把这个文件夹里所有Word的旧公司名替换成新公司名",
+    "批量替换Word里的文字",
+    "文件夹里的docx都替换关键字",
+    "批量改Word文档内容"
+  ],
+  "keywords": [
+    "批量替换word",
+    "word替换",
+    "docx替换",
+    "替换文档里的",
+    "批量改word"
+  ],
+  "params": [
+    {
+      "name": "in_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_word_in",
+      "describe": "待处理的 Word 所在文件夹（只扫第一层）"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_word_out",
+      "describe": "替换后的 Word 输出目录（**不动原文件**）"
+    },
+    {
+      "name": "old_text",
+      "type": "Str",
+      "default": "旧公司名",
+      "describe": "要被替换掉的文字"
+    },
+    {
+      "name": "new_text",
+      "type": "Str",
+      "default": "新公司名",
+      "describe": "替换成的文字"
+    },
+    {
+      "name": "pattern",
+      "type": "Str",
+      "default": ".docx",
+      "describe": "只处理文件名里包含这个串的文件（默认 .docx）"
+    },
+    {
+      "name": "prefix",
+      "type": "Str",
+      "default": "替换",
+      "describe": "输出文件名前缀（生成 替换_0.docx、替换_1.docx …）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "File.get_file_list",
+      "alias": "列出文件夹里的文件",
+      "out": {
+        "file_list": "file_list"
+      },
+      "inputs": {
+        "folder_path": "$p:in_dir",
+        "traverse_subfolder": "no",
+        "tempfile_include": false,
+        "output_type": "list",
+        "sort_method": "none"
+      }
+    },
+    {
+      "atom": "Code.ForList",
+      "alias": "逐个 Word 处理",
+      "out": {
+        "index": "idx",
+        "item": "item"
+      },
+      "inputs": {
+        "list": "$file_list"
+      }
+    },
+    {
+      "atom": "Code.If",
+      "alias": "只要 Word",
+      "out": {},
+      "inputs": {
+        "args1": "$item",
+        "condition": "in",
+        "args2": "$p:pattern"
+      }
+    },
+    {
+      "atom": "Docx.open_docx",
+      "alias": "打开这个 Word",
+      "out": {
+        "doc_obj": "doc"
+      },
+      "inputs": {
+        "file_path": "$item",
+        "default_application": "Default",
+        "visible_flag": false,
+        "encoding": "utf-8",
+        "open_pwd_flag": false,
+        "write_pwd_flag": false
+      }
+    },
+    {
+      "atom": "Docx.replace",
+      "alias": "替换文字",
+      "out": {},
+      "inputs": {
+        "doc": "$doc",
+        "origin_word": "$p:old_text",
+        "replace_type": "str",
+        "new_word": "$p:new_text",
+        "img_path": "",
+        "replace_method": "all",
+        "ignore_case": false
+      }
+    },
+    {
+      "atom": "Docx.save_docx",
+      "alias": "另存到输出目录",
+      "out": {
+        "save_file_path": "saved"
+      },
+      "inputs": {
+        "doc": "$doc",
+        "save_type": "save_as",
+        "file_path": "$p:out_dir",
+        "file_name": [
+          "$p:prefix",
+          "_",
+          "$idx"
+        ],
+        "exist_handle_type": "overwrite",
+        "close_flag": true
+      }
+    },
+    {
+      "atom": "Code.IfEnd",
+      "alias": "条件结束",
+      "out": {},
+      "inputs": {}
+    },
+    {
+      "atom": "Code.ForEnd",
+      "alias": "循环结束",
+      "out": {},
+      "inputs": {}
+    }
+  ]
+}

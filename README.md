@@ -59,6 +59,7 @@ python scripts/ai_flow.py --spec flows/<流程>.json --stage publish --version 1
 │   ├── install.py            # 一键安装（依赖 / 配置 / 技能包 / MCP / 自检）
 │   ├── atom_catalog.py       # 原子目录（357 个，按域分组，带必填参数与枚举）
 │   ├── spec_lint.py          # 规格校验（报错带「第几个节点 + 怎么改」）
+│   ├── coverage_report.py    # 原子覆盖报告（357 个原子用了多少、还差哪些）
 │   ├── ai_flow.py            # 交付流水线：生成→校验→预检→落库→真跑→评审单→发布
 │   ├── flow_generator.py     # 规格 → process_content（真实原子 schema 校验）
 │   ├── nl_params.py          # 从自然语言抽具体参数（路径/页码/输出名/批量识别）
@@ -79,6 +80,8 @@ python scripts/ai_flow.py --spec flows/<流程>.json --stage publish --version 1
 | 流程 | 说明 |
 | --- | --- |
 | Word 转 PDF / PDF 合并 / PDF 抽取指定页 | 基础文档操作 |
+| **Word 批量替换** | 文件夹内所有 Word 替换指定文字，另存到输出目录（不动原文件） |
+| **Word 提取文本** | 文件夹内所有 Word 正文汇总成一个 txt |
 | PDF 表格转 Excel | 提取表格结构 |
 | PDF 转 Docx / 转可编辑 Word | 文字搬运 |
 | PDF 版面还原 Word | 保留版式：真表格、字号分级、页眉页脚、页边距 |
