@@ -47,6 +47,19 @@ DEPRECATED_KEYS = {
     "Docx.open_document", "Docx.read_document_content",
 }
 
+# 手工验证已覆盖的原子：能力已真跑通过，但无法走「规格 JSON → 生成器 → 落库」标准链路，
+# 因此 flows/*.json 里没有对应节点、scan_flows() 扫不到。这里把它们单独计为「已覆盖」，
+# 避免能力明明打通了却在覆盖率数字上漏掉。每条必须给出验证脚本 + 取证文件，可追溯。
+# 值：{脚本, 说明}
+MANUAL_COVERED = {
+    # 组件节点 key 是 Code.Component.<动态雪花 componentId>，无法静态写死在规格里；
+    # 走 scripts/component_e2e.py 动态建组件 → 挂载 → 主流程调用 → 真跑取证（5/5 通过）。
+    "Script.component": {
+        "script": "scripts/component_e2e.py",
+        "note": "运行组件：建组件→填子流程→发版→挂载→主流程 Code.Component.<id> 调用，真跑 5/5 通过（demo/_component_out/组件已执行.txt）",
+    },
+}
+
 DOMAIN_CN = {
     "Excel": "Excel 表格", "Docx": "Word 文档", "PDF": "PDF 文档",
     "File": "文件", "Folder": "文件夹", "DataTable": "数据表",
@@ -103,6 +116,11 @@ def main():
 
     atoms = fg.load_atom_dict(offline=True)
     used = scan_flows()
+    # 合并手工验证覆盖：把 MANUAL_COVERED 里确实存在于原子字典的 key 计入 used。
+    # 标记来源为「手工验证」（区别于真正被流程规格引用的），供 --atom 查询时展示。
+    manual_hit = [k for k in MANUAL_COVERED if k in atoms]
+    for k in manual_hit:
+        used.setdefault(k, []).append("（手工验证：%s）" % MANUAL_COVERED[k]["script"])
 
     # 单个原子
     if a.atom:
@@ -175,6 +193,9 @@ def main():
     print("流程规格 %d 条 · 原子总数 %d · 已用 %d · 覆盖率 %.1f%%"
           % (nflows, total, used_n, used_n * 100.0 / total))
     print("（已剔除 %d 个作废 key：字典残留但前端不生成/编译器不认，见 DEPRECATED_KEYS）" % dep_n)
+    if manual_hit:
+        print("（含 %d 个手工验证原子：%s —— 已真跑通过但无法静态落规格，见 MANUAL_COVERED）"
+              % (len(manual_hit), "、".join(manual_hit)))
     print("零元素可跑 %d 个（其余 %d 个需要界面元素）" % (zero_elem, total - zero_elem))
     print("  ↳ 需要元素的不再是阻塞项：element_pick.py 可自动拾取并写库（见 README「元素自动拾取」）")
     print()

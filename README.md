@@ -10,7 +10,7 @@
 | 指标 | 值 |
 | --- | --- |
 | 流程规格 | **75 条**（`flows/*.json`） |
-| 原子覆盖率 | **264 / 346 = 76.3%**（已剔除 11 个作废 key）；**24 个域满覆盖** |
+| 原子覆盖率 | **265 / 346 = 76.6%**（已剔除 11 个作废 key）；**24 个域满覆盖** |
 | 已全覆盖的域 | **14 个**：Excel 35/35 · Docx 19/19 · Code 18/18 · File 13/13 · Network 12/12 · ListProcess 15/15 · Folder 9/9 · PDF 8/8 · TimeProcess 6/6 · Encrypt 6/6 · Software 3/3 · BrowserScript 1/1 · **BrowserSoftware 20/20 · BrowserElement 22/22** |
 | 机器自检 | 75/75 lint 通过 · 全部本地真跑 `SUCCESS` 并核对副作用 |
 | 平台缺陷 | 见 `docs/平台缺陷清单.md`（A 缺陷 15 / B 行为差异 8 / C 环境限制 9 类 / D 我方误判 6）；**可直接发平台的复现包在 `docs/repro/`**（15 条一键复跑，实测 15/15 成立） |
@@ -193,7 +193,7 @@ python scripts/element_pick.py --check <elementId>
 | **加解密与时间差** | 对称加解密往返 + 时间加减与时间差 |
 | Excel 订单表导出 / 文本文件转存 / 网页元素点击 | 基础原子流程 |
 
-> 原子覆盖率：346 个有效原子中已用 **264 个（76.3%）**，24 个域满覆盖（Excel 35/35 · BrowserElement 22/22 · BrowserSoftware 20/20 · Docx 19/19 · Code 18/18 · ListProcess 15/15 · File 13/13 · Network 12/12 · StringProcess 10/10 · Folder 9/9 · PDF 8/8 · Gui 8/8 · DictProcess 6/6 · Encrypt 6/6 · TimeProcess 6/6 · MathProcess 5/5 · CV 5/5 · Window 4/4 · WinEle 6/6 …）。`python scripts/coverage_report.py` 随时看缺口；
+> 原子覆盖率：346 个有效原子中已用 **265 个（76.6%）**，24 个域满覆盖（Excel 35/35 · BrowserElement 22/22 · BrowserSoftware 20/20 · Docx 19/19 · Code 18/18 · ListProcess 15/15 · File 13/13 · Network 12/12 · StringProcess 10/10 · Folder 9/9 · PDF 8/8 · Gui 8/8 · DictProcess 6/6 · Encrypt 6/6 · TimeProcess 6/6 · MathProcess 5/5 · CV 5/5 · Window 4/4 · WinEle 6/6 …）。`python scripts/coverage_report.py` 随时看缺口；
 > `python scripts/atom_impl_check.py` 核对「字典里有但本机没实现」的原子（当前 39 个，IE 系整块缺失）。
 > 没覆盖的为什么没覆盖、其中哪些是平台缺陷哪些是环境限制，看 **`docs/平台缺陷清单.md`**。
 
