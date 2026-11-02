@@ -318,9 +318,9 @@ def _lint_scripts(spec, scripts, err, warn):
                     elif isinstance(vv, (int, float)):
                         warn("%s：module_param 里 %s 的 varValue 是数字 %s"
                              "（模块拿到的 args 约定全是字符串）" % (where, vn, json.dumps(vv)),
-                             '改成字符串 "%s"（脚本里再 int(...) 转），'
+                             '建议改成字符串 "%s"，模块侧用 int(args.get("%s")) 转换；'
                              "否则 args.get() 拿到的是 int，.strip()/.lower() 会 AttributeError"
-                             % vv)
+                             % (vv, vn))
 
         # ---------- 规则 7：out.program_script（对所有 Script.module 生效） ----------
         if "program_script" not in (node.get("out") or {}):
