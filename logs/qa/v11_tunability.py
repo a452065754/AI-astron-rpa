@@ -220,7 +220,7 @@ def case_d1(main, root_dir):
 
 
 def case_d2(main, root_dir):
-    """D2 空值：1 行分组列为空 → 行数守恒，或明确报「跳过 1 行」。绝不静默少行。"""
+    """D2 空值（原 T6）：3 行守恒 + 空值单独成文件 + summary 明说「为空 1 行」。"""
     print("\n" + "=" * 80)
     print("D2 空值：3 行数据，其中 1 行「部门」为空（T6 病灶）")
     print("=" * 80)
@@ -231,26 +231,32 @@ def case_d2(main, root_dir):
     show_result(result, exc, text)
     files = xlsx_files(out)
     rows = total_rows(out)
-    ret_text = json.dumps(result, ensure_ascii=False, default=str) if result else ""
-    skipped = reports_skipped(text + "\n" + ret_text, len(ROWS_D2) - rows)
+    summary = str((result or {}).get("summary") or "") if isinstance(result, dict) else ""
+    mass = text + "\n" + json.dumps(result, ensure_ascii=False, default=str)
+    ok_rows = rows == len(ROWS_D2)
+    ok_file = "空值.xlsx" in files
+    ok_said = ("为空 1 行" in summary) or bool(re.search(r"为空\s*1\s*行", mass))
     print("  产出文件：%s" % (files or "（无）"))
-    print("  行数守恒：产出 %d 行 / 输入 %d 行（差 %d 行）"
-          % (rows, len(ROWS_D2), len(ROWS_D2) - rows))
-    ok_conserve = rows == len(ROWS_D2)
-    ok_reported = (not ok_conserve) and skipped
-    if ok_conserve:
-        print("  断言：行数守恒=True（空值行被单独成组保留）")
-    elif ok_reported:
-        print("  断言：行数不守恒，但脚本**明确报了跳过 %d 行** → 可接受"
-              % (len(ROWS_D2) - rows))
-    else:
+    print("  输入 %d 行 / 产出 %d 行 → 行数守恒=%s" % (len(ROWS_D2), rows, ok_rows))
+    print("  空值独立成文件 空值.xlsx 存在=%s" % ok_file)
+    print("  summary 是否明说「为空 1 行」=%s" % ok_said)
+    if not ok_rows:
+        print("  额外检查：脚本有没有明确报「跳过 %d 行」=%s"
+              % (len(ROWS_D2) - rows, reports_skipped(mass, len(ROWS_D2) - rows)))
         print("  断言：**静默丢弃 %d 行**，既没守恒也没报跳过 → FAIL（P1）"
               % (len(ROWS_D2) - rows))
-    return ok_conserve or ok_reported, {"files": files, "rows": rows}
+    elif not ok_file:
+        print("  断言：行数守恒了但空值没单独成文件 —— 业务人员看不出哪些行缺值 → FAIL")
+    elif not ok_said:
+        print("  断言：空值被静默补进某个组 / 没在 summary 里点名 → 用户不知道数据有问题 → FAIL")
+    else:
+        print("  断言：3 行守恒 + 空值单独成文件 + summary 点名「为空 1 行」→ PASS")
+    return ok_rows and ok_file and ok_said, {"files": files, "rows": rows,
+                                             "summary": summary}
 
 
 def case_d3(main, root_dir):
-    """D3 重复运行：同参数连跑 2 次 → 第 2 次不改写第 1 次的产出。"""
+    """D3 重复运行：第 2 次产出 (1) 后缀，且第 1 次文件**内容**（md5）没被改。"""
     print("\n" + "=" * 80)
     print("D3 重复运行：同一 out_dir 连跑 2 次（T5 病灶）")
     print("=" * 80)
@@ -260,32 +266,41 @@ def case_d3(main, root_dir):
     r1, e1, t1 = run_script(main, args)
     before = snapshot(out)
     print("  第 1 次：%s" % ("成功" if e1 is None else "抛出 %s: %s" % (type(e1).__name__, e1)))
-    print("  第 1 次产出：%s" % (sorted(before) or "（无）"))
+    for f in sorted(before):
+        print("     %-16s md5=%s size=%d" % (f, before[f][2], before[f][1]))
     r2, e2, t2 = run_script(main, args)
     after = snapshot(out)
     show_result(r2, e2, t2)
     print("  第 2 次产出：%s" % (sorted(after) or "（无）"))
-    rewritten = [f for f in before if after.get(f, (None,))[0] != before[f][0]]
+
+    changed_md5 = [f for f in before if after.get(f, (None, None, ""))[2] != before[f][2]]
     added = sorted(set(after) - set(before))
+    renamed_suffix = [f for f in added if re.search(r"\(\d+\)\.xlsx$", f)]
     refused = e2 is not None or (isinstance(r2, dict) and r2.get("ok") is False)
-    print("  被改写的旧文件：%s" % (rewritten or "（无）"))
-    print("  新增文件：%s" % (added or "（无）"))
+
+    print("  --- 第 1 次产出在跑完第 2 次之后 ---")
+    for f in sorted(before):
+        cur = after.get(f)
+        print("     %-16s md5 %s（%s）" % (f, (cur or ("", "", "已被删除"))[2],
+                                          "未变" if cur and cur[2] == before[f][2] else "**变了/没了**"))
+    print("  md5 被改的旧文件：%s" % (changed_md5 or "（无）"))
+    print("  新增文件：%s  （其中 (N) 后缀：%s）" % (added or "（无）", renamed_suffix or "（无）"))
     print("  第 2 次是否主动拒绝/提示：%s" % ("是" if refused else "否"))
-    # 观察项（不进门禁）：改名生效了，但用户知不知道「这次写到哪去了」？
-    told = any(a in (t2 or "") for a in added) if added else True
+    told = (bool(renamed_suffix) and any(a in (t2 or "") for a in renamed_suffix)) or refused
     print("  改名是否写进 summary/日志：%s%s"
           % ("是" if told else "否",
              "" if told else " ← 业务人员会去开旧文件，看到上次的数据，以为流程没生效（P2）"))
-    ok = (not rewritten) and (bool(added) or refused)
-    if rewritten:
-        print("  断言：**静默覆盖**了 %d 个已存在文件，既没改名也没拒绝 → FAIL" % len(rewritten))
-    elif added:
-        print("  断言：旧文件未被改写、产出改名新增 %s → PASS" % added)
+
+    ok = (not changed_md5) and (bool(renamed_suffix) or refused)
+    if changed_md5:
+        print("  断言：**静默覆盖**了 %d 个文件（md5 变了）→ FAIL" % len(changed_md5))
+    elif renamed_suffix:
+        print("  断言：第 1 次产出的 md5 全部未变、第 2 次改名新增 %s → PASS" % renamed_suffix)
     elif refused:
         print("  断言：主动拒绝/提示，文件未动 → PASS")
     else:
-        print("  断言：文件未动也没新增，第 2 次等于什么都没做 → FAIL（不算「可控」）")
-    return ok, {"rewritten": rewritten, "added": added}
+        print("  断言：文件没动也没新增 (N) 后缀，第 2 次等于什么都没做 → FAIL（不算「可控」）")
+    return ok, {"changed": changed_md5, "added": added, "told": told}
 
 
 def case_d4(main, root_dir):
@@ -353,17 +368,17 @@ def observe(main, root_dir, code):
         print("  O3 想拆第 2 张表：传 sheet_name=「第二张表」→ 产出 %s → sheet 可调=%s"
               % (xlsx_files(d3) or "（无）", "是" if tuned else "否"))
 
-    # O3b：数字取值的语义坑 —— 0 被特判成「第一张表」，那 1 是不是第二张表？
+    # O3b：数字取值的语义 —— 业务人员写 1 的直觉一定是「第二张表」
     if "sheet_name" in code:
         d4 = os.path.join(root_dir, "obs_sheet_idx")
         r, e, _ = run_script(main, {"src_file": src, "split_column": "部门",
                                     "out_dir": d4, "sheet_name": "1"})
+        idx_ok = e is None and bool(west & set(os.path.splitext(f)[0] for f in xlsx_files(d4)))
         print("  O3b sheet_name=1（业务人员直觉=第二张表）→ %s"
-              % ("产出 %s" % xlsx_files(d4) if e is None
-                 else "抛 %s: %s" % (type(e).__name__, e)))
-        print("      结论：0=第一张表，但 1≠第二张表（被当成 sheet 名「1」查）。"
-              "数字既不是纯索引也不是纯名字，口径不自洽 —— "
-              "P2 建议：纯数字按索引、非数字按名字。")
+              % (("产出 %s → 数字按索引解释，口径自洽"
+                  % xlsx_files(d4)) if idx_ok
+                 else ("抛 %s: %s → 数字不是索引，口径不自洽（P2）" % (type(e).__name__, e)
+                       if e is not None else "产出 %s，没读到第二张表（P2）" % xlsx_files(d4))))
 
     print("  O4 可调项（params）：见 flows/gen_按部门拆分Excel.json 的 params 与 maintain_hint")
 
