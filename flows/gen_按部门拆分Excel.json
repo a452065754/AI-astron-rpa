@@ -1,0 +1,54 @@
+{
+  "name": "按部门拆分Excel",
+  "nl_examples": [
+    "把销售明细按部门拆成多个Excel，放到 F:////demo////out////split",
+    "按某一列的值把一个表拆成多个文件"
+  ],
+  "keywords": [
+    "按部门拆分",
+    "Excel拆表",
+    "一个部门一个文件"
+  ],
+  "params": [
+    {
+      "name": "src_file",
+      "type": "Str",
+      "default": "F:\\demo\\data\\销售明细.xlsx",
+      "describe": "源Excel文件路径"
+    },
+    {
+      "name": "split_column",
+      "type": "Str",
+      "default": "部门",
+      "describe": "用于拆分的列名"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:\\demo\\out\\split",
+      "describe": "拆分后文件的输出目录"
+    }
+  ],
+  "scripts": {
+    "excel_split_by_dept": {
+      "name": "按部门拆分Excel",
+      "why": "命中判定 B-2：输出文件数取决于「部门」列的唯一值，原子无法动态生成文件名",
+      "maintain_hint": "改拆哪一列 → 改参数 split_column；改输出目录 → 改参数 out_dir；改逻辑需找开发改 Python",
+      "atom_suggestion": "Excel 按列唯一值拆分成多表",
+      "code": "def main(args):\n    import os\n    import pandas as pd\n    try:\n        from astronverse.workflowlib import logger\n    except Exception:                     # 本地裸跑（没有 astronverse）时退回标准库\n        import logging\n        logger = logging.getLogger(\"excel_split\")\n\n    src_file = args.get('src_file')\n    split_column = args.get('split_column')\n    out_dir = args.get('out_dir')\n\n    if not os.path.exists(src_file):\n        raise RuntimeError(f'源文件不存在: {src_file}')\n\n    os.makedirs(out_dir, exist_ok=True)\n\n    try:\n        df = pd.read_excel(src_file)\n    except Exception as e:\n        raise RuntimeError(f'读取Excel失败: {e}')\n\n    if split_column not in df.columns:\n        raise RuntimeError(f'列名 \"{split_column}\" 不存在于Excel中')\n\n    grouped = df.groupby(split_column)\n    output_files = []\n\n    for dept, group_df in grouped:\n        # 清理文件名中的非法字符\n        safe_dept = str(dept).replace('/', '_').replace('\\\\', '_').replace('*', '_').replace('?', '_').replace('\"', '_').replace('<', '_').replace('>', '_').replace('|', '_')\n        out_path = os.path.join(out_dir, f\"{safe_dept}.xlsx\")\n        try:\n            group_df.to_excel(out_path, index=False)\n            output_files.append(out_path)\n        except Exception as e:\n            raise RuntimeError(f'写入文件失败: {out_path}, 原因: {e}')\n\n    summary = f'拆分完成：{len(output_files)} 个部门，共 {len(df)} 行'\n    logger.info(summary)                  # 人话摘要进执行日志（流程里就不用再放打印节点）\n    logger.info('输出目录：%s' % out_dir)\n\n    return {'ok': True, 'summary': summary, 'outputs': output_files[:5]}\n"
+    }
+  },
+  "nodes": [
+    {
+      "atom": "Script.module",
+      "alias": "按部门拆分Excel（自动脚本，改逻辑需开发）",
+      "inputs": {
+        "content": "$script:excel_split_by_dept",
+        "module_param": "$json:[{\"varName\": \"src_file\", \"varValue\": \"$p:src_file\"}, {\"varName\": \"split_column\", \"varValue\": \"$p:split_column\"}, {\"varName\": \"out_dir\", \"varValue\": \"$p:out_dir\"}]"
+      },
+      "out": {
+        "program_script": "split_result"
+      }
+    }
+  ]
+}

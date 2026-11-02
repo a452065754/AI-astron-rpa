@@ -31,6 +31,7 @@
 """
 import argparse
 import copy
+import hashlib
 import json
 import os
 import re
@@ -59,6 +60,51 @@ ROOT = os.path.dirname(HERE)
 SPEC_DIR = os.path.join(ROOT, "flows")
 REVIEW_DIR = os.path.join(ROOT, "docs", "reviews")
 WATCH_DIRS = [os.path.join(ROOT, "demo")]
+
+# 内嵌脚本落盘位置（`scripts/mod_gen_<脚本名>.py`）：给用户事后查看/改/复用。
+# 前 6 个手工脚本叫 `mod_xxx.py`，内嵌脚本统一带 `mod_gen_` 前缀，一眼能分开。
+MOD_GEN_PREFIX = "mod_gen_"
+# 脚本名 → 平台 moduleId 的本地台账。
+#
+# 为什么需要台账：`create_module` 每次调用都会**新建**一条模块记录（没有「按名查重」的
+# 官方接口），没有台账的话每跑一次 ai_flow 就给同一个机器人生成一堆重复模块。
+#
+# ⚠️ **台账不是事实来源，只是「省一次 API 调用」的优化**（2026-11-02 用户拍板）。
+#    反例：台账里有 id，但模块在平台上已被删掉 → 直接拿 id 去用会在半路报
+#    「模块不存在」。所以每次命中缓存前**必须** `pf.open_module()` 探活，
+#    读不到就当成 miss 重新建（见 `_ensure_module`）。
+#    文件名带 `module` 前缀、放进 logs/ 且已在 .gitignore 里：moduleId 是本环境专属的，
+#    换设备/换服务端全是废号，绝不能入库。
+SCRIPT_LEDGER = os.path.join(ROOT, "logs", "module_ledger.json")
+# 旧路径（历史版本用过）。只读兼容，不再写入，读到就顺手迁到新路径。
+SCRIPT_LEDGER_LEGACY = os.path.join(ROOT, "logs", "script_modules.json")
+
+# 原子需求池：脚本 → 原子 的沉淀线索（见 `_atom_demand_update`）
+ATOM_POOL = os.path.join(ROOT, "docs", "原子需求池.md")
+ATOM_POOL_HEADER = """# 原子需求池（脚本沉淀线索）
+
+> **谁写**：`ai_flow.resolve_scripts()` 每成功上传一个内嵌脚本就自动更新一行（幂等）。
+> **为什么**：产品的验收标准是「非专业业务人员能看懂、能做微调」。脚本业务人员看不懂也改不动，
+> 所以它只是**兜底**；同一种脚本模式被**多个不同流程**需要 = 这类需求高频 = 应该把它做成**真原子**
+> （业务人员直接拖一个节点、填参数就能用）。这样脚本就不是技术债，而是原子需求的**来源**。
+>
+> **「出现次数」怎么算（重要）**：按**不同流程名**去重计数，不是按运行次数。
+> 同一条流程跑 100 次也只算 1 次 —— 那只是「同一个人反复跑」，不构成原子需求；
+> 3 条**不同的**流程都需要它，才值得做成原子。
+> 「流程名」列用 `、` 分隔记录所有出现过的流程，`首次出现 / 最后出现` 记录时间跨度。
+>
+> **怎么用**：`出现次数 ≥ 3` 的条目提给开发做原子；做完后把对应流程改回原子拼装，
+> 并在「建议沉淀成的原子」列后面标 `（已沉淀）`。
+>
+> 判定条款（规格里 `scripts.<名>.why` 必须写明命中哪一条，`spec_lint` 会校验）：
+> `B-1` 跨迭代累计状态｜`B-2` 输出个数/文件名取决于运行时数据｜
+> `B-3` 复杂数据变换（分组/透视/转置/关联）｜`B-4` 精确控制文件格式细节。
+
+| 首次出现 | 最后出现 | 流程名 | 脚本名 | 命中条款 | 建议沉淀成的原子 | 出现次数 |
+| --- | --- | --- | --- | --- | --- | --- |
+"""
+# 「流程名」列里多个流程的分隔符（同时也是去重计数依据）
+POOL_FLOW_SEP = "、"
 
 
 def openapi_base():
@@ -334,11 +380,377 @@ def do_invoke(project_id, params=None, timeout=180):
     return out
 
 
-def module_ids_of(spec):
-    """从规格里找出 Python 子流程模块 id。
+def _script_refs(spec):
+    """找出规格里所有「引用内嵌脚本」的节点，返回 `[(节点序号, 节点dict, 脚本名)]`。
 
-    模块 id 是**环境相关**的（新环境要重新建），所以在规格里它是一个流程参数
-    （如 `module_id`），迁移时只改这个参数的默认值，流程本身不用动。
+    判定条件：`atom == "Script.module"` 且 `inputs["content"]` 形如 `$script:名字`。
+    历史写法（`content` 是纯 moduleId 或 `$p:module_id`）**一律不在返回里** —— 那条路
+    走 `make_module.py` + 流程参数，必须继续有效。
+    """
+    refs = []
+    for i, n in enumerate(spec.get("nodes") or [], 1):
+        if not isinstance(n, dict) or (n.get("atom") or "") != "Script.module":
+            continue
+        content = (n.get("inputs") or {}).get("content")
+        if isinstance(content, str) and content.startswith(fg.SCRIPT_REF_PREFIX):
+            name = content[len(fg.SCRIPT_REF_PREFIX):].strip()
+            refs.append((i, n, name))
+    return refs
+
+
+def _param_binding_warn(spec):
+    """探测「会被烘焙掉的 `$p:` 引用」，返回受影响的 `[(节点序号, 参数名列表)]`。
+
+    只在 `PARAM_BINDING_MODE == "baked"` 时才有意义：`baked` 会把 `module_param` 里的
+    `$p:xxx` 换成流程参数的**默认值字面量**，于是用户在参数表里改值 → 流程纹丝不动
+    （这就是 A17 那个 P0）。不报的话没人知道自己处在哪种模式，只有等用户来投诉。
+
+    判定：`atom == "Script.module"` 且 `inputs["module_param"]` 是 `$json:` 字符串，
+    解析后任一项的 `varValue` 以 `$p:` 开头。**不看 `content`** —— 历史流程的
+    `content` 是纯 moduleId 或 `$p:module_id`，它们同样会被烘焙。
+    """
+    hits = []
+    for i, n in enumerate(spec.get("nodes") or [], 1):
+        if not isinstance(n, dict) or (n.get("atom") or "") != "Script.module":
+            continue
+        mp = (n.get("inputs") or {}).get("module_param")
+        if not isinstance(mp, str) or not mp.startswith("$json:"):
+            continue
+        try:
+            payload = json.loads(mp[len("$json:"):])
+        except Exception:
+            continue
+        if not isinstance(payload, list):
+            continue
+        names = [str(it.get("varName") or "?") for it in payload
+                 if isinstance(it, dict) and isinstance(it.get("varValue"), str)
+                 and it["varValue"].startswith("$p:")]
+        if names:
+            hits.append((i, names))
+    return hits
+
+
+def _ledger_load():
+    """读脚本模块台账；坏了就当空（台账只是省一次建模块，不该阻塞主链路）。
+
+    新路径 `logs/module_ledger.json` 不存在时回落到旧路径 `logs/script_modules.json`，
+    这样从老版本升上来的机器不会白建一遍模块。
+    """
+    for path in (SCRIPT_LEDGER, SCRIPT_LEDGER_LEGACY):
+        if not os.path.exists(path):
+            continue
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                d = json.load(f)
+        except Exception:
+            continue
+        if isinstance(d, dict):
+            return d
+    return {}
+
+
+def _ledger_save(d):
+    try:
+        os.makedirs(os.path.dirname(SCRIPT_LEDGER), exist_ok=True)
+        with open(SCRIPT_LEDGER, "w", encoding="utf-8") as f:
+            json.dump(d, f, ensure_ascii=False, indent=1)
+    except OSError as e:
+        print(f"      ⚠️ 台账写入失败（不影响本次运行）：{e}")
+
+
+def _dump_script(name, code):
+    """把内嵌脚本落盘到 `scripts/mod_gen_<名字>.py`，返回路径（失败返回空串）。
+
+    **落盘失败不阻塞**：平台模块才是真正执行的东西，本地文件只是给用户看/改的副本。
+    文件头注明「改这里不生效」，避免用户改了本地 py 却发现流程没变（这是最容易踩的坑）。
+    """
+    safe = re.sub(r"[^\w\u4e00-\u9fa5-]+", "_", name or "script")
+    path = os.path.join(HERE, MOD_GEN_PREFIX + safe + ".py")
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            if not code.lstrip().startswith("#!"):
+                f.write("# -*- coding: utf-8 -*-\n")
+                f.write(f"# 由 ai_flow.resolve_scripts 从规格 scripts.{name}.code 自动落盘。\n")
+                f.write("# 用途：让人能直接看/改/复用这段代码。\n")
+                f.write("# 注意：改这个文件**不会**影响流程 —— 平台上的模块是独立副本；\n")
+                f.write("#       要改行为请改规格里的 scripts 代码后重跑 ai_flow.py。\n")
+            f.write(code if code.endswith("\n") else code + "\n")
+    except OSError as e:
+        print(f"      ⚠️ 脚本 {name} 落盘失败（不阻塞上传）：{e}")
+        return ""
+    return path
+
+
+def _create_module_unique(ck, robot_id, code, name):
+    """建模块；平台要求「同一机器人下模块名唯一」，重名时自动加后缀重试。
+
+    ## 为什么需要（2026-11-02 实测踩到）
+
+    `create_module` 撞名会直接 `500003 名称重复，请重新命名`。而「重名」是**必然**会发生的：
+    台账 `logs/module_ledger.json` 在 .gitignore 里（换机器/清了 logs 就没了），
+    或者台账里的 id 探活失败（模块被人在平台上删了）—— 这两种情况都要重建模块，
+    而旧模块（或同名的历史模块）还在，名字就被占住了。
+
+    名字只是给人看的显示名（执行走 moduleId），带个后缀完全不影响运行。
+    所以这里按 `名字` → `名字_2` → `名字_3` … 重试，绝不因为「名字重复」把整条流水线打死。
+    """
+    base = (name or "脚本模块").strip() or "脚本模块"
+    cands = [base] + ["%s_%d" % (base, i) for i in range(2, 6)]
+    last = ""
+    for nm in cands:
+        try:
+            return pf.create_module(ck, robot_id, code, nm)
+        except SystemExit as e:                     # pf.ok 用 SystemExit 报错
+            last = str(e)
+            if "重复" not in last:
+                raise                               # 不是撞名（网络/权限…）就别重试
+            print("      · 模块名「%s」已被占用，换名重试" % nm)
+    raise SystemExit("建模块失败：换到第 %d 个名字仍重复（%s）" % (len(cands), last))
+
+
+def _ensure_module(ck, robot_id, scope, name, item, code):
+    """拿到平台模块 id（必要时新建 / 更新内容），返回 `(moduleId, 说明)`。
+
+    台账 key 带上 `scope`（流程名）：同名脚本出现在两条流程里时**各自建一份**，
+    绝不复用 —— 否则改 A 流程的脚本会把 B 流程的模块内容覆盖掉。
+    """
+    led = _ledger_load()
+    key = "%s|%s|%s" % (robot_id, scope or "-", name)
+    digest = hashlib.md5(code.encode("utf-8")).hexdigest()
+    rec = led.get(key) or {}
+    mid = str(rec.get("module_id") or "")
+
+    alive = False
+    if mid:
+        try:
+            alive = pf.open_module(ck, robot_id, mid) is not None
+        except (SystemExit, Exception):
+            alive = False
+
+    if alive and rec.get("hash") == digest:
+        return mid, "（内容未变，复用已有模块）"
+    if alive:
+        pf.save_module(ck, robot_id, mid, code)
+        how = "（内容有变，已覆盖模块内容）"
+    else:
+        mid = _create_module_unique(ck, robot_id, code, item.get("name") or name)
+        # 台账有 id 但探活失败 = 模块在平台上被删了 / 属于别的环境 / id 被手改坏了。
+        # 这种情况**必须**新建：宁可多一条模块记录，也不能让流程跑到一半报「模块不存在」。
+        how = "（新建；台账旧 id 已失效，探活确认后重建）" if rec.get("module_id") else "（新建）"
+
+    led[key] = {"module_id": mid, "hash": digest, "robot_id": str(robot_id),
+                "script": name, "flow": scope or "",
+                "updated": time.strftime("%Y-%m-%d %H:%M:%S")}
+    _ledger_save(led)
+    return mid, how
+
+
+def _demand_clause(why):
+    """从 `why` 里抠出命中的判定条款（B-1~B-4）；写不出就是「未标注」。
+
+    条款定义见 `docs/流程规格DSL.md §11.1`：B-1 跨迭代累计状态 / B-2 输出个数取决于数据 /
+    B-3 复杂数据变换 / B-4 精确格式控制。抠不出来说明这条脚本很可能是「模型偷懒选脚本」。
+    """
+    m = re.search(r"B-[1-4]", str(why or ""))
+    return m.group(0) if m else "未标注"
+
+
+def _atom_demand_update(flow_name, script_name, item):
+    """把「这次用了脚本」记进 `docs/原子需求池.md`，返回 `(判定条款, 去重后的流程数)`。
+
+    ## 去重规则（2026-11-02 用户拍板改过一次，现在的才算对）
+
+    行按「**脚本名 + 命中条款**」唯一（换条款算新需求：同一个脚本被用来干两类事，
+    说明该拆成两个原子）。但「出现次数」**不是运行次数**，而是**不同流程名的个数**：
+
+        同一流程跑 100 次 → 只算 1 次（同一个人反复跑，不构成原子需求）
+        3 条不同流程都要它 → 算 3 次（这才是「这类需求高频」）
+
+    所以流程名写成一列、用 `、` 串起来（`POOL_FLOW_SEP`），次数 = 名字个数。
+    同时记「首次出现 / 最后出现」，让人看得出这个需求是刚冒出来还是攒了半年。
+
+    ## 为什么记这个
+
+    脚本是兜底手段，业务人员改不动。同一个模式被 ≥3 条流程需要就说明这类需求高频，
+    应做成真原子（业务人员拖一个节点填参数就能用）。这一步把「脚本」从技术债变成
+    「原子需求的来源」。
+    """
+    item = item or {}
+    clause = _demand_clause(item.get("why"))
+    suggestion = str(item.get("atom_suggestion") or "").strip() \
+        or ("把「%s」做成原子" % (item.get("name") or script_name))
+    flow = (flow_name or "").strip() or "（未命名）"
+    today = time.strftime("%Y-%m-%d")
+
+    lines = []
+    if os.path.exists(ATOM_POOL):
+        try:
+            with open(ATOM_POOL, "r", encoding="utf-8") as f:
+                lines = f.read().splitlines()
+        except OSError as e:
+            print(f"      ⚠️ 原子需求池读取失败（不阻塞）：{e}")
+            return clause, 0
+    if not lines:
+        lines = ATOM_POOL_HEADER.splitlines()
+
+    hit_idx, count = None, 1
+    for i, ln in enumerate(lines):
+        if not ln.startswith("|"):
+            continue
+        cells = [c.strip() for c in ln.strip().strip("|").split("|")]
+        if len(cells) == 7:
+            # 新格式：| 首次出现 | 最后出现 | 流程名 | 脚本名 | 命中条款 | 建议 | 次数 |
+            first, last, flows, sname, cl, sug, cnt = cells
+            if sname != script_name or cl != clause:
+                continue
+            names = [x for x in flows.split(POOL_FLOW_SEP) if x]
+            if flow not in names:
+                names.append(flow)
+            count = max(1, len(names))
+            cells = [first, today, POOL_FLOW_SEP.join(names), sname, cl, sug or suggestion,
+                     str(count)]
+        elif len(cells) == 6:
+            # 老格式（日期 | 流程名 | 脚本名 | 条款 | 建议 | 次数）：读到就顺手升级成新格式。
+            # 老格式的次数是「运行次数」，语义不对，一律按「不同流程名个数」重算。
+            date, flows, sname, cl, sug, _cnt = cells
+            if sname != script_name or cl != clause:
+                continue
+            names = [x for x in flows.split(POOL_FLOW_SEP) if x]
+            if flow not in names:
+                names.append(flow)
+            count = max(1, len(names))
+            cells = [date, today, POOL_FLOW_SEP.join(names), sname, cl, sug or suggestion,
+                     str(count)]
+        else:
+            continue
+        lines[i] = "| " + " | ".join(cells) + " |"
+        hit_idx = i
+        break
+    if hit_idx is None:
+        lines.append("| %s | %s | %s | %s | %s | %s | 1 |"
+                     % (today, today, flow, script_name, clause, suggestion))
+
+    try:
+        os.makedirs(os.path.dirname(ATOM_POOL), exist_ok=True)
+        with open(ATOM_POOL, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+    except OSError as e:
+        print(f"      ⚠️ 原子需求池写入失败（不阻塞）：{e}")
+        return clause, count
+    return clause, count
+
+
+def resolve_scripts(ck, robot_id, spec, verbose=True, dry=False):
+    """把规格里 `$script:名字` 的内嵌 Python 脚本变成平台模块，并把真实 moduleId 写回节点。
+
+    ## 为什么需要这一步（这是「AI 会写脚本」能力链的最后一环）
+
+    `Script.module` 节点的 `content` 要的是**服务端 moduleId**（雪花号）。AI 写规格时
+    不可能知道这个号（模块还没建）。所以规格里先写占位符 `"content": "$script:脚本名"`，
+    代码放在顶层 `scripts` 里；本函数负责：
+
+        遍历节点 → 取 scripts[名字].code → 落盘 scripts/mod_gen_<名字>.py
+        → create_module（或复用/更新）→ 把 content 换成真实 moduleId
+        → 记到 spec["_resolved_modules"]（发布时要用它把模块复制进版本）
+        → 记一行到 docs/原子需求池.md（脚本是兜底，反复出现就该做成真原子）
+
+    ## 调用时机（关键）
+
+    必须在 **robot_id 已确定、`build_process_content()` 之前**：节点树的 `content`
+    要先换成真 moduleId，否则落库的是一个字符串占位符，设计器里点运行必报错。
+
+    ## 参数
+
+    ck       : `pf.load_session()` 的结果（`dry=True` 时可以为 None）
+    robot_id : 目标机器人
+    spec     : 规格 dict，本函数会**就地修改** `nodes[].inputs["content"]`
+    verbose  : 打印进度
+    dry      : True = 只落盘 + 校验引用，不建模块（`--stage draft` 用，避免留下孤儿模块）
+
+    返回：本次涉及的 moduleId 列表（去重、保持顺序）。
+    """
+    scripts = spec.get("scripts") or {}
+    refs = _script_refs(spec)
+    if not refs:
+        if scripts and verbose:
+            print("      ⚠️ 规格定义了脚本 %s，但没有任何节点用 "
+                  '"content": "$script:名字" 引用它们（写好的脚本不会被执行）'
+                  % list(scripts))
+        return []
+
+    # 1) 引用完整性：节点引用的脚本必须在顶层 scripts 里，且代码非空
+    missing = []
+    for _i, _n, name in refs:
+        if not name:
+            raise SystemExit("有节点写了 \"content\": \"$script:\" 但脚本名为空")
+        if name not in scripts:
+            missing.append(name)
+    if missing:
+        raise SystemExit(
+            "节点引用了内嵌脚本 %s，但规格顶层 `scripts` 里没有：\n"
+            "  可用脚本名：%s\n"
+            '  修法：在 spec 顶层加 "scripts": {"%s": {"code": "def main(args): ..."}}'
+            % (sorted(set(missing)), ", ".join(scripts) or "（无）", missing[0]))
+
+    # 2) 每个脚本只处理一次（多个节点可以共用同一个脚本）
+    resolved, order = {}, []
+    for name in [x[2] for x in refs]:
+        if name in resolved or name in order:
+            continue
+        order.append(name)
+
+    for name in order:
+        item = scripts.get(name) or {}
+        if isinstance(item, str):        # 容忍规格里简写成字符串代码（load_spec 会规范化）
+            item = {"code": item}
+        code = str(item.get("code") or "")
+        if not code.strip():
+            raise SystemExit("内嵌脚本 %s 的 code 是空的（必须给完整可运行源码）" % name)
+        path = _dump_script(name, code)
+        if dry:
+            resolved[name] = ""
+            if verbose:
+                print("      · [draft] 脚本 %s 已落盘 %s，跳过上传（draft 不产生服务端副作用）"
+                      % (name, os.path.relpath(path, ROOT) if path else "(落盘失败)"))
+            continue
+        mid, how = _ensure_module(ck, robot_id, spec.get("name") or "", name, item, code)
+        resolved[name] = mid
+        clause, cnt = _atom_demand_update(spec.get("name") or "", name, item)
+        if verbose:
+            print("[2.5/6] 上传 Python 子流程模块：%s → moduleId=%s（%d 字符）%s"
+                  % (name, mid, len(code), how))
+            if path:
+                print("        本地副本：%s" % os.path.relpath(path, ROOT))
+            note = "  ⚠️ ≥3 条流程都需要 → 建议沉淀成原子" if cnt >= 3 else ""
+            print("        脚本是兜底手段：%s（%d 条不同流程都需要它，已记 docs/原子需求池.md）%s"
+                  % (clause, cnt, note))
+
+    # 3) 把真实 moduleId 写回节点（dry 模式保留 $script: 占位符，便于人工核对）
+    if not dry:
+        for i, node, name in refs:
+            mid = resolved.get(name) or ""
+            if not mid:
+                raise SystemExit("脚本 %s 没有拿到 moduleId（第 %d 个节点）" % (name, i))
+            node.setdefault("inputs", {})["content"] = mid
+        mids = []
+        for name in order:
+            if resolved[name] and resolved[name] not in mids:
+                mids.append(resolved[name])
+        spec["_resolved_modules"] = mids
+        return mids
+    return []
+
+
+def module_ids_of(spec):
+    """从规格里找出 Python 子流程模块 id（发布时用来核对模块是否被带进版本）。
+
+    两个来源（合并、去重、保持顺序）：
+
+    1. **流程参数**（历史路径）：模块 id 做成流程参数（如 `module_id`），迁移时只改这个
+       默认值。`make_module.py` 写回的就是这里，必须继续有效。
+    2. **内嵌脚本解析结果**（新路径）：`resolve_scripts()` 把 `$script:名字` 换成的真
+       moduleId 记在 `spec["_resolved_modules"]`。这条路径**不往流程参数表里塞 digit
+       参数** —— 参数表要登记进 openapi，塞个没人会用的数字参数只会污染接口 schema。
     """
     out = []
     for p in spec.get("params") or []:
@@ -346,7 +758,61 @@ def module_ids_of(spec):
         val = str(p.get("default") or "").strip()
         if "module" in name and val.isdigit():
             out.append(val)
+    for m in spec.get("_resolved_modules") or []:
+        m = str(m or "").strip()
+        if m and m not in out:
+            out.append(m)
     return out
+
+
+def refresh_modules(cookie, robot_id, spec):
+    """发布前把平台上的脚本模块内容刷成规格里的最新代码，返回刷新的个数。
+
+    ## 为什么发布前还要刷一次（2026-11-02 用户指出，P4）
+
+    发布版本时**平台按 `creator_id` 复制模块行**到新版本。如果本地规格里的 `code` 后来
+    改过、但没走过 `resolve_scripts`（例如改了 flows/*.json 直接 `--stage expose`），
+    平台复制的就是**旧内容** —— 发布出来的版本与代码不一致，最难查的那种问题。
+    所以发布前无条件按规格重刷一遍，保证「发布的东西 == 规格里的代码」。
+
+    ## 为什么失败必须报错停（不许 warn 就行）
+
+    这里是发布前的最后一道闸。刷失败还继续发布 = 明确交付一个和代码不一致的版本，
+    比直接失败坏得多（用户会以为已发布成功）。所以这里**抛 SystemExit 让整条命令停下来**。
+
+    返回：刷新成功的模块个数（没有内嵌脚本时返回 0）。
+    """
+    scripts = spec.get("scripts") or {}
+    if not scripts:
+        return 0
+    led = _ledger_load()
+    scope = spec.get("name") or ""
+    n = 0
+    for name, item in scripts.items():
+        if isinstance(item, str):          # 容忍简写（load_spec 已规范化，这里兜一层）
+            item = {"code": item}
+        code = str((item or {}).get("code") or "")
+        if not code.strip():
+            raise SystemExit("发布前刷新模块失败：脚本 %s 的 code 是空的，拒绝发布" % name)
+        key = "%s|%s|%s" % (robot_id, scope, name)
+        rec = led.get(key) or {}
+        mid = str(rec.get("module_id") or "")
+        if not mid:
+            raise SystemExit(
+                "发布前刷新模块失败：台账里没有 %s 的 moduleId，说明这条规格还没走过 [2.5/6] 上传。\n"
+                "  修法：先跑 `python scripts/ai_flow.py --spec <规格> --robot-name <机器人名>` "
+                "让它把模块建出来，再 --stage expose" % name)
+        if pf.open_module(cookie, robot_id, mid) is None:
+            raise SystemExit("发布前刷新模块失败：模块 %s（%s）在平台上打不开，拒绝发布旧代码"
+                             % (name, mid))
+        pf.save_module(cookie, robot_id, mid, code)
+        rec["hash"] = hashlib.md5(code.encode("utf-8")).hexdigest()
+        rec["updated"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        led[key] = rec
+        n += 1
+        print("      · 已刷新模块 %s（%s，%d 字符）" % (name, mid, len(code)))
+    _ledger_save(led)
+    return n
 
 
 def do_expose(cookie, robot_id, spec, process_id, repair_modules=False):
@@ -356,6 +822,11 @@ def do_expose(cookie, robot_id, spec, process_id, repair_modules=False):
     校验入参，传任何参数都报 `403 Arguments do not match the tool input schema`。
     """
     mids = module_ids_of(spec)
+    # 发布前刷新（P4）：平台发布会按 creator_id 复制模块行，复制的必须是**当前代码**。
+    # 失败直接停（refresh_modules 内部抛 SystemExit），绝不「告警后继续发旧代码」。
+    if spec.get("scripts"):
+        print("      发布前刷新脚本模块内容（平台按当前内容复制进版本）...")
+        refresh_modules(cookie, robot_id, spec)
     v = pf.publish_auto(cookie, robot_id, spec.get("name") or "AI生成流程",
                         introduction=(spec.get("nl_examples") or ["AI 生成流程"])[0],
                         module_ids=mids, repair_modules=repair_modules)
@@ -426,6 +897,10 @@ def main():
     ap.add_argument("--stage", choices=["draft", "review", "publish", "expose", "invoke"], default="review",
                     help="draft=只生成校验 / review=落库+真跑+评审单（默认） / "
                          "publish=发布版本 / expose=发布+登记 openapi 列表 / invoke=用 API Key 调用执行")
+    ap.add_argument("--prep-only", action="store_true",
+                    help="等价于 --stage draft（只生成+校验，不上传模块）。"
+                         "⚠️ 名字叫 prep 但它**仍然会**解析/创建机器人（--robot-name 时），"
+                         "所以平台上可能多出一条机器人记录；真正的「零副作用」做不到")
     ap.add_argument("--version", type=int, default=0, help="publish 阶段的版本号（需大于最新）")
     ap.add_argument("--params", default="", help="invoke 阶段的执行参数（JSON 字符串）")
     ap.add_argument("--no-run", action="store_true", help="跳过本地真跑")
@@ -434,6 +909,12 @@ def main():
     ap.add_argument("--repair-modules", action="store_true",
                     help="发布时用 SQL 补丁把模块复制到发布版本（只给历史手工插入的模块用，需 db.enabled）")
     ap.add_argument("--offline", action="store_true", help="用本地缓存原子字典（不连 .130）")
+    ap.add_argument("--param-binding", choices=["baked", "bound"], default="",
+                    help="Script.module 的 module_param 落库方式（不写 = 用 rpa_config 的 param_binding，"
+                         "缺省 baked）。"
+                         "baked=把 $p: 烘焙成默认值（设计器一定能打开，但改参数不生效）；"
+                         "bound=保留 rpa:special 引用 + need_parse（设计器改参数真生效，"
+                         "需确认设计器能显示该节点）。")
     ap.add_argument("--skip-batch-check", action="store_true",
                     help="话里是批量意图时也继续（默认拦下，因为单文件流程只会处理一个文件）")
     ap.add_argument("--skip-element-pick", action="store_true",
@@ -445,11 +926,28 @@ def main():
                          "省略则用 --robot-id / rpa_config 的 defaults.robot_id")
     args = ap.parse_args()
 
+    # `--prep-only` 只是 `--stage draft` 的更好听的名字（名字来自用户建议：draft 听起来像
+    # 「不产生副作用」，其实它会解析/创建机器人）。两者行为完全一致，别让它变成第二套逻辑。
+    if args.prep_only:
+        args.stage = "draft"
+
 
     robot_id = args.robot_id
     print("=" * 64)
     print("AI 流程交付流水线")
     print("=" * 64)
+
+    # module_param 落库模式：命令行优先，否则用 flow_generator 的默认值。
+    # 必须在任何 build_process_content 之前设好（包括自愈后的重建）。
+    try:
+        fg.set_param_binding_mode(args.param_binding)
+    except ValueError as e:
+        print(f"❌ {e}")
+        return 2
+    print(f"module_param 绑定模式：{fg.param_binding_desc()}")
+    if not args.param_binding:
+        _cfgv = fg.config_param_binding()
+        print("   （来源：%s）" % (f"rpa_config param_binding={_cfgv}" if _cfgv else "内置默认（baked）"))
 
     # 换设备后 robotId 全变，但「机器人名」是稳定的。给了 --robot-name 就先按名字解析，
     # 解析结果覆盖 robot_id（找不到会新建），这样新机器上一条命令就能跑。
@@ -534,6 +1032,37 @@ def main():
         print(f"      ⚠️ 元素库加载失败（{e}），跳过元素核对")
     print(f"      原子 {len(atom_dict)} · 元素 {len(elements or {})}")
 
+    # ---------- 2.5 内嵌 Python 脚本 → 平台模块 ----------
+    # 必须在 [3/6] 之前：节点的 `content` 要从 `$script:名字` 换成真实 moduleId，
+    # 否则落库的是个占位符字符串，设计器里点运行直接报错。
+    script_refs = _script_refs(spec)
+    if script_refs:
+        names = ", ".join(sorted({x[2] for x in script_refs}))
+        print(f"[2.5/6] 内嵌 Python 脚本 → 平台模块（{len(script_refs)} 个节点引用：{names}）...")
+        dry = (args.stage == "draft")
+        ck_s = None
+        if not dry:
+            try:
+                ck_s = pf.load_session()
+            except SystemExit as e:
+                print(f"      ❌ 拿不到设计器会话，无法上传 Python 子流程模块：{e}")
+                return 2
+            except Exception as e:  # noqa: BLE001
+                print(f"      ❌ 设计器会话不可用：{type(e).__name__}: {e}")
+                return 2
+        try:
+            mids = resolve_scripts(ck_s, robot_id, spec, dry=dry)
+        except SystemExit as e:
+            print(f"      ❌ {e}")
+            return 2
+        except Exception as e:  # noqa: BLE001
+            print(f"      ❌ 脚本模块处理失败：{type(e).__name__}: {e}")
+            return 2
+        if dry:
+            print("      （draft 只落盘不建模块；正式落库时会自动建/更新，无需人工上传 py）")
+        elif mids:
+            print(f"      模块就绪 {len(mids)} 个：{mids}（发布时会随版本一起复制）")
+
     # ---------- 3. 构建 + 校验 ----------
     print("[3/6] 构建节点树并校验...")
     try:
@@ -559,6 +1088,14 @@ def main():
                    "process_content": pc}, f, ensure_ascii=False, indent=2)
 
     if args.stage == "draft":
+        # 「假绿」提醒（QA 2026-11-02 指出）：draft 不解析内嵌脚本，`$script:名字` 在节点树里
+        # 就是一串普通文本，`fg.validate()` 自然 0 错 0 警 —— 但那不代表这份节点树能跑。
+        # 不说明的话，`docs/generated_flow.json` 会被当成「已验证通过」的产物。
+        if _script_refs(spec):
+            print("\n⚠️ draft 结果**不能直接落库**：%d 个节点还是 `$script:名字` 占位符，"
+                  "没有换成真 moduleId。" % len(_script_refs(spec)))
+            print("   校验是「假绿」——占位符当普通字符串，当然没有错误。")
+            print("   要真验证：去掉 --prep-only / --stage draft 跑一次（会建模块并真跑）。")
         print("\n[draft] 仅生成+校验，未落库、未执行。产物：docs/generated_flow.json")
         return 0 if check["is_pass"] else 2
     if not check["is_pass"]:
@@ -630,6 +1167,16 @@ def main():
 
     # ---------- 4. 落库到主流程 ----------
     print("[4/6] 写入机器人主流程...")
+    # 落库前必须让人知道「参数能不能改」——否则用户改了参数不生效会被当成新 bug 回来（A17）。
+    # 只提示、不阻断：修法在命令行开关里，不在流程数据里。
+    if fg.PARAM_BINDING_MODE == "baked":
+        _hits = _param_binding_warn(spec)
+        if _hits:
+            _tot = sum(len(h[1]) for h in _hits)
+            print(f"      ⚠️ 参数绑定模式 baked：模块参数在生成时固定，设计器改参数不生效"
+                  f"（要可改请用 --param-binding bound）")
+            print(f"         受影响节点：{len(_hits)} 个 / {_tot} 个 $p: 参数 —— "
+                  + "; ".join("节点 %d: %s" % (i, "/".join(ns)) for i, ns in _hits))
     ck = pf.load_session()
     robot_name = robot_name_of(ck, robot_id)
     user = pf.whoami(ck)
@@ -670,13 +1217,22 @@ def main():
     if args.stage == "publish":
         ver = args.version
         print(f"[publish] 发布机器人版本 v{ver} ...")
-        r = pf.publish(ck, robot_id, spec["name"], ver)
+        # `module_ids` 必须传：publish 会用它核对「模块有没有被带进发布版本」。
+        # 不传的话这一步的校验悄悄消失，等 openapi 调用时才报「该模块不存在」（坑 66）。
+        # `--stage expose` 走 do_expose 是传了的，两条路径必须一致（QA 2026-11-02 指出）。
+        r = pf.publish(ck, robot_id, spec["name"], ver,
+                       module_ids=module_ids_of(spec))
         print(f"      发布结果：{r}")
         return 0
 
     if args.stage == "expose":
         print("[expose] 发布版本 + 登记 openapi 可执行列表...")
-        v = do_expose(ck, robot_id, spec, pid, repair_modules=args.repair_modules)
+        try:
+            v = do_expose(ck, robot_id, spec, pid, repair_modules=args.repair_modules)
+        except SystemExit as e:
+            print(f"      ❌ 发布中止：{e}")
+            print("      没有发布任何版本 —— 宁可不发，也不发一个和代码不一致的版本。")
+            return 2
         print("\n" + "=" * 64)
         print(f"✅ 已上线可调用：project_id={robot_id}  version=v{v}")
         print(f"   调用：python scripts/ai_flow.py --spec {os.path.relpath(spec_path, ROOT)} --stage invoke")

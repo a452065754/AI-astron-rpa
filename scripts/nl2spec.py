@@ -204,6 +204,28 @@ ATOM_HINTS = {
     "Excel.save_excel": "要覆盖已存在的文件时，`exist_handle_type` 设 `overwrite`，否则会另存一份。",
     "File.file_create": "`dst_path` 是**目录**，文件名放 `file_name`；两个都是必填。",
     "File.get_file_list": "**不能按扩展名过滤**（列全部文件）。只处理某种文件请用 `File.file_search`。",
+    # `target_path` 的语义坑（2026-11-02 真跑实测）：它是**父目录**，`folder_name` 才是新目录名。
+    "Folder.folder_create": (
+        "`target_path` 是**父目录**、`folder_name` 是**新子目录名**，不是完整路径。"
+        "要建 `F:\\a\\b\\split` 就写 target_path=`F:\\a\\b` + folder_name=`split`；"
+        "把完整目标目录塞进 target_path 会建成 `...\\split\\split`（多一层空目录）。"
+        "**脚本里已经 `os.makedirs(out_dir, exist_ok=True)` 时不要再加这个节点**。"),
+    # 这条不是「坑」，是**能力入口**：告诉模型「原子拼不出来时该换什么牌」。
+    # 不写这条的后果（实测 2026-11-02）：「Excel 按列的值拆成多个文件」「Excel 按列去重」
+    # 的标准答案都是 1 个 Script.module 节点，模型却硬拼 11~17 个原子然后失败。
+    #
+    # ⚠️ 但措辞必须是「兜底」而不是「不方便就用它」（2026-11-02 用户纠正）：
+    #    写成「拼不出来就用它」会让模型偷懒（脚本比原子省事），必须先证明命中 B-1~B-4。
+    "Script.module": (
+        "**兜底手段，不是常规选项**：只有在原子确实表达不了（命中 B-1 跨迭代累计状态 / "
+        "B-2 输出个数或文件名取决于运行时数据 / B-3 复杂数据变换 / B-4 精确格式控制）时才用，"
+        "并把命中条款写进 `scripts.<名>.why`。契约：入口必须是 `def main(args)`，`args` 是 dict，"
+        "**里面每个值都是字符串**（布尔要自己转：`str(v).lower() in (\"true\",\"1\",\"yes\")`，"
+        "数字要自己 `int()`）；返回值落到 `out.program_script`。"
+        "`content` 写 `\"$script:脚本名\"`（不要写模块 id），源码放 spec 顶层 `scripts` 里；"
+        "`module_param` 写 `$json:[{\"varName\":\"参数名\",\"varValue\":\"$p:xxx\"}]`。"
+        "**返回的 dict 不能在流程里取字段**（没有 `$结果[字段]` 语法）：要摘要就让脚本自己 "
+        "`logger.info(...)` 打日志，或额外 return 一个 `summary` 字符串再整串引用。"),
 }
 
 
@@ -365,14 +387,17 @@ SYSTEM_PROMPT = """你是 Astron RPA 的「流程规格（spec）生成器」。
 - **只输出一个 JSON 对象**，不要解释、不要 ``` 围栏、不要注释、不要多余文字。
 - JSON 必须是能直接 `json.loads` 的严格格式：字符串用双引号，Windows 路径里的反斜杠写成 `\\\\`。
 
-# spec 结构（只认这 5 个字段）
+# spec 结构（6 个字段，`scripts` 可选）
 {
   "name": "流程名（中文，别带空格）",
   "nl_examples": ["用户可能怎么说（2-3 条）"],
   "keywords": ["关键词3-5个"],
   "params": [{"name":"src_file","type":"Str","default":"D:\\\\demo\\\\a.xlsx","describe":"源文件"}],
+  "scripts": {"脚本名": {"name":"模块名","why":"命中判定 B-x：……",
+                         "maintain_hint":"业务人员改哪个参数","code":"def main(args):\\n    ..."}},
   "nodes": [{"atom":"原子名","alias":"中文节点名","inputs":{...},"out":{"原子输出key":"变量名"}}]
 }
+`scripts` 是**兜底**才用（判定见下面「一 / 二」两节），不用就整个字段不要写。
 
 # 硬性规则（违反必被校验器打回）
 1. `params[].default` **绝对不能是空串**，必须是真实可用的值（设计器拿到空串会直接报 WinError 3）。
@@ -383,7 +408,16 @@ SYSTEM_PROMPT = """你是 Astron RPA 的「流程规格（spec）生成器」。
    - `"$变量名"` 引用**前面节点** out 里起的变量名
    - `["$p:前缀","_","$idx"]` 数组表示字符串拼接
    - `"$json:[...]"` 给需要 JSON 字符串的参数（如 module_param / process_param）
+   - `"$script:脚本名"` 只用在 `Script.module` 的 `content` 上（内嵌脚本占位，系统会换成真模块）
    - `"$item"` / `"$idx"` 只在 `Code.ForList` 循环体内有效
+   - **字符串里不能内嵌变量**：`"共生成 $n 个文件"` 是错的 —— 引擎只认「整串就是一个引用」
+     或「数组分段」，混在文本里的 `$` **原样打印**（业务人员会看到一行带 `$` 的字，以为流程坏了）。
+     要拼接就写数组：`["共生成 ", "$n", " 个文件"]`；要么整串只写 `"$n"`。
+   - **没有 `$结果[字段]` 这个语法**：脚本返回 dict 也不能在流程里取字段。
+     需要摘要就**让脚本 return 一段中文摘要字符串**（`"summary": "拆分完成：4 个部门，共 40 行"`），
+     节点写 `"msg": "$summary"`；或者干脆让脚本自己 `logger.info(...)` 打日志、流程里不放打印节点。
+   - **不要把「变量 + 扩展名」写成一个引用**：`"$clean_dept.xlsx"` 不是变量名，
+     要写 `["$clean_dept", ".xlsx"]`。
 5. 枚举参数只能用参数表里给出的「取值」，**不能写中文描述**。
 6. **`Bool` 参数写 JSON 布尔 `true` / `false`，绝对不要写字符串 `"True"` / `"False"`。**
    引擎对非空字符串一律视为真值 —— `"visible_flag": "False"` 会**把窗口显示出来**（正好相反）。
@@ -394,8 +428,89 @@ SYSTEM_PROMPT = """你是 Astron RPA 的「流程规格（spec）生成器」。
 9. 只使用「可用原子清单」里的原子。清单外的原子不存在，写了必被驳回。
 10. **路径/文件名参数**（`*_path` / `*_file` / `*_name` / `*_dir`）直接写字符串或 `"$p:x"` 引用，
     **不要**用 `$json:` 包起来 —— `$json:` 是给 list/dict 之类结构化参数用的。
+11. **默认必须用原子拼**。只有命中下面「二、允许用脚本的 B-1~B-4」之一才允许用
+    `Script.module`，而且必须把命中的条款写进 `scripts.<名>.why`（校验器会报错）。
+    原子确实表达不了时**不许**用十几个原子硬拼一个假流程 —— 那种情况该用脚本。
 
-# 选原子容易踩的三个点
+# 一、默认路径：用原子拼（先证明原子做不到）
+
+产品的验收标准是「**非专业业务人员能看懂、能做微调**」。原子在设计器里可视化、可编辑、
+点开就能改参数；脚本不行。所以**能拼原子就必须拼原子**，哪怕多花 3~5 个节点。
+
+**下列需求禁止用脚本**，必须用原子：
+- 单个 / 固定数量的文件读写、复制、移动、重命名、压缩解压；
+- 格式转换：Word→PDF、Excel→CSV、PDF 抽页/合并、图片格式转换；
+- 固定规则的查找替换、筛选、去重（`Excel` / `DataTable` / `StringProcess` 域都有现成原子）；
+- 顺序固定的线性步骤（打开 → 读取 → 写 → 保存）；
+- 打开网页点元素、截图、发邮件、HTTP 请求。
+
+一句话判断标准：**能用原子 + 循环/条件块表达，就必须用原子。**
+
+# 二、只有命中下列任一条，才允许用脚本（记作 B-1~B-4）
+
+- **B-1 跨迭代累计状态**：计数器、累加器、"已经写到第几行"、循环里要记住上一个值
+  —— 原子没有变量赋值。
+- **B-2 输出个数/文件名取决于运行时数据**：按某列的唯一值拆成 N 个文件、按分组名建目录
+  —— N 和名字只有跑起来才知道。
+- **B-3 复杂数据变换**：分组聚合、透视表、行列转置、多表按 key 关联。
+- **B-4 精确控制文件格式细节**：单元格样式、列宽、合并单元格、页边距。
+
+除此之外一律用原子。**写完自检一句**：如果用了脚本，必须能说出命中了上面哪一条，
+并把这句话原样写进 `scripts.<名>.why`（形如 `"命中判定 B-2：……"`）。写不出来 → 说明该用原子。
+
+# 三、用了脚本才需要读这节（字段、契约、可维护性补偿）
+
+1) 节点（`content` 写 `$script:脚本名`，**不是**模块 id）：
+{"atom":"Script.module","alias":"按部门拆分（自动脚本，改逻辑需开发）",
+ "inputs":{"content":"$script:excel_split",
+           "module_param":"$json:[{\\"varName\\":\\"src_file\\",\\"varValue\\":\\"$p:src_file\\"}]"},
+ "out":{"program_script":"split_result"}}
+> `alias` 必须是**业务语言**，并标明这是脚本（业务人员一眼知道「这步不是普通节点」）。
+
+2) 顶层 `scripts`（`why` / `maintain_hint` 必填，`atom_suggestion` 建议写）：
+"scripts": {"excel_split": {
+  "name": "Excel按列拆表",
+  "why": "命中判定 B-2：输出文件数取决于「部门」列的唯一值，原子无法动态生成文件名",
+  "maintain_hint": "改拆哪一列 → 改参数 split_column；改输出目录 → 改参数 out_dir；改逻辑需找开发改 Python",
+  "atom_suggestion": "Excel 按列唯一值拆分成多表",
+  "code": "def main(args):\\n    import os\\n    import openpyxl\\n    ...\\n    return {\\"ok\\": True}\\n"}}
+
+3) 代码契约（违反会被校验器打回）：
+- 入口必须是 `def main(args)`，`args` 是 dict；
+- **`args` 里的值全是字符串**：`"True"` / `"3"` 都是字符串，布尔用
+  `str(args.get("flag")).lower() in ("true","1","yes")`、数字用 `int(...)` 自己转；
+- 只能 import **标准库 + 白名单第三方库**：`openpyxl` / `pandas` / `pdfplumber` / `docx` /
+  `PIL` / `numpy` / `astronverse` / `win32com` / `requests`（运行环境**离线**，别的库没有）；
+- 代码里 `args.get("名字")` / `args["名字"]` 用到的名字**必须**和 `module_param` 的
+  `varName` 一一对上（校验器逐个对比：缺一个 → 运行时就拿到 None，静默出错）。
+- **`module_param` 的 `varValue` 只能是字符串或 `$p:` 引用**，不许写 JSON 的 `true` / `false` /
+  `null` / 数字 —— 引擎会把这整段 JSON 当 Python 源码求值，`true` 大小写不符会 `NameError`；
+  而且模块里的 `args` 约定**全是字符串**。布尔写 `"true"` / `"false"`，数字写 `"3"`。
+
+4) **可维护性补偿**（脚本外面必须可维护，五条都要做到）：
+- **所有可调项提升为流程参数**，不许写死在代码里：路径、列名、sheet 名、阈值、是否覆盖；
+- 模块内参数名用业务语义英文（`split_column` / `out_dir` / `overwrite`），
+  中文解释写进对应流程参数的 `describe`；
+- 节点 `alias` = 业务语言 + 标明脚本，如「按部门拆分（自动脚本，改逻辑需开发）」；
+- `main()` 必须 `return` 一份**人类可读摘要**（业务人员看返回值就知道做了什么），
+  形如 `return {"ok": True, "processed": 12, "skipped": 0, "outputs": ["a.xlsx", "b.xlsx"]}`
+  —— 至少含 `ok`、处理数量、跳过数量、输出位置列表（只放前 5 个）；
+- 摘要**不要**用「`Report.print` + `$结果[字段]`」展示 —— 引擎**没有**取字段语法，
+  那样写会原样打印 `$结果[processed_count]`，业务人员以为流程坏了。
+  推荐两种写法（二选一）：
+  ① 脚本里 `logger.info("拆分完成：%d 个部门，共 %d 行" % (...))` 自己打日志，
+     流程里**不放** `Report.print`（少一个节点、少一处误导）；
+  ② 脚本额外 `return {"ok": True, "summary": "拆分完成：4 个部门，共 40 行"}`，
+     节点写 `"msg": "$结果"` 之前先让脚本只返回字符串给一个独立变量，或直接用 `"$summary"`。
+- 失败必须 `raise RuntimeError("中文原因")`，不许抛英文堆栈或静默 `return None`。
+
+# 选原子容易踩的几个点
+- **`Folder.folder_create` 的语义是「在父目录下建一个子目录」**：
+  `target_path` = **父目录**，`folder_name` = **新目录名**（不是完整路径）。
+  要建 `F:/demo/out/split` 就写 `target_path = "F:/demo/out"` + `folder_name = "split"`；
+  把已经是完整目标目录的 `out_dir` 塞进 `target_path` 会建成 `.../split/split`（多一层空目录）。
+  **脚本里已经有 `os.makedirs(out_dir, exist_ok=True)` 时，不要再加这个节点** ——
+  多一个「建目录」节点只会让业务人员疑惑「为什么要建两次」。
 - **参数类型是 `DocxObj` / `ExcelObj` / `DocumentObject` / `*Object` 这类「对象」的**，
   要传**上游打开节点的输出**（如 `"doc": "$doc_obj"`），**不能写文件路径**。
   典型：`Docx.convert_format` 的 `doc`、`Docx.read_docx` 的 `doc`、`Excel.*` 的 `excel`。
@@ -413,7 +528,198 @@ SYSTEM_PROMPT = """你是 Astron RPA 的「流程规格（spec）生成器」。
 
 # 干活前的自我检查
 输出前默念：① 每个 param 的 default 都非空？② 每个 inputs 的 key 都在参数表里？
-③ 每个 `$x` 都在前面 out 里出现过？④ 循环都有 ForEnd？⑤ 只有清单内的原子？"""
+③ 每个 `$x` 都在前面 out 里出现过？④ 循环都有 ForEnd？⑤ 只有清单内的原子？
+⑥ **这需求我是不是能用原子拼出来？能就必须用原子**（业务人员要能看懂、能微调）。
+⑦ 用了 `Script.module` 的话：命中 B-1~B-4 哪一条？写进 `why` 了吗？`maintain_hint` 写了吗？
+   `args.get` 的名字和 `module_param` 的 `varName` 对得上吗？
+⑧ **有没有在哪段字符串里内嵌 `$变量` / `$结果[字段]`？** 一个都不能有 ——
+   要拼接用数组 `["文字","$var","文字"]`，要打印摘要让脚本自己打日志。"""
+
+
+# ============================================================
+# 4.5 策略开关（原子优先 / 只许原子 / 脚本优先）
+# ============================================================
+#
+# 用户 2026-11-02 定的产品约束：验收标准是「非专业业务人员能看懂、能做微调」。
+# 所以三个手段不是并列选项，而是有优先级的：
+#
+#   原子拼装（高可读/高可调，默认） > 脚本（低可读/低可调，兜底） > 新增原子（脚本的升级形态）
+#
+# `--strategy` 就是这个优先级的**显式开关**，三种取值：
+#   auto   ：按 SYSTEM_PROMPT 里的判定表（默认，产品行为）
+#   atom   ：只许原子。用于**验证某需求能否纯原子实现** —— 模型若判定做不到，会明确回答
+#            `{"impossible": true, ...}` 而不是硬凑一个跑不通的假规格（这正是这个开关的价值）
+#   script ：允许脚本优先（仅调试用，不要拿它交付）
+STRATEGY_BLOCK = {
+    "auto": "",
+    "atom": """
+
+# 【本次强制策略：只用原子（--strategy atom）】
+本次**禁止**使用 `Script.module`，也**不要**在顶层写 `scripts`。
+- 能拼原子就用原子拼（哪怕 5~8 个节点、多两个循环或条件块）。
+- 如果这条需求**确实**原子表达不了（命中 B-1~B-4 任一条），**不要硬凑 spec**，直接输出：
+  {"impossible": true,
+   "reason": "命中 B-2：输出文件数取决于「部门」列的唯一值，原子无法动态生成文件名",
+   "need_atom": "一句话说明该新增什么原子：叫什么、输入什么、输出什么"}
+  给出「原子做不到」比给出一个跑不通的假流程有价值得多。""",
+    "script": """
+
+# 【本次强制策略：允许脚本优先（--strategy script，仅调试用）】
+可以先考虑 `Script.module`；但 1~3 个原子就能说清的事仍然优先原子
+（原子在设计器里可视化可编辑，脚本不行）。用脚本必须写 `why` 与 `maintain_hint`。""",
+}
+
+STRATEGY_DESC = {
+    "auto": "auto（按判定表：原子优先，命中 B-1~B-4 才许用脚本）",
+    "atom": "atom（只许原子；原子做不到时明确报告，不硬凑）",
+    "script": "script（脚本优先，仅调试）",
+}
+
+
+class AtomNotEnough(RuntimeError):
+    """`--strategy atom` 下模型明确回答「原子表达不了这条需求」。
+
+    这是**正常结论**，不是故障：它证明了「这类需求必须靠脚本 / 必须新增原子」，
+    正好是 `docs/原子需求池.md` 想收集的东西。
+    """
+
+    def __init__(self, payload):
+        self.payload = payload if isinstance(payload, dict) else {}
+        super().__init__(str(self.payload.get("reason") or "原子无法表达该需求"))
+
+
+def _strategy_system_prompt(strategy):
+    """把策略块拼到 SYSTEM_PROMPT 后面（auto 时原样返回，不改任何行为）。"""
+    return SYSTEM_PROMPT + STRATEGY_BLOCK.get(strategy or "auto", "")
+
+
+# ============================================================
+# 4.6 生成前「可实现性评估」（用户 2026-11-02 定的 P1）
+# ============================================================
+#
+# 为什么要有这一步（实测事故）：
+#   `--strategy atom` 原本的定位是「告诉你这条需求能不能纯原子实现」。但把「做不到就
+#   输出 {"impossible": true}」当成**生成循环里的一个可选出口**，能不能走到全靠模型自觉。
+#   用户独立跑的那次，模型没走这个出口，而是硬拼了 10 个节点，然后连续 3 轮死在
+#   `变量 $clean_dept.xlsx 在前面没有产出` —— 最终只报了句「自愈 3 轮仍未通过」。
+#   这是**产品语义错位**：atom 模式该回答「这条路通不通」，不该产出「一条拼错的路」。
+#
+# 改法：把判定**提到生成之前**，单独一次调用，只问「原子能不能表达」。
+#   · feasible: false → 直接给结论 + 退出码 3（不进生成循环，不浪费 3 轮）
+#   · feasible: true  → 继续正常生成
+#   · auto 模式复用同一份结论：命中 B-1~B-4 就直接定「用脚本」，省一轮硬拼试错
+#
+# 边界（重要，别把模型的话当平台定论）：这只是**模型基于判定表的判断**，不是形式化证明。
+# 输出里必须带这句免责声明，防止用户把「模型认输」当成「平台做不到」。
+ASSESS_DISCLAIMER = "（本结论由模型基于判定表给出，不是形式化证明；要完全确认需人工核 atom_catalog.py）"
+
+ASSESS_SYSTEM = """你是 Astron RPA 的「可实现性判官」。用户给一句中文需求，你只判断一件事：
+**用平台现有的原子（可视化节点）能不能把这条需求表达出来？** 不要写 spec，不要写代码。
+
+# 默认答案：能（feasible: true）
+只有命中下列任一条，才判 `feasible: false`（这些情况原子确实没有对应能力）：
+- **B-1 跨迭代累计状态**：需要计数器/累加器/"记住上一个值"/"已经写到第几行" —— 原子没有变量赋值。
+- **B-2 输出个数或文件名取决于运行时数据**：按某列的唯一值拆成 N 个文件、按分组名建目录、
+  文件数只有跑起来才知道 —— 原子没有「动态生成文件名/动态控制循环次数」的能力。
+- **B-3 复杂数据变换**：分组聚合、透视表、行列转置、多表按 key 关联。
+- **B-4 精确控制文件格式细节**：单元格样式、列宽、合并单元格、页边距。
+
+# 不要误判成 false 的情况
+- 「步骤多」≠ false。3~20 个原子线性串起来 → 仍然 `feasible: true`。
+- 「要循环」「要条件判断」≠ false。平台有 `Code.ForList` / `Code.While` / `Code.If`。
+- 「要读写 Excel/Word/PDF、要发邮件、要开网页点元素」≠ false。都有现成原子。
+- 只是「我不知道该用哪个原子」≠ false。你手上就有原子清单。
+
+# 判 false 的硬要求
+`reason` 必须指出**具体缺哪种能力**（例：`输出文件数取决于「部门」列的唯一值，原子无法动态生成文件名`），
+不许写「太复杂」「做不到」这种空话。`need_atom` 要能直接拿去提需求：
+叫什么、输入什么、输出什么。
+
+# 输出
+只输出一个 JSON 对象，两个字段结构二选一（不要围栏、不要解释）：
+{"feasible": true, "blocked_by": "", "reason": "一句话理由", "need_atom": ""}
+{"feasible": false, "blocked_by": "B-2", "reason": "具体缺哪条能力", "need_atom": "一个「…」原子：输入…，输出…"}
+"""
+
+
+def assess_feasibility(nl, index, client, verbose=True):
+    """生成前判一次「原子能不能表达」。返回 dict 或 None（评估失败时返回 None，不阻塞主链路）。
+
+    返回字段：`feasible`(bool) / `blocked_by`(B-1~B-4 或空) / `reason` / `need_atom`。
+    """
+    user = ["【需求】", (nl or "").strip(), "",
+            "【可用原子清单】（格式 `原子名(中文名)`，| 分隔）", index.overview(), ""]
+    cand = index.search(nl)
+    if cand:
+        user += ["【本需求最相关的原子详参】", index.detail(cand), ""]
+    user.append("只输出判定 JSON。")
+    msgs = [{"role": "system", "content": ASSESS_SYSTEM},
+            {"role": "user", "content": "\n".join(user)}]
+    try:
+        d = extract_json(client.chat(msgs))
+    except Exception as e:                     # noqa: BLE001
+        if verbose:
+            print("  · 可实现性评估没做成（%s）—— 不影响后续，按原流程继续" % e)
+        return None
+    if not isinstance(d, dict) or "feasible" not in d:
+        if verbose:
+            print("  · 可实现性评估返回的结构不认识，忽略（按原流程继续）")
+        return None
+    out = {
+        "feasible": bool(d.get("feasible")),
+        "blocked_by": str(d.get("blocked_by") or "").strip(),
+        "reason": str(d.get("reason") or "").strip(),
+        "need_atom": str(d.get("need_atom") or "").strip(),
+    }
+    # 判 false 却没给条款 → 按 reason 里的 B-x 补一次，补不到就当未标注（不臆造条款）
+    if out["blocked_by"] and not re.search(r"B-[1-4]", out["blocked_by"]):
+        out["blocked_by"] = ""
+    if not out["blocked_by"]:
+        m = re.search(r"B-[1-4]", out["reason"])
+        out["blocked_by"] = m.group(0) if m else ""
+    if verbose:
+        if out["feasible"]:
+            print("  · 判定：原子**可以**表达（%s）" % (out["reason"] or "未给理由"))
+        else:
+            print("  · 判定：原子**表达不了**（命中 %s）—— %s"
+                  % (out["blocked_by"] or "未标注条款", out["reason"] or "未给理由"))
+    return out
+
+
+def _assess_hint(assess):
+    """把评估结论变成给模型的一段提示（拼在 user 消息末尾）。
+
+    `auto` 关键用法：模型不必再花一轮去"试试原子行不行"，直接照结论走。
+    """
+    if not assess:
+        return ""
+    if not assess.get("feasible"):
+        return ("【生成前判定（请直接采纳，别再花轮次试原子）】\n"
+                "判定：原子表达不了这条需求（命中 %s）。原因：%s\n"
+                "→ 直接用 `Script.module` + 顶层 `scripts` 兜底；`why` 里必须写 "
+                "「命中判定 %s：…」，`maintain_hint` 必须写业务人员能改什么。"
+                % (assess.get("blocked_by") or "B-x", assess.get("reason") or "",
+                   assess.get("blocked_by") or "B-x"))
+    return ("【生成前判定】\n判定：这条需求原子**可以**表达（优先用原子拼装，业务人员才看得懂）。\n"
+            "→ 除非你发现原子真的拼不出来，否则不要用 `Script.module`。")
+
+
+def script_clauses(spec):
+    """列出规格里每个脚本命中的判定条款（用于报告；抠不到返回「未标注」）。"""
+    out = []
+    for name, item in (spec.get("scripts") or {}).items():
+        why = str((item or {}).get("why") or "")
+        m = re.search(r"B-[1-4]", why)
+        out.append({"script": name, "clause": m.group(0) if m else "未标注",
+                    "why": why.strip(), "hint": str((item or {}).get("maintain_hint") or ""),
+                    "suggestion": str((item or {}).get("atom_suggestion") or "")})
+    return out
+
+
+def _clause_of(payload):
+    """从 `{"reason": "命中 B-2：…"}` 里抠出判定条款（兜底用，抠不到给空串）。"""
+    m = re.search(r"B-[1-4]", str((payload or {}).get("reason") or ""))
+    return m.group(0) if m else ""
 
 
 def feedback_prompt(errors, warns, index, spec):
@@ -431,6 +737,10 @@ def feedback_prompt(errors, warns, index, spec):
     parts.append("· 变量引用：`$x` 的 x 必须是前面某个节点 out 里定义过的名字（区分大小写）。")
     parts.append("· 循环变量：循环块的 out 必须写全，例如 "
                  '"out": {"index":"idx","item":"item"}，否则循环体里的 `$item` 拿不到东西。')
+    parts.append("· 脚本模块（Script.module）：`content` 写 `\"$script:脚本名\"`，顶层 `scripts` 里"
+                 "给完整 `def main(args):` 源码（只能 import 标准库 + 白名单库 openpyxl/pandas/"
+                 "pdfplumber/docx/PIL/numpy/astronverse/win32com/requests）；代码里 `args.get(\"x\")` "
+                 "的名字必须和 `module_param` 的 `varName` 一一对上，少一个运行时就拿到 None。")
     # 附上「当前 spec 的节点 → 产出变量」，让模型有全局视角（它常常只盯着报错那个节点改）
     nodes = spec.get("nodes") or []
     if nodes:
@@ -513,7 +823,7 @@ def extract_json(text):
 # ============================================================
 # 5. 生成 + 自愈闭环
 # ============================================================
-def build_messages(nl, index, few_shot=None):
+def build_messages(nl, index, few_shot=None, strategy="auto", assess=None):
     user = ["【需求】", nl.strip(), ""]
 
     user.append("【可用原子清单】（格式 `原子名(中文名)`，| 分隔；**只能从这里选**）")
@@ -531,8 +841,13 @@ def build_messages(nl, index, few_shot=None):
         user.append(json.dumps(few_shot, ensure_ascii=False, indent=1)[:3000])
         user.append("")
 
+    hint = _assess_hint(assess)
+    if hint:
+        user.append(hint)
+        user.append("")
+
     user.append("现在输出这份需求的 spec JSON。")
-    return [{"role": "system", "content": SYSTEM_PROMPT},
+    return [{"role": "system", "content": _strategy_system_prompt(strategy)},
             {"role": "user", "content": "\n".join(user)}]
 
 
@@ -551,12 +866,31 @@ def _pick_few_shot(nl):
         return None
     if not isinstance(sp, dict) or not sp.get("nodes") or len(sp["nodes"]) > 8:
         return None
+    # 含 `Script.module` 的流程一律不当范例，两个原因：
+    #   1) 用内嵌脚本的：`code` 动辄上千字符，塞进 prompt 会被 3000 字截断，模型看到
+    #      「半段代码 + $script: 占位」会学成残缺的写法；
+    #   2) 用 `$p:module_id`（历史写法）的：它依赖一条外部模块（make_module.py 建的），
+    #      模型照抄会写出「引用了不存在的 module_id 参数」的跑不通规格。
+    # 结构范例只教**自包含**的原子结构。
+    for n in sp["nodes"]:
+        if (n or {}).get("atom") == "Script.module":
+            return None
     return {k: sp[k] for k in ("name", "params", "nodes") if k in sp}
 
 
-def generate(nl, index, client, retries=2, few_shot=None, verbose=True):
-    """返回 (spec, history)。history 记录每轮原文、错误、耗时 —— 出问题能复盘。"""
-    messages = build_messages(nl, index, few_shot=few_shot)
+def generate(nl, index, client, retries=2, few_shot=None, verbose=True, strategy="auto",
+             assess=None):
+    """返回 (spec, history)。history 记录每轮原文、错误、耗时 —— 出问题能复盘。
+
+    参数 `assess` 是 `assess_feasibility()` 的结论（可为 None）。给了就把结论钉进 prompt，
+    省掉「先硬拼一轮原子再发现拼不出来」的试错（`auto` 模式的主要收益）。
+
+    `strategy="atom"` 时还有两道额外闸门（双保险：评估在前，闸门在生成循环里）：
+      1. 模型回答 `{"impossible": true}` → 抛 `AtomNotEnough`（**正常结论**，不是故障）；
+      2. 模型仍然写了 `Script.module` → 当成错误回灌（"本次策略禁止脚本"），逼它要么用原子、
+         要么明确说做不到。
+    """
+    messages = build_messages(nl, index, few_shot=few_shot, strategy=strategy, assess=assess)
     history = []
     last_err = None
     for rnd in range(1, retries + 2):
@@ -579,10 +913,25 @@ def generate(nl, index, client, retries=2, few_shot=None, verbose=True):
             ]
             continue
 
+        # 策略闸门 1：模型自报「原子做不到」（只有 --strategy atom 会走到这儿）
+        if spec.get("impossible"):
+            history.append(dict(item, impossible=spec))
+            raise AtomNotEnough(spec)
+
         errors, warns = sl.lint(spec, index.all)
+
+        # 策略闸门 2：--strategy atom 下仍然用了脚本 → 算错误，回灌逼它改用原子或明确拒绝
+        if strategy == "atom" and _uses_script(spec):
+            errors = list(errors) + [{
+                "msg": "本次策略是「只许原子」，但你用了 Script.module",
+                "fix": "改用原子拼装；如果原子确实表达不了，请输出 "
+                       '{"impossible": true, "reason": "命中 B-x：…", "need_atom": "…"}',
+            }]
+
         item["errors"] = errors
         item["warns"] = warns
         item["nodes"] = len(spec.get("nodes") or [])
+        item["scripts"] = len(spec.get("scripts") or {})
         history.append(item)
 
         if not errors:
@@ -601,6 +950,17 @@ def generate(nl, index, client, retries=2, few_shot=None, verbose=True):
         ]
     raise RuntimeError("自愈 %d 轮仍未通过（最后问题：%s）。看 --dump-dir 里的录制了解每轮细节。"
                        % (retries + 1, last_err))
+
+
+def _uses_script(spec):
+    """规格里有没有用内嵌脚本（`scripts` 非空 或 有节点写 `$script:`）。"""
+    if spec.get("scripts"):
+        return True
+    for n in spec.get("nodes") or []:
+        content = ((n or {}).get("inputs") or {}).get("content")
+        if isinstance(content, str) and content.startswith(fg.SCRIPT_REF_PREFIX):
+            return True
+    return False
 
 
 # ============================================================
@@ -627,12 +987,14 @@ VERIFY_FEEDBACK = """你上一次输出的规格**已经写进机器人并真跑
 只输出 JSON，不要解释。"""
 
 
-def _run_ai_flow(spec_path, robot_name, timeout=420):
+def _run_ai_flow(spec_path, robot_name, timeout=420, param_binding=""):
     """调 ai_flow 落库 + 真跑，返回 (是否成功, 完整日志)。"""
     import subprocess
     cmd = [sys.executable, os.path.join(HERE, "ai_flow.py"), "--spec", spec_path]
     if robot_name:
         cmd += ["--robot-name", robot_name]
+    if param_binding:
+        cmd += ["--param-binding", param_binding]
     try:
         p = subprocess.run(cmd, capture_output=True, text=True,
                            encoding="utf-8", errors="replace", timeout=timeout)
@@ -659,14 +1021,15 @@ def _error_digest(log, limit=28):
     return "\n".join(keep[-limit:]) or (log or "")[-1500:]
 
 
-def verify_loop(nl, index, client, spec, out_path, robot_name, rounds=2, verbose=True):
+def verify_loop(nl, index, client, spec, out_path, robot_name, rounds=2, verbose=True,
+                strategy="auto", param_binding=""):
     """生成 → 真跑 → 失败回灌 → 再真跑。返回 (spec, log, 用了几轮, 是否最终成功)。"""
     log = ""
     for i in range(rounds + 1):
         save_spec(spec, out_path)
         if verbose:
             print("  · 真跑第 %d 次（%s）..." % (i + 1, robot_name or "默认机器人"), flush=True)
-        ok, log = _run_ai_flow(out_path, robot_name)
+        ok, log = _run_ai_flow(out_path, robot_name, param_binding=param_binding)
         if ok:
             if verbose:
                 print("    ✅ 真跑 SUCCESS")
@@ -678,7 +1041,7 @@ def verify_loop(nl, index, client, spec, out_path, robot_name, rounds=2, verbose
                 print("       " + ln[:110])
         if i == rounds:
             break
-        msgs = build_messages(nl, index) + [
+        msgs = build_messages(nl, index, strategy=strategy) + [
             {"role": "assistant", "content": json.dumps(spec, ensure_ascii=False)},
             {"role": "user", "content": VERIFY_FEEDBACK % digest},
         ]
@@ -742,7 +1105,11 @@ def apply_sets(spec, pairs):
 
 # ============================================================
 # 6. 落盘 / 录制 / 回放
-# ============================================================def slugify(s):
+# ============================================================
+
+
+def slugify(s):
+    """把流程名变成安全文件名（中文保留）。"""
     s = re.sub(r"[^\w\u4e00-\u9fff]+", "_", (s or "").strip())
     return s.strip("_")[:40] or "generated"
 
@@ -826,6 +1193,60 @@ def _selftest_bad_copy():
     return bad
 
 
+# 内嵌脚本规格（自证「AI 会写脚本」这条链路的静态环节）
+#
+# 为什么自证必须包含它：这一步要证明
+#   ① `$script:名字` 能被 load_spec / build_process_content 原样接住（不报错、不被当变量引用）；
+#   ② 脚本内容能被 lint 校验（缺参数、错的库名都拦得住）；
+#   ③ `scripts` 走完落盘 → 读回不会丢。
+SELFTEST_SCRIPT_CODE = (
+    "def main(args):\n"
+    "    import os\n"
+    "\n"
+    "    import openpyxl\n"
+    "\n"
+    "    src_file = (args.get(\"src_file\") or \"\").strip()\n"
+    "    key_col = (args.get(\"key_col\") or \"\").strip()\n"
+    "    if not src_file or not os.path.exists(src_file):\n"
+    "        raise RuntimeError(\"源文件不存在：%s\" % src_file)\n"
+    "    wb = openpyxl.load_workbook(src_file, data_only=True)\n"
+    "    ws = wb[wb.sheetnames[0]]\n"
+    "    headers = [(\"\" if c.value is None else str(c.value).strip()) for c in ws[1]]\n"
+    "    if key_col not in headers:\n"
+    "        raise RuntimeError(\"表头里找不到列：%s\" % key_col)\n"
+    "    return {\"ok\": True, \"cols\": headers}\n"
+)
+
+SELFTEST_SCRIPT_SPEC = {
+    "name": "自测_脚本模块拆表",
+    "nl_examples": ["把一张表按某列的值拆成多个文件"],
+    "keywords": ["自测", "脚本模块", "按列拆表"],
+    "params": [
+        {"name": "src_file", "type": "Str", "default": "D:\\demo\\订单.xlsx",
+         "describe": "源 Excel"},
+        {"name": "key_col", "type": "Str", "default": "部门", "describe": "按哪列拆"},
+    ],
+    "scripts": {"excel_split": {
+        "name": "按列拆表",
+        # `why` / `maintain_hint` 是**必填**（spec_lint 规则 9）：脚本是兜底手段，
+        # 必须自证「原子确实做不到」+「业务人员还能改什么」。
+        "why": "命中判定 B-2：输出文件数取决于「部门」列的唯一值，原子无法动态生成文件名",
+        "maintain_hint": "改拆哪一列 → 改参数 key_col；改源文件 → 改参数 src_file；"
+                         "改逻辑需找开发改 Python",
+        "atom_suggestion": "Excel 按列唯一值拆分为多表",
+        "code": SELFTEST_SCRIPT_CODE}},
+    "nodes": [
+        {"atom": "Script.module", "alias": "按列拆表（Python 子流程）",
+         "inputs": {
+             "content": "$script:excel_split",
+             "module_param": ('$json:[{"varName": "src_file", "varValue": "$p:src_file"},'
+                              ' {"varName": "key_col", "varValue": "$p:key_col"}]'),
+         },
+         "out": {"program_script": "split_result"}},
+    ],
+}
+
+
 def selftest(verbose=True):
     print("=" * 64)
     print("nl2spec 离线自证（不联网、不需要 API key）")
@@ -837,12 +1258,12 @@ def selftest(verbose=True):
         print("❌ 原子字典为空（docs/atom_dict_cache.json 缺失）")
         return 2
     index = AtomIndex(atoms)
-    print("[1/6] 原子字典：总 %d，可用 %d（已剔除死原子 %d / 无实现 %d）"
+    print("[1/7] 原子字典：总 %d，可用 %d（已剔除死原子 %d / 无实现 %d）"
           % (len(atoms), len(index.usable), len(sl.DEAD_ATOMS), len(sl.MISSING_IMPL)))
 
     # 干净的模型输出一定能过 lint（否则是样例本身坏了）
     e0, _ = sl.lint(json.loads(json.dumps(SELFTEST_GOOD, ensure_ascii=False)), atoms)
-    print("[2/6] 正确规格预先体检：%s" % ("✅ 0 错" if not e0 else "❌ %d 错" % len(e0)))
+    print("[2/7] 正确规格预先体检：%s" % ("✅ 0 错" if not e0 else "❌ %d 错" % len(e0)))
     if e0:
         for e in e0:
             print("      - " + e["msg"])
@@ -850,7 +1271,7 @@ def selftest(verbose=True):
 
     bad = _selftest_bad_copy()
     e1, _ = sl.lint(bad, atoms)
-    print("[3/6] 故意写坏的规格：lint 抓到 %d 个错误 %s" % (len(e1), "✅" if e1 else "❌ 一个都没抓到"))
+    print("[3/7] 故意写坏的规格：lint 抓到 %d 个错误 %s" % (len(e1), "✅" if e1 else "❌ 一个都没抓到"))
     for e in e1[:3]:
         print("      - " + e["msg"])
     ok = ok and bool(e1)
@@ -871,12 +1292,12 @@ def selftest(verbose=True):
     client = LlmClient(cfg, transport=stub)
     spec, hist = generate("把一段文本拆开去重再拼回去", index, client, retries=1, verbose=verbose)
     rounds = len(hist)
-    print("[4/6] 自愈闭环：%d 轮收敛，第 2 轮收到错误回灌：%s"
+    print("[4/7] 自愈闭环：%d 轮收敛，第 2 轮收到错误回灌：%s"
           % (rounds, "✅" if state["saw_feedback"] else "❌"))
     ok = ok and rounds == 2 and state["saw_feedback"]
 
     e2, _ = sl.lint(spec, atoms)
-    print("[5/6] 收敛后的规格：%s" % ("✅ 0 错" if not e2 else "❌ %d 错" % len(e2)))
+    print("[5/7] 收敛后的规格：%s" % ("✅ 0 错" if not e2 else "❌ %d 错" % len(e2)))
     ok = ok and not e2
 
     # 落盘 + 读回（走正式链路，确保 ai_flow 能直接吃）
@@ -886,15 +1307,86 @@ def selftest(verbose=True):
     back = fg.load_spec(tmp)
     same = (len(back["nodes"]) == len(spec["nodes"])
             and [n["atom"] for n in back["nodes"]] == [n["atom"] for n in spec["nodes"]])
-    print("[6/6] 落盘 → load_spec 读回：%s（%s）" % ("✅ 一致" if same else "❌ 不一致",
+    print("[6/7] 落盘 → load_spec 读回：%s（%s）" % ("✅ 一致" if same else "❌ 不一致",
                                                 os.path.relpath(tmp, ROOT)))
     ok = ok and same
 
-    print("\n" + ("✅ 自证通过：生成链路（抽取 / 校验 / 回灌 / 收敛 / 落盘）离线可跑通。"
+    # ---------- [7/7] 内嵌脚本模块（`$script:名字` + 顶层 scripts） ----------
+    script_ok = _selftest_scripts(atoms, verbose=verbose)
+    ok = ok and script_ok
+
+    print("\n" + ("✅ 自证通过：生成链路（抽取 / 校验 / 回灌 / 收敛 / 落盘 / 脚本模块）离线可跑通。"
                   if ok else "❌ 自证失败，看上面哪一步是 ❌。"))
     print("   注意：这只证明**链路通**，不证明**模型生成的流程对**。")
     print("   判断后者必须配真 key 跑真实需求，并核对产出文件。")
     return 0 if ok else 1
+
+
+def _selftest_scripts(atoms, verbose=True):
+    """[7/7] 自证内嵌脚本链路：规格能加载、节点能生成、lint 能通过、坏脚本能被拦住。"""
+    sp = json.loads(json.dumps(SELFTEST_SCRIPT_SPEC, ensure_ascii=False))
+
+    e, w = sl.lint(sp, atoms)
+    print("[7/7] 内嵌脚本规格：%s" % ("✅ lint 0 错" if not e else "❌ %d 错" % len(e)))
+    for x in e:
+        print("      - " + x["msg"])
+    if w and verbose:
+        for x in w:
+            print("      ⚠️ " + x["msg"])
+    ok = not e
+
+    # 代码缺参数 / 库名不对 → 必须被拦住（否则「生成期拦错」就是假的）
+    miss = json.loads(json.dumps(sp, ensure_ascii=False))
+    miss["nodes"][0]["inputs"]["module_param"] = \
+        '$json:[{"varName": "src_file", "varValue": "$p:src_file"}]'
+    e_miss, _ = sl.lint(miss, atoms)
+    caught_miss = any("key_col" in x["msg"] for x in e_miss)
+    badlib = json.loads(json.dumps(sp, ensure_ascii=False))
+    badlib["scripts"]["excel_split"]["code"] = \
+        badlib["scripts"]["excel_split"]["code"].replace("import openpyxl", "import xlwings")
+    e_lib, _ = sl.lint(badlib, atoms)
+    caught_lib = any("xlwings" in x["msg"] for x in e_lib)
+
+    # 可维护性证据缺失必须拦住（否则「模型偷懒选脚本」没有任何代价）
+    no_why = json.loads(json.dumps(sp, ensure_ascii=False))
+    no_why["scripts"]["excel_split"].pop("why", None)
+    e_why, _ = sl.lint(no_why, atoms)
+    caught_why = any("缺少 why" in x["msg"] for x in e_why)
+    no_hint = json.loads(json.dumps(sp, ensure_ascii=False))
+    no_hint["scripts"]["excel_split"].pop("maintain_hint", None)
+    e_hint, _ = sl.lint(no_hint, atoms)
+    caught_hint = any("缺少 maintain_hint" in x["msg"] for x in e_hint)
+
+    print("      负例：少给 module_param 参数 %s / 用了环境没有的库 %s"
+          % ("✅ 拦住" if caught_miss else "❌ 没拦住",
+             "✅ 拦住" if caught_lib else "❌ 没拦住"))
+    print("      负例：没写 why %s / 没写 maintain_hint %s（防「模型偷懒选脚本」）"
+          % ("✅ 拦住" if caught_why else "❌ 没拦住",
+             "✅ 拦住" if caught_hint else "❌ 没拦住"))
+    ok = ok and caught_miss and caught_lib and caught_why and caught_hint
+
+    # 落盘 → load_spec 读回：`scripts` 不能被丢掉，`$script:` 不能被改写
+    tmp = os.path.join(ROOT, "logs", "nl2spec_selftest_script.json")
+    save_spec(sp, tmp)
+    loaded = fg.load_spec(tmp)
+    keep = bool((loaded.get("scripts") or {}).get("excel_split", {}).get("code")) \
+        and loaded["nodes"][0]["inputs"]["content"].startswith(fg.SCRIPT_REF_PREFIX)
+    print("      落盘 → load_spec：%s（scripts 保留 + $script: 未被改写）"
+          % ("✅" if keep else "❌"))
+    ok = ok and keep
+
+    # 生成节点树：content 必须原样透传（真 moduleId 要等 ai_flow 建完模块才填）
+    try:
+        pc = fg.build_process_content(loaded, atoms)
+        content = [it for it in pc[0]["inputList"] if it["key"] == "content"][0]
+        passthru = content["value"][0].get("value") == "$script:excel_split"
+    except Exception as ex:  # noqa: BLE001
+        print("      ❌ build_process_content 抛错：%r" % ex)
+        passthru = False
+    print("      生成节点树：%s（$script: 原样透传，等 ai_flow 换成真 moduleId）"
+          % ("✅" if passthru else "❌"))
+    ok = ok and passthru
+    return ok
 
 
 # ============================================================
@@ -978,6 +1470,36 @@ def cmd_check(cfg, notes, index):
     return 0
 
 
+# 退出码（给脚本/CI 判「下一步该做什么」，所以必须稳定）：
+#   0 成功（且 --verify 时真跑通过）
+#   2 参数/配置/环境错误（没 key、--dry 与 --verify 冲突、听不懂需求…）
+#   3 **原子表达不了这条需求**（模型基于判定表给出的有效结论，不是故障）
+#     → 下一步应该是：去掉 --strategy atom 让它用脚本兜底，或把该能力做成真原子
+#   4 真跑没通过（--verify / --run 用完修复轮仍失败）
+#   6 生成失败（自愈轮用完仍过不了静态校验 / 模型输出不是 JSON）
+EXIT_ATOM_NOT_ENOUGH = 3
+EXIT_GEN_FAILED = 6
+
+
+def print_atom_not_enough(d):
+    """打印「原子无法表达」的结论块（评估阶段和生成阶段共用同一段文案）。"""
+    d = d or {}
+    print("\n" + "=" * 64)
+    print("⚠️ 原子无法表达这条需求")
+    print("=" * 64)
+    if d.get("blocked_by"):
+        print("命中判定：%s" % d["blocked_by"])
+    print("原因：%s" % (d.get("reason") or "（模型没写原因）"))
+    if d.get("need_atom"):
+        print("建议新增的原子：%s" % d["need_atom"])
+    print("\n建议：")
+    print("  ① 去掉 --strategy atom 重跑（用默认 auto，让它用 Script.module 脚本兜底）；")
+    print("  ② 如果这类需求反复出现，就把它做成真原子（见 docs/原子需求池.md）。")
+    print("\n不要做的事：用十几个原子硬拼一个「看起来像」的流程 —— 那种流程跑不通，")
+    print("            业务人员还看不懂，是最坏的结果。")
+    print("\n" + ASSESS_DISCLAIMER)
+
+
 def main():
     ap = argparse.ArgumentParser(
         description="自然语言直出 RPA 流程规格（L3）：人话 → LLM 出 spec → 校验 → 自愈 → 落盘",
@@ -992,7 +1514,19 @@ def main():
     ap.add_argument("--model", default="", help="覆盖模型名")
     ap.add_argument("--base", default="", help="覆盖接口 base（OpenAI 兼容）")
     ap.add_argument("--retries", type=int, default=2, help="自愈轮数（默认 2，即最多 3 次请求）")
+    ap.add_argument("--strategy", choices=["auto", "atom", "script"], default="auto",
+                    help="auto=原子优先、命中 B-1~B-4 才许用脚本（默认/产品行为）；"
+                         "atom=只许原子（用来验证某需求能否纯原子实现，做不到会明确报告）；"
+                         "script=脚本优先（仅调试）")
     ap.add_argument("--no-few-shot", action="store_true", help="不给相似历史规格当范例")
+    ap.add_argument("--param-binding", choices=["baked", "bound"], default="",
+                    help="脚本节点的 module_param 落库方式（透传给 ai_flow；不写 = 用 rpa_config "
+                         "的 param_binding，缺省 baked）："
+                         "baked=烘焙成默认值（设计器一定能打开，但改流程参数不生效）；"
+                         "bound=保留 rpa:special 引用（设计器改参数真生效，需确认设计器能显示该节点）")
+    ap.add_argument("--no-assess", action="store_true",
+                    help="跳过生成前的「可实现性评估」（默认会先判一次原子够不够用；"
+                         "atom 模式下这是给结论的依据，auto 模式下能省一轮试错）")
     ap.add_argument("--dry", action="store_true", help="只生成校验，不写文件")
     ap.add_argument("--dump-dir", default="", help="把每轮请求/响应录到目录（可 --replay 复现）")
     ap.add_argument("--replay", default="", help="回放录制目录（不联网、不花钱）")
@@ -1049,18 +1583,51 @@ def main():
     print("需求：%s" % nl)
     print("模型：%s @ %s" % (cfg["model"],
                              "回放（不联网）" if transport else (cfg["base"] or "(stub)")))
+    print("策略：%s" % STRATEGY_DESC.get(args.strategy, args.strategy))
+    # 让本进程的生成/校验也知道用哪种 module_param 模式（落库在 ai_flow 子进程里做，
+    # 但 `--dry` 时本进程也会 build_process_content，两边必须一致）
+    try:
+        fg.set_param_binding_mode(args.param_binding)
+    except ValueError as e:
+        print("❌ %s" % e)
+        return 2
+    print("脚本参数绑定：%s" % fg.param_binding_desc())
+    if not args.param_binding:
+        _cfgv = fg.config_param_binding()
+        print("   （来源：%s）" % (f"rpa_config param_binding={_cfgv}" if _cfgv else "内置默认（baked）"))
     print("-" * 64)
 
     few_shot = None if args.no_few_shot else _pick_few_shot(nl)
     if few_shot:
         print("  · 参考范例：%s（只借结构）" % few_shot.get("name"))
 
+    # ---------- 生成前：先判「原子够不够用」（P1，用户 2026-11-02 要求） ----------
+    #
+    # atom 模式：这一步就是**结论来源**。判 false 就直接收工（退出码 3），
+    #            不再「硬拼 10 个节点 → 3 轮死在一个变量引用错」。
+    # auto 模式：复用结论。判 false（命中 B-1~B-4）→ 直接把「用脚本」钉进 prompt，
+    #            省一轮硬拼试错；判 true → 提示优先原子。
+    # script 模式：不需要（本来就是脚本优先，只用于调试）。
+    assess = None
+    if args.strategy in ("atom", "auto") and not args.no_assess:
+        print("  · 可实现性评估：先判「原子能不能表达」...", flush=True)
+        assess = assess_feasibility(nl, index, client)
+
+    if args.strategy == "atom" and assess and assess.get("feasible") is False:
+        print_atom_not_enough(assess)
+        return EXIT_ATOM_NOT_ENOUGH
+
     t0 = time.time()
     try:
-        spec, hist = generate(nl, index, client, retries=args.retries, few_shot=few_shot)
+        spec, hist = generate(nl, index, client, retries=args.retries, few_shot=few_shot,
+                              strategy=args.strategy, assess=assess)
+    except AtomNotEnough as e:
+        # 兜底：评估阶段说「能」，但生成时模型自己发现做不到 —— 一样是**有效结论**。
+        print_atom_not_enough(dict(e.payload, blocked_by=_clause_of(e.payload)))
+        return EXIT_ATOM_NOT_ENOUGH
     except Exception as e:
         print("\n❌ 生成失败：%s" % e)
-        return 3
+        return EXIT_GEN_FAILED
     elapsed = time.time() - t0
 
     print("-" * 64)
@@ -1069,6 +1636,26 @@ def main():
     print("节点 %d 个：" % len(spec.get("nodes") or []))
     for i, n in enumerate(spec.get("nodes") or [], 1):
         print("  %2d. %-28s %s" % (i, n.get("atom"), n.get("alias") or ""))
+
+    # 手段透明度：这次到底是「原子拼的」还是「脚本兜底」？用了脚本命中哪一条？
+    clauses = script_clauses(spec)
+    print("\n策略：%s" % STRATEGY_DESC.get(args.strategy, args.strategy))
+    if assess is not None:
+        print("生成前判定：%s" % ("原子可以表达" if assess.get("feasible")
+                                 else "原子表达不了（命中 %s）" % (assess.get("blocked_by") or "?")))
+    if not clauses:
+        print("\n手段：✅ **纯原子拼装**（业务人员在设计器里能看懂、能微调 —— 这是首选结果）")
+    else:
+        print("\n手段：⚠️ **%d 个 Python 脚本兜底**（业务人员改不动，必须能说出为什么）："
+              % len(clauses))
+        for c in clauses:
+            print("  · %s → 命中 %s" % (c["script"], c["clause"]))
+            print("    为什么不用原子：%s" % (c["why"] or "❌ 没写 why"))
+            if c["hint"]:
+                print("    业务人员能改什么：%s" % c["hint"])
+            if c["suggestion"]:
+                print("    建议沉淀成原子：%s（已记 docs/原子需求池.md）" % c["suggestion"])
+        print("  （同一脚本模式出现 ≥3 次 → 应做成真原子，让业务人员直接拖一个节点）")
 
     out = args.out or os.path.join(DEFAULT_FLOW_DIR, "gen_" + slugify(spec.get("name")) + ".json")
 
@@ -1090,7 +1677,9 @@ def main():
             print("(--dry 与 --verify 互斥，--verify 会落库)")
             return 2
         spec, log, used, ok = verify_loop(nl, index, client, spec, out,
-                                          args.robot_name, rounds=args.verify_rounds)
+                                          args.robot_name, rounds=args.verify_rounds,
+                                          strategy=args.strategy,
+                                          param_binding=args.param_binding)
         save_spec(spec, out)
         print("-" * 64)
         if ok:
@@ -1116,15 +1705,17 @@ def main():
     print("\n规格已写入：%s" % os.path.relpath(out, ROOT))
     if args.dump_dir:
         print("录制目录：%s（可用 --replay 复现）" % os.path.relpath(args.dump_dir, ROOT))
+    print("\n" + "-" * 64)
     print("下一步：")
     print("  python scripts/spec_lint.py %s" % os.path.relpath(out, ROOT))
     print("  python scripts/ai_flow.py --spec %s --robot-name <机器人名>" % os.path.relpath(out, ROOT))
+    print("\n" + ASSESS_DISCLAIMER)
 
     if args.run:
         print("\n" + "-" * 64)
         print("落库 + 本地真跑（ai_flow.py）")
         print("-" * 64)
-        ok, log = _run_ai_flow(out, args.robot_name)
+        ok, log = _run_ai_flow(out, args.robot_name, param_binding=args.param_binding)
         print(log.strip().splitlines()[-1] if log.strip() else "")
         if not ok:
             print("⚠️ 真跑没过（规格本身已通过 lint，问题多在：参数语义 / 路径存在性 / 机器人 / 元素）")

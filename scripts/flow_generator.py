@@ -42,6 +42,96 @@ DEMO_DIR = r"F:\AI-Workbench\10-Projects\星辰开源\demo"
 DEMO_XLSX = DEMO_DIR + r"\订单.xlsx"
 DEMO_TXT = DEMO_DIR + r"\源文件.txt"
 
+# 内嵌脚本占位前缀（2026-11-02）。
+#
+# 规格里 `Script.module` 的 `content` 是一个普通的 Str 参数，正常写模块 id 或 `$p:module_id`。
+# 但「AI 现场写脚本」这件事没法提前知道模块 id —— 模块是**运行时才建**的。所以允许先写
+# `"content": "$script:脚本名"` 这个**占位符**：生成器原样透传（不解析、不报错），
+# 由 `ai_flow.resolve_scripts()` 在建节点树之前换成真实 moduleId。
+#
+# 这里只做「透传」，不做任何替换 —— 生成器必须能在没有服务端会话的情况下产出节点树
+# （离线校验、draft 阶段、spec_lint 都依赖这一点）。
+SCRIPT_REF_PREFIX = "$script:"
+
+# `module_param`（Script.module 的参数表）的两种落库模式（2026-11-02 新增）。
+#
+#   baked（默认）：把规格里的 `$p:xxx` 引用**烘焙成参数默认值字面量**，且不带 `need_parse`。
+#                  ✅ 设计器前端一定打得开（就是一份普通 JSON 字符串）
+#                  ❌ 用户在流程参数面板改值后**不生效**（脚本仍按生成时的默认值跑）
+#                  这是 2026-10-30 为修「设计器请求参数解析失败」留下的权衡。
+#
+#   bound         ：保留 `{"rpa":"special","value":[{"type":"p_var","value":"xxx"}]}` 引用，
+#                  并**必须同时**给 `need_parse="json_str"`。
+#                  ✅ 引擎会在运行时求值 → 参数面板/openapi 改值真的生效（2026-11-02 E1 实测：
+#                     改 out_dir 后产出落到新目录、改 src_file 后读到新文件）
+#                  ❌ 设计器前端能否显示 `varValue` 是对象 —— **还没被用户目视确认**（E2 待办）
+#
+# 两个条件（rpa:special + need_parse）必须绑在一起：只改一半 = 拿到 dict 而不是字符串，
+# 脚本里 `args.get("x").strip()` 直接 AttributeError（A 组实验就是这么错的）。
+PARAM_BINDING_MODES = ("baked", "bound")
+PARAM_BINDING_DEFAULT = "baked"
+
+
+def default_param_binding_mode():
+    """从配置取默认模式：`rpa_config.json` 的顶层 `param_binding`，或环境变量 `RPA_PARAM_BINDING`。
+
+    为什么不写死在代码里（用户 2026-11-02）：E2（设计器能不能显示 `rpa:special`）只能目视确认，
+    确认之前默认必须保守；确认之后**用户自己改一行配置就能切**，不必等我们改代码/发版。
+    配错值（如 `"param_bind": "xxx"`）不让流程崩：退回 `baked` 并提示一次。
+    """
+    try:
+        v = (cfg.param_binding() or "").strip().lower()
+    except Exception:
+        return PARAM_BINDING_DEFAULT
+    if not v:
+        return PARAM_BINDING_DEFAULT
+    if v not in PARAM_BINDING_MODES:
+        print("⚠️ rpa_config 的 param_binding=%r 不认识（只能是 %s），已按 %s 处理"
+              % (v, "/".join(PARAM_BINDING_MODES), PARAM_BINDING_DEFAULT))
+        return PARAM_BINDING_DEFAULT
+    return v
+
+
+PARAM_BINDING_MODE = default_param_binding_mode()
+
+
+def set_param_binding_mode(mode):
+    """设置 module_param 落库模式（`baked` / `bound`），返回实际生效的值。
+
+    AI 侧入口：`ai_flow.py --param-binding` / `nl2spec.py --param-binding`。
+    为什么做成模块级开关而不是写死：E2 若确认「设计器不认 rpa:special」，要能一条命令切回
+    baked 而不必回滚代码；而且两种需求（设计器可读 / 参数可改）都真实存在。
+    传空串 = 不覆盖，沿用配置/默认值（命令行不带 `--param-binding` 时就是这条路）。
+    """
+    global PARAM_BINDING_MODE
+    m = (mode or "").strip().lower()
+    if not m:
+        return PARAM_BINDING_MODE
+    if m not in PARAM_BINDING_MODES:
+        raise ValueError("param-binding 只能是 %s，收到 %r" % ("/".join(PARAM_BINDING_MODES), mode))
+    PARAM_BINDING_MODE = m
+    return m
+
+
+def param_binding_desc(mode=""):
+    """给人看的一行说明（落库前打印，让日志自证用了哪种模式）。"""
+    m = (mode or PARAM_BINDING_MODE or PARAM_BINDING_DEFAULT).lower()
+    if m == "bound":
+        return "bound（参数可改：module_param 保留 rpa:special 引用 + need_parse=json_str）"
+    return "baked（参数生成时固定：$p: 烘焙成默认值，设计器一定打得开）"
+
+
+def config_param_binding():
+    """配置里显式写的模式（`rpa_config.json` / `RPA_PARAM_BINDING`），没写返回空串。
+
+    只用于给人看「当前模式从哪来」，不参与决策（决策在 `default_param_binding_mode()`）。
+    """
+    try:
+        v = (cfg.param_binding() or "").strip().lower()
+    except Exception:
+        return ""
+    return v if v in PARAM_BINDING_MODES else ""
+
 # 字典声明多个输出、但 Python 实现只 `return` 一个值的原子（坑 145）。
 # 对这类原子：只按 spec 显式声明的输出生成**一个**变量；不声明就不解包。
 SINGLE_RETURN_ATOMS = {
@@ -153,6 +243,9 @@ def resolve_input(raw, var_names, param_names=None):
     `$p:xxx` 编译成 `{"type":"p_var","value":"xxx"}`。引擎会把它渲染成裸变量名，
     并在 `def main(args)` 开头生成 `xxx = args.get("xxx", 默认值)` —— 所以
     openapi 的 `params` 可以覆盖默认值（2026-10-30 读引擎 flow/flow.py 实证）。
+
+    `$script:xxx` 是**内嵌脚本占位**：原样落成字面量，等 `ai_flow.resolve_scripts()`
+    在落库前换成真实 moduleId（见 `SCRIPT_REF_PREFIX` 的注释）。
     """
     if isinstance(raw, list):
         # 片段拼接：[ "$p:img_dir", "/", "$p:prefix", "_1.png" ] → 引擎按 `+` 拼接求值。
@@ -162,6 +255,11 @@ def resolve_input(raw, var_names, param_names=None):
         for piece in raw:
             pieces.extend(resolve_input(piece, var_names, param_names))
         return pieces
+    if isinstance(raw, str) and raw.startswith(SCRIPT_REF_PREFIX):
+        # 内嵌脚本占位：**不校验、不改写**，原样当字面量落进节点。
+        # 注意必须放在 `$p:` / `$` 分支之前——否则会被当成变量引用而报
+        # 「变量引用 $script:xxx 未在任何上游节点 output 中定义」。
+        return mk_val("other", raw)
     if isinstance(raw, str) and raw.startswith("$p:"):
         name = raw[3:]
         if param_names is not None and name not in param_names:
@@ -567,6 +665,69 @@ def norm_win_path(v):
     return re.sub(r"[\\/]+", lambda m: "\\", v)
 
 
+def _normalize_scripts(spec):
+    """规范化规格顶层的可选字段 `scripts`（内嵌 Python 子流程源码）。
+
+    结构：`{"脚本名": {"name": 模块显示名, "code": "def main(args): ..."}}`
+
+    ## 为什么要这个字段
+
+    原子只能做「一个动作」，做不了「跨迭代累计状态」和「按数据内容决定输出个数」。
+    以前这类需求没出路（AI 只能硬拼 11~17 个原子然后失败）。现在 AI 可以直接在规格里
+    写一段 Python，由 `ai_flow.resolve_scripts()` 现场建成平台模块 —— 全程不需要人
+    手工上传 py 文件。
+
+    ## 但脚本是**兜底**，不是默认（2026-11-02 用户明确的产品约束）
+
+    产品的验收标准是「**非专业业务人员能看懂、能做微调**」，所以价值排序是
+    原子拼装（高可读/高可调）> 脚本（低可读/低可调）> 新增原子（脚本的升级形态）。
+    于是每条脚本都必须自带两个**可维护性证据**字段，缺一不可（`spec_lint` 会报错）：
+
+      - `why`           ：为什么原子做不到、命中判定 B-几（防「模型偷懒选脚本」的硬约束）
+      - `maintain_hint`：业务人员能改什么（改哪个参数）、什么情况必须找开发改代码
+
+    可选 `atom_suggestion`：建议把它沉淀成什么原子（`ai_flow` 会记进
+    `docs/原子需求池.md`，出现 ≥3 次就该做成真原子让业务人员直接拖）。
+
+    ## 这里的边界（很重要）
+
+    只做**结构规范化**，不校验语法、不碰代码内容：
+    - 语法/契约/import 白名单由 `spec_lint` 静态查（报错带行号）
+    - 真正建模块由 `ai_flow.resolve_scripts()` 做
+    - **代码字符串绝不走 `norm_win_path`**：那会把脚本里的路径反斜杠也改写，
+      手写代码必须原样透传。
+
+    未声明 `scripts` 时**不往 spec 里塞空字典**（避免给老规格的落盘文件添噪音）。
+    """
+    sc = spec.get("scripts")
+    if sc in (None, "", {}, []):
+        return spec
+    if not isinstance(sc, dict):
+        raise ValueError(
+            '规格的 scripts 字段必须是对象：{"脚本名": {"code": "def main(args): ..."}}')
+    out = {}
+    for name, item in sc.items():
+        nm = str(name).strip()
+        if not nm:
+            raise ValueError("scripts 里有空脚本名")
+        if isinstance(item, str):
+            # 允许简写成 `"脚本名": "def main(args): ..."`（AI 常这么写，顺手兼容）
+            item = {"code": item}
+        if not isinstance(item, dict):
+            raise ValueError(f"scripts.{nm} 必须是对象或代码字符串")
+        code = item.get("code")
+        if code is None:
+            raise ValueError(f"scripts.{nm} 缺少 code 字段（内嵌脚本必须给完整可运行源码）")
+        one = {"name": item.get("name") or nm, "code": str(code)}
+        # 可维护性证据字段：原样保留（缺失检查交给 spec_lint，这里不替它判死）
+        for k in ("why", "maintain_hint", "atom_suggestion"):
+            if item.get(k):
+                one[k] = str(item[k])
+        out[nm] = one
+    spec["scripts"] = out
+    return spec
+
+
 def load_spec(path):
     """加载「流程规格」JSON —— 这是 AI/LLM 的产出接口，也是模板的通用化形式。
 
@@ -581,6 +742,11 @@ def load_spec(path):
         ]
       }
     规则：`inputs` 里以 $ 开头表示引用上游输出变量；`out` 把 schema 输出 key 映射成变量名。
+
+    可选字段（都不做「未知字段」拦截，多出来的键原样留在 spec 里）：
+      - `params`：流程参数
+      - `element_requirements` / `elements`：元素声明与槽位
+      - `scripts`：内嵌 Python 子流程源码（见 `_normalize_scripts`）
     """
     with open(path, "r", encoding="utf-8") as f:
         spec = json.load(f)
@@ -608,6 +774,7 @@ def load_spec(path):
         p.setdefault("default", "")
         p.setdefault("describe", "")
         p["default"] = norm_win_path(p["default"])
+    _normalize_scripts(spec)
     return spec
 
 
@@ -789,16 +956,20 @@ def build_process_content(template, atom_dict, elements=None, robot_id=DEFAULT_R
                 raw_in = spec["inputs"][pkey]
                 if isinstance(raw_in, str) and raw_in.startswith("$json:"):
                     # 复杂参数：Script.module 的 module_param 唯一能用的形式。
-                    # 分支处理（2026-11-02 修「请求参数解析失败」设计器打不开）：
-                    #   - 含 `$var:`（循环变量）→ 需运行时求值，保持 rpa:special
-                    #     （设计器无法显示，但引擎可跑；评审改用本地真跑验证）
-                    #   - 仅 `$p:` + 字面量 → 烘焙成默认值字面量，去掉 rpa:special / $json:
-                    #     包裹，设计器即可正常解析，引擎 json.loads 后传 dict 给模块
+                    # 三种落法（见文件头 `PARAM_BINDING_MODE`）：
+                    #   1. 含 `$var:`（循环变量）→ 必须运行时求值，保持 rpa:special + need_parse
+                    #      （设计器无法显示，但引擎可跑；评审改用本地真跑验证）
+                    #   2. `PARAM_BINDING_MODE == "bound"` → 同样保持 rpa:special + need_parse，
+                    #      让 `$p:` 流程参数在运行时求值（改参数真的生效）
+                    #   3. 其余（默认 baked）→ 烘焙成默认值字面量，去掉 rpa:special / $json:
+                    #      包裹，设计器一定打得开；代价是改参数不生效
                     try:
                         payload = json.loads(raw_in[6:])
                     except Exception as e:
                         raise ValueError(f"{atom_key}.{pkey} 的 $json: 不是合法 JSON：{e}")
-                    if _contains_var_ref(payload):
+                    if _contains_var_ref(payload) or PARAM_BINDING_MODE == "bound":
+                        # bound 模式（或含循环变量，必须求值）：保留 rpa:special 引用，
+                        # 并**必须**同时给 need_parse —— 引擎靠它走 complex_param_parser 求值。
                         payload = _json_refs(payload, var_defined, param_names)
                         input_list.append({"key": pkey,
                                            "value": json.dumps(payload, ensure_ascii=False),

@@ -21,6 +21,7 @@
 | 引用 | `$p:x` 是否已声明、`$x` / `$var:x` 是否在上游节点产出、`$json:` 能否解析 |
 | 配对 | `Code.ForList` 必须有 `Code.ForEnd`、`Code.If` 必须有 `Code.IfEnd` |
 | 迁移 | `Script.module` 是否把 `module_id` 做成了流程参数（换环境才不用改流程） |
+| 脚本 | `Script.module` 的 `module_param` 结构、`out.program_script`；`content` 写 `$script:名字` 时还查：脚本是否存在、能否 `ast.parse`、有没有 `def main(args)`、**`args.get` 的参数名与 `module_param` 是否对得上**、import 是否在白名单内、**有没有写 `why`（命中判定 B-几）与 `maintain_hint`**、有没有定义了没人用的脚本 |
 
 ## 用法
 
@@ -29,6 +30,7 @@
     python spec_lint.py flows/x.json --offline     # 用本地原子缓存
 """
 import argparse
+import ast
 import difflib
 import json
 import os
@@ -59,7 +61,7 @@ MISSING_IMPL = _load_missing_impl()
 
 # 常见参数的「怎么写」提示（AI 最容易漏的几个）
 PARAM_HINT = {
-    "content": '填模块 id，通常写 "$p:module_id"',
+    "content": '填模块 id（如 "$p:module_id"），或写 "$script:脚本名" 用顶层 scripts 里的内嵌脚本',
     "module_param": '写 "$json:[{\\"varName\\": \\"参数名\\", \\"varValue\\": \\"$p:xxx\\"}]"',
     "excel": "填上游 Excel.open_excel 产出的变量，如 \"$excel_obj\"",
     "file_path": '填文件路径，可用 "$p:src_file" 或字面量',
@@ -112,6 +114,342 @@ DEAD_ATOMS = {
 # 元素类参数（要靠 elements 槽位从元素库取真实元素，不能写字面量）
 ELEMENT_TYPES = {"WebPick", "UiaPick", "CvPick", "Pick", "Element"}
 
+# ---------------------------- 内嵌脚本（scripts）校验用常量 ----------------------------
+#
+# 模块运行环境**离线**，第三方库只有这几个（实测 `%APPDATA%/astron-rpa/python_core/Lib/
+# site-packages` 里的清单）。白名单外的库「装了也跑不了」，所以在生成期就拦下来 ——
+# 真跑到 `import` 才炸的话，一轮真跑要几十秒，代价太高。
+THIRD_PARTY_WHITELIST = {
+    "openpyxl",     # Excel 读写（最常用）
+    "pandas",       # 表格/透视/分组
+    "pdfplumber",   # PDF 取文本/版面
+    "docx",         # python-docx
+    "PIL",          # Pillow 图像
+    "numpy",
+    "astronverse",  # 平台自带（from astronverse.workflowlib import logger）
+    "win32com",     # Excel/Word COM
+    "requests",
+}
+
+
+def _allowed_import_roots():
+    """允许 import 的顶层模块名 = 解释器自带的标准库 ∪ 第三方白名单。
+
+    标准库不手写清单（手写必漏，且换 Python 版本就过期）：`sys.stdlib_module_names`
+    是解释器自己给的，永远与运行环境同步。Python 3.10+ 才有，取不到时退回空集。
+    """
+    std = set(getattr(sys, "stdlib_module_names", ()) or ())
+    return std | THIRD_PARTY_WHITELIST
+
+
+def _collect_imports(tree):
+    """收集脚本里 import 的**顶层**模块名（`from a.b import c` → `a`）。"""
+    roots = []
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Import):
+            for a in n.names:
+                roots.append(a.name.split(".")[0])
+        elif isinstance(n, ast.ImportFrom):
+            if getattr(n, "level", 0):
+                continue        # 相对 import（from . import x）不可能是环境缺库，不查
+            if n.module:
+                roots.append(n.module.split(".")[0])
+    return roots
+
+
+def _find_main(tree):
+    """找模块级 `def main(...)`（平台唯一会调用的入口）。"""
+    for n in getattr(tree, "body", []):
+        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == "main":
+            return n
+    return None
+
+
+def _is_args_name(node):
+    return isinstance(node, ast.Name) and node.id == "args"
+
+
+def _collect_arg_reads(tree):
+    """用 ast 收集代码里读了哪些 args 字段：`args.get("x")` / `args["x"]`（单/双引号都算）。
+
+    返回 `(名字集合, 是否有非字面量读取)`。后者指 `args.get(k)` 这种运行时才知道 key 的
+    写法 —— 那种没法静态核对，跳过参数一致性检查（否则会误报一堆）。
+    """
+    names, dynamic = set(), False
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) \
+                and n.func.attr == "get" and _is_args_name(n.func.value):
+            if n.args and isinstance(n.args[0], ast.Constant) and isinstance(n.args[0].value, str):
+                names.add(n.args[0].value)
+            else:
+                dynamic = True
+        elif isinstance(n, ast.Subscript) and _is_args_name(n.value):
+            sl = n.slice
+            if isinstance(sl, ast.Constant) and isinstance(sl.value, str):
+                names.add(sl.value)
+            else:
+                dynamic = True
+    return names, dynamic
+
+
+def _script_table(spec, err):
+    """把规格顶层 `scripts` 规范化成 `{脚本名: {"code": ...}}`（坏结构就地报错）。
+
+    注意：`lint()` 常被直接喂**模型原文**（`nl2spec.extract_json` 的输出，没走
+    `flow_generator.load_spec`），所以这里要能容忍「简写成字符串代码」等写法，
+    不能假设已经规范化过。
+    """
+    raw = spec.get("scripts")
+    out = {}
+    if raw in (None, "", {}, []):
+        return out
+    if not isinstance(raw, dict):
+        err("顶层的 scripts 必须是对象", '形如 {"脚本名": {"code": "def main(args): ..."}}')
+        return out
+    for k, v in raw.items():
+        name = str(k)
+        if isinstance(v, str):
+            out[name] = {"name": name, "code": v}
+        elif isinstance(v, dict):
+            out[name] = v
+        else:
+            err("scripts.%s 必须是对象或代码字符串" % name,
+                '写成 {"code": "def main(args): ... return {...}"}')
+    return out
+
+
+def _lint_scripts(spec, scripts, err, warn):
+    """`Script.module` 节点 + 内嵌脚本的专项校验（2026-11-02 新增）。
+
+    ## 设计原则（这两条决定了「不误伤老流程」）
+
+    1. **规则 1（module_param）/ 规则 7（out.program_script）对所有 Script.module 生效** ——
+       它们是落库必需项，跟模块内容无关。现有 8 条含 Script.module 的流程全部满足。
+    2. **脚本内容类校验（规则 2~6、9）只在 `content == "$script:名字"` 时做**。历史写法
+       （`content` 是纯 moduleId 或 `$p:module_id`，走 `make_module.py`）本地根本没有代码，
+       强行校验只会把已经通过人工评审的流程判错。
+
+    ## 规则 9（why / maintain_hint）为什么是 err
+
+    产品的验收标准是「非专业业务人员能看懂、能做微调」（用户 2026-11-02 明确的约束）。
+    脚本天生违反这一条，所以它只能是**兜底**：每条脚本必须自证「命中哪条判定（B-1~B-4）」
+    和「业务人员还能改什么」。写不出「为什么原子不行」，基本就等于「其实原子能做、模型偷懒」。
+
+    ## 为什么「args 一致性」是本文件价值最高的一条
+
+    引擎把 `module_param` 的值传进模块时，**args 里没有的 key 就是没有**，`args.get("x")`
+    静默返回 None。于是「参数名拼错一个字母」不会报错，只会在跑完 N 分钟后产出一个空文件
+    —— 这是最难查的一类失败。静态对一遍 `args.get` 和 `varName` 就能在生成期拦住。
+    """
+    nodes = spec.get("nodes") or []
+    used = set()
+
+    for idx, node in enumerate(nodes, 1):
+        if not isinstance(node, dict) or (node.get("atom") or "") != "Script.module":
+            continue
+        alias = node.get("alias") or ""
+        where = "第 %d 个节点%s" % (idx, "（%s）" % alias if alias else "")
+        inputs = node.get("inputs") or {}
+        content = inputs.get("content")
+
+        # ---------- 规则 1：module_param 结构（对所有 Script.module 生效） ----------
+        given_names = []
+        mp = inputs.get("module_param")
+        if mp is None:
+            err("%s：Script.module 缺少 module_param" % where,
+                '写 "module_param": "$json:[{\\"varName\\": \\"参数名\\", '
+                '\\"varValue\\": \\"$p:xxx\\"}]"；模块不需要参数时写 "$json:[]"')
+        elif not isinstance(mp, str) or not mp.startswith("$json:"):
+            err("%s：module_param 必须是字符串化的 JSON（以 \"$json:\" 开头）" % where,
+                '形如 "$json:[{\\"varName\\": \\"src_file\\", \\"varValue\\": \\"$p:src_file\\"}]"'
+                "（写成数组/对象都会被引擎当字符串处理）")
+        else:
+            payload = None
+            try:
+                payload = json.loads(mp[len("$json:"):])
+            except Exception as e:
+                err("%s：module_param 里的 JSON 解析失败：%s" % (where, e),
+                    '检查引号与反斜杠转义；形如 "$json:[{\\"varName\\": \\"x\\", '
+                    '\\"varValue\\": \\"$p:x\\"}]"')
+            if payload is not None and not isinstance(payload, list):
+                err("%s：module_param 必须是 JSON **数组**（每项一个参数）" % where,
+                    '没有参数就写 "$json:[]"，别写空串或对象')
+            elif isinstance(payload, list):
+                bad = [i for i, it in enumerate(payload, 1)
+                       if not (isinstance(it, dict) and it.get("varName"))]
+                if bad:
+                    err("%s：module_param 第 %s 项缺 varName"
+                        % (where, ", ".join(str(i) for i in bad)),
+                        '每项形如 {"varName": "参数名", "varValue": "字面量或 $p:xxx"}')
+                given_names = [str(it.get("varName")) for it in payload
+                               if isinstance(it, dict) and it.get("varName")]
+
+                # ---------- 规则 1.5：varValue 一律禁止 JSON 布尔/空值（**err**） ----------
+                #
+                # 为什么这是硬拦、而且**不分模式**（用户 2026-11-02 / QA N10 P1）：
+                #   1. `bound` 模式下 module_param 带 `need_parse="json_str"`，引擎把这段 JSON
+                #      **原样当 Python 源码**插进生成代码（`InputParam.show_value`，need_eval=True）。
+                #      JSON 的 `true/false/null` 在 Python 里是 `True/False/None`（大小写不符）
+                #      → 跑到那一步才 `NameError: name 'true' is not defined`，
+                #      报的错与真因毫无关系 —— 典型静默错。
+                #   2. 现在 `baked` 模式写 `true` 侥幸能跑（落库前 json.loads 得到 bool），
+                #      但一旦切 `bound` 就全线炸；而全局规则 6 是「Bool 参数写 JSON 布尔」，
+                #      模型照写就会把所有脚本节点都做成定时炸弹。
+                #      → 统一写字符串 "true"，两种模式都安全，模块侧本来就要求
+                #        `str(args.get("x")).lower() in ("true", "1", "yes")`。
+                #   3. 数字（3 / 3.5）不会 NameError（Python 字面量合法），但同样违反「args 全是
+                #      字符串」的模块契约，所以只报 warn，不阻断存量流程。
+                for it in payload:
+                    if not isinstance(it, dict):
+                        continue
+                    vn = it.get("varName")
+                    if "varValue" not in it:
+                        err("%s：module_param 里 %s 缺少 varValue" % (where, vn),
+                            '补 "varValue": "字面量" 或 "varValue": "$p:参数名"'
+                            '（模块里 args.get 拿到的就是这个值）')
+                        continue
+                    vv = it.get("varValue")
+                    if vv is None or isinstance(vv, bool):
+                        err("%s：module_param 里 %s 的 varValue 是 %s —— "
+                            "不能是 JSON 布尔/空值（true/false/null）" % (where, vn, json.dumps(vv)),
+                            '引擎会把它们当 Python 源码求值，报 '
+                            "NameError: name 'true' is not defined。"
+                            '改成字符串 "true" / "false"')
+                    elif isinstance(vv, (int, float)):
+                        warn("%s：module_param 里 %s 的 varValue 是数字 %s"
+                             "（模块拿到的 args 约定全是字符串）" % (where, vn, json.dumps(vv)),
+                             '改成字符串 "%s"（脚本里再 int(...) 转），'
+                             "否则 args.get() 拿到的是 int，.strip()/.lower() 会 AttributeError"
+                             % vv)
+
+        # ---------- 规则 7：out.program_script（对所有 Script.module 生效） ----------
+        if "program_script" not in (node.get("out") or {}):
+            warn("%s：out 里没有 program_script" % where,
+                 '模块 main() 的返回值会无处落地（想用返回值就加 '
+                 '"out": {"program_script": "模块结果变量名"}）')
+
+        # 以下只在「内嵌脚本」模式下校验（历史写法没有本地代码可查）
+        if not (isinstance(content, str) and content.startswith(fg.SCRIPT_REF_PREFIX)):
+            continue
+        name = content[len(fg.SCRIPT_REF_PREFIX):].strip()
+        used.add(name)
+
+        # ---------- 规则 2：脚本必须存在 ----------
+        if not name:
+            err("%s：content 写成了空脚本名（\"$script:\"）" % where,
+                '写成 "content": "$script:脚本名"，脚本名要和顶层 scripts 的键一致')
+            continue
+        item = scripts.get(name)
+        if item is None:
+            # 结构本来就不对（`scripts.x` 是列表/数字…）时，`_script_table` 已经报过一条
+            # 明确的「必须是对象或代码字符串」。这里再报「顶层没有它」纯属噪音（QA 2026-11-02
+            # 实测会多报一条），所以认一下原始 key 就跳过。
+            _raw = spec.get("scripts")
+            if isinstance(_raw, dict) and name in _raw:
+                continue
+            err("%s：引用了内嵌脚本 %s，但顶层 scripts 里没有它" % (where, name),
+                ("可用脚本名：" + ", ".join(sorted(scripts))) if scripts else
+                '在 spec 顶层加 "scripts": {"%s": {"code": "def main(args): ..."}}' % name)
+            continue
+        code = str((item or {}).get("code") or "")
+
+        # ---------- 规则 2.5：code 必须存在且非空 ----------
+        # 缺 code 时后面的 `ast.parse("")` 不报语法错，会一路走到「没有定义 def main(args)」，
+        # 那句错误会把人引去补函数，而真因是**整段源码没了**（QA 2026-11-02 指出）。
+        if not code.strip():
+            err("%s：脚本 %s 缺少 code（内嵌脚本必须给完整可运行的 Python 源码）" % (where, name),
+                '补 "code": "def main(args):\\n    ...\\n    return {\\"ok\\": True}"'
+                '（代码放在顶层 scripts 里，节点 content 只写 "$script:脚本名"）')
+            continue
+
+        # 规则 9：可维护性证据（why / maintain_hint，**都必须是 err**）
+        #
+        # 产品约束（用户 2026-11-02）：用脚本就等于「业务人员看不懂、改不动」，
+        # 所以每条脚本必须自证「原子确实做不到」+「业务人员还能改什么」。
+        #
+        # 「why 有值但没写 B-x」为什么必须是 err（2026-11-02 由 QA 指出）：
+        #   `nl2spec.generate()` 只拿 errors 决定「接受 / 回灌重写」，warns 只记录不判断。
+        #   所以写成 warn 等于没有闸 —— 模型只要写一句「原子做不到，太复杂了」就能过，
+        #   而那正是「模型偷懒选脚本」的典型话术。必须是 err，才真的逼它落回原子。
+        why = str((item or {}).get("why") or "").strip()
+        hint = str((item or {}).get("maintain_hint") or "").strip()
+        if not why:
+            err("%s：脚本 %s 缺少 why（必须写明为什么原子做不到）" % (where, name),
+                '加 "why": "命中判定 B-2：输出文件数取决于「部门」列的唯一值，'
+                '原子无法动态生成文件名"（判定条款见 docs/流程规格DSL.md §11.1）')
+        elif not re.search(r"B-[1-4]", why):
+            err("%s：脚本 %s 的 why 没写命中哪条判定（B-1~B-4）" % (where, name),
+                '写成「命中判定 B-2：输出文件数取决于「部门」列的唯一值，原子无法动态生成文件名」。'
+                '写不出条款 → 说明该用原子拼，别用脚本')
+        if not hint:
+            err("%s：脚本 %s 缺少 maintain_hint（业务人员改什么、什么必须找开发）" % (where, name),
+                '加 "maintain_hint": "改拆哪一列 → 改参数 split_column；'
+                '改输出目录 → 改参数 out_dir；改逻辑需找开发改 Python"')
+
+        # ---------- 规则 3：能不能 ast.parse ----------
+        try:
+            tree = ast.parse(code, filename="scripts.%s" % name)
+        except SyntaxError as e:
+            err("%s：内嵌脚本 %s 有语法错误（第 %s 行）：%s"
+                % (where, name, e.lineno, e.msg),
+                "脚本必须是完整可运行的源码；改完语法再跑")
+            continue
+
+        # ---------- 规则 4：必须有 def main(args) ----------
+        fn = _find_main(tree)
+        if fn is None:
+            err("%s：内嵌脚本 %s 没有定义 def main(args)" % (where, name),
+                "平台只调用 main(args)；入口必须写成 def main(args): ... 并 return 结果")
+        elif not (fn.args.args or fn.args.vararg):
+            err("%s：内嵌脚本 %s 的 main() 没有参数" % (where, name),
+                '签名必须是 def main(args)，参数用 args.get("名字") 取')
+
+        # ---------- 规则 6：import 白名单 ----------
+        allowed = _allowed_import_roots()
+        bad_imports = sorted({r for r in _collect_imports(tree) if r not in allowed})
+        if bad_imports:
+            err("%s：内嵌脚本 %s import 了运行环境没有的库：%s"
+                % (where, name, ", ".join(bad_imports)),
+                "模块运行环境离线，没有这个库（装了也跑不了）。可用第三方库只有：%s，"
+                "其余限 Python 标准库" % ", ".join(sorted(THIRD_PARTY_WHITELIST)))
+
+        # ---------- 规则 5：args 一致性（核心） ----------
+        reads, dynamic = _collect_arg_reads(tree)
+        if dynamic:
+            warn("%s：脚本 %s 用非字面量 key 读 args（如 args.get(变量)）" % (where, name),
+                 "无法静态核对参数名；建议直接写 args.get(\"参数名\")")
+        else:
+            for nm in sorted(reads - set(given_names)):
+                err("%s：脚本 %s 需要参数 %s，但 module_param 没有提供（运行时会拿到 None）"
+                    % (where, name, nm),
+                    '在 module_param 里补一项 {"varName": "%s", "varValue": "$p:%s"}'
+                    "（或直接给字面量）" % (nm, nm))
+            for nm in sorted(set(given_names) - reads):
+                warn("%s：module_param 给了 %s，但脚本 %s 没读它" % (where, nm, name),
+                     "留着无害（可作日志/预留）；确认不是参数名拼错")
+
+    # ---------- 规则 8：定义了但没人用的脚本 ----------
+    for nm in sorted(set(scripts) - used):
+        warn("scripts.%s 定义了但没有任何节点引用它" % nm,
+             '要执行就加一个节点 "content": "$script:%s"；不用就删掉' % nm)
+
+
+# 常见扩展名：用来识别「变量 + 扩展名」被写成单个引用的情况（`"$name.xlsx"`）
+_FILE_EXTS = (".xlsx", ".xls", ".xlsm", ".csv", ".txt", ".docx", ".doc", ".pdf",
+              ".pptx", ".png", ".jpg", ".jpeg", ".json", ".zip", ".md", ".log")
+
+
+def _split_var_ext(name):
+    """`"clean_dept.xlsx"` → `("clean_dept", ".xlsx")`；不像「变量+扩展名」就返回空串。
+
+    只认**白名单后缀**，避免把 `"a.b"` 这类真的含点的变量名误判。
+    """
+    low = (name or "").lower()
+    for ext in _FILE_EXTS:
+        if low.endswith(ext) and len(name) > len(ext):
+            return name[: -len(ext)], name[-len(ext):]
+    return ""
+
 
 def _fmt_opt(v):
     """枚举值按「JSON 里的真实写法」展示。
@@ -158,6 +496,9 @@ def _walk_refs(value, out):
             out.append(("param", value[3:]))
         elif value.startswith("$var:"):
             out.append(("var", value[5:]))
+        elif value.startswith(fg.SCRIPT_REF_PREFIX):
+            # 内嵌脚本占位（`$script:名字`）：不是变量引用，交给 _lint_scripts 专项校验
+            out.append(("script", value[len(fg.SCRIPT_REF_PREFIX):]))
         elif value.startswith("$"):
             out.append(("var", value[1:]))
 
@@ -193,6 +534,7 @@ def lint(spec, atoms):
             err("流程参数重名：%s" % n, "删掉重复的那个")
         pnames.append(n)
     pset = set(pnames)
+    pmap = {p.get("name"): p for p in params if isinstance(p, dict) and p.get("name")}
 
     # ---------- 元素要求（网页流程专用） ----------
     # 规格可声明 element_requirements，生成时由 element_pick 自动补齐元素（坑 126）。
@@ -225,6 +567,7 @@ def lint(spec, atoms):
     # ---------- 逐节点 ----------
     produced = set()      # 上游已产出的变量名
     loop_stack = []       # (atom, 节点序号)
+    nested_loop = False   # 出现过「循环套循环」（D1 提示用）
     for idx, node in enumerate(nodes, 1):
         if not isinstance(node, dict):
             err("第 %d 个节点不是对象" % idx)
@@ -376,6 +719,9 @@ def lint(spec, atoms):
                     err("%s：引用了未声明的流程参数 $p:%s" % (where, name),
                         ("是不是想写：$p:" + " / $p:".join(cand)) if cand else
                         ("已声明：" + (", ".join(pnames) or "（无）")))
+            elif kind == "script":
+                # `$script:名字` 由 `_lint_scripts` 专门校验（只有那里能列出「可用脚本名」）
+                continue
             elif kind == "var":
                 if name not in produced:
                     # 把「表达式」当变量名：`"$key_pos == -1"`（nl2spec 实测，模型想写条件判断）。
@@ -384,6 +730,16 @@ def lint(spec, atoms):
                         err("%s：$%s 看起来是一个表达式，不是变量名" % (where, name),
                             "条件判断要用 Code.If 节点（inputs: args1 / condition / args2），"
                             "不要在 $ 引用里写表达式")
+                        continue
+                    # 「变量 + 扩展名」被写成一个引用：`"$clean_dept.xlsx"`。
+                    # 报成「变量 $clean_dept.xlsx 没有产出」会误导模型去定义一个叫
+                    # `clean_dept.xlsx` 的变量 —— 实测连写 3 轮都不收敛（2026-11-02）。
+                    # 真正要教的是「拼接写成数组」。
+                    if _split_var_ext(name):
+                        base, ext = _split_var_ext(name)
+                        err("%s：$%s 看起来是「变量 + 扩展名」的拼接，不是变量名" % (where, name),
+                            '拼接请写成数组：["$%s", "%s"]（%s 要由上游节点产出）'
+                            % (base, ext, base))
                         continue
                     # 循环变量没产出，几乎只有一个原因：循环块的 out 写成空了。
                     # 引擎不会自动提供 item/index，必须 `"out": {"index":"idx","item":"item"}`
@@ -399,6 +755,61 @@ def lint(spec, atoms):
                         ("可用变量：" + ", ".join(sorted(produced))) if produced else
                         "先放一个产出该变量的节点（如 File.get_file_list 的 file_list）")
 
+        # ---------- 字符串里的 `$变量` / `$变量[字段]` ----------
+        #
+        # 2026-11-02 实测（不是猜的）：
+        #   引擎只把**整段等于 `$var`** 的字符串，或**数组分段**里的 `$var` 当变量引用。
+        #   `"共生成 $r 个文件"` 这种混在文本里的，落库是**一整个字面量**，运行时会原样打印
+        #   `共生成 $r 个文件` —— `$` 根本不会被替换。而 `$r[processed_count]` 更糟：
+        #   引擎把变量名当**裸 Python 名** eval，`r[processed_count]` 里的 processed_count
+        #   会被当变量名 → NameError（读 executor/flow/params.py `_param_to_eval` 实证）。
+        #
+        # 为什么这两种必须是 **err**（而不是提醒）：它们**能让流程跑成 SUCCESS**。
+        # `Report.print` 不校验内容，业务人员在日志里看到的是一行带 `$` 的原始文本，
+        # 只会以为流程坏了。属于「静默错」，必须在生成期拦住（用户 2026-11-02 定为 P1）。
+        #
+        # 收窄误伤：只有当 `$` 后面那个名字**确实是已知变量/流程参数**时才报错。
+        # `"价格 $100"` / 正则里的 `$^` / Windows 路径里的 `$` 都不会命中。
+        for k, raw in inputs.items():
+            if not isinstance(raw, str) or raw.startswith("$"):
+                continue                      # 整段引用是合法写法（含 $json: / $script: / $p:）
+            for m in re.finditer(r"\$([A-Za-z_\u4e00-\u9fa5][\w\u4e00-\u9fa5]*)(\s*[\[.])?", raw):
+                nm, tail = m.group(1), (m.group(2) or "").strip()
+                if nm not in produced and nm not in pset:
+                    continue                  # 不是已知变量（可能是 PowerShell/regex 文本），不管
+                if tail:
+                    err("%s（%s）：%s 的取值 %r 里的 $%s%s… 想「取字段/接字符串」，引擎不支持"
+                        % (where, atom_key, k, raw, nm, tail),
+                        '脚本返回值是 dict，**没有** `$结果[字段]` 这个语法。要么让模块自己 '
+                        'logger/print 输出摘要，要么让模块 return 一段中文摘要字符串，再用整段引用 '
+                        '"%s": "$%s"' % (k, nm))
+                else:
+                    err("%s（%s）：%s 的取值 %r 里含 $ 但不是以 $ 开头（字符串内嵌变量不会被解析，"
+                        "引擎会原样打印）" % (where, atom_key, k, raw),
+                        '改用数组拼接：["文字", "$%s", "文字"]；或整串只写 "$%s"'
+                        % (nm, nm))
+
+        # `Folder.folder_create` 的语义坑（2026-11-02 实测踩到）
+        #
+        # `target_path` 是**父目录**、`folder_name` 是**子目录名**。模型常把「已经是完整目标
+        # 目录」的 out_dir 塞进 target_path，再把最后一段填进 folder_name →
+        # 实际建成 `F:\demo\out\split\split`（多一层空目录），业务人员看着莫名其妙。
+        if atom_key == "Folder.folder_create":
+            tp, fn = inputs.get("target_path"), inputs.get("folder_name")
+            base = ""
+            if isinstance(tp, str) and tp.startswith("$p:"):
+                base = str((pmap.get(tp[3:]) or {}).get("default") or "")
+            elif isinstance(tp, str):
+                base = tp
+            if base and isinstance(fn, str) and fn and not fn.startswith("$"):
+                tail = re.split(r"[\\/]+", base.rstrip("\\/"))[-1]
+                if tail and tail == fn:
+                    warn("%s（%s）：会建成 %s\\%s，比预期多一层目录"
+                         % (where, atom_key, base, fn),
+                         "target_path 是**父目录**、folder_name 是子目录名。要建的就是 %s 本身时，"
+                         "target_path 应写它的父目录；**或者直接删掉这个节点** —— "
+                         "脚本里 os.makedirs(out_dir, exist_ok=True) 已经保证目录存在" % base)
+
         # out 声明是否在 schema 里
         #
         # 例外：字典没声明输出、实现却 return 了值的判断型原子（Window.exist 等），
@@ -413,6 +824,8 @@ def lint(spec, atoms):
 
         # 循环/条件配对
         if atom_key in PAIRS:
+            if loop_stack:
+                nested_loop = True        # 循环里再开循环 → 嵌套循环（D1 提示的触发条件之一）
             loop_stack.append((atom_key, idx, where))
         elif atom_key in PAIRS.values():
             if not loop_stack:
@@ -424,8 +837,12 @@ def lint(spec, atoms):
                         % (open_where, open_atom, open_idx, atom_key),
                         "应该用 %s 收尾" % PAIRS.get(open_atom, "对应的 End"))
 
-        # Script.module 的迁移提醒
-        if atom_key == "Script.module" and "module_id" not in pset:
+        # Script.module 的迁移提醒（**只针对历史写法**：模块 id 做成流程参数的那种）。
+        # 内嵌脚本模式（content = "$script:名字"）的模块 id 由 ai_flow.resolve_scripts()
+        # 自动建/解析，本来就不该有 module_id 参数 —— 那种情况告警纯属噪音，必须跳过。
+        if (atom_key == "Script.module" and "module_id" not in pset
+                and not (isinstance(inputs.get("content"), str)
+                         and inputs["content"].startswith(fg.SCRIPT_REF_PREFIX))):
             warn("%s：Script.module 的模块 id 没做成流程参数" % where,
                  '加一个参数 {"name":"module_id","type":"Str","default":"<模块id>"}，'
                  '并把 content 写成 "$p:module_id"（换环境重建模块时只改参数）')
@@ -433,6 +850,26 @@ def lint(spec, atoms):
     for open_atom, open_idx, open_where in loop_stack:
         err("%s：%s 没有闭合" % (open_where, open_atom),
             "在块末尾补一个 {\"atom\": \"%s\", \"inputs\": {}}" % PAIRS.get(open_atom, "Code.ForEnd"))
+
+    # ---------- 长流程 + 嵌套循环 → 提示「可能把累计状态硬拼成原子了」（D1） ----------
+    #
+    # 为什么不加「> N 个节点就必须用脚本」这类硬阈值（用户 2026-11-02 拍板）：
+    #   15 步表格处理确实该用原子，阈值会误伤合法长流程。
+    # 但「节点多 + 嵌套循环」是模型硬拼 B-1（跨迭代累计状态）的高发组合：
+    # 原子没有变量赋值，模型只好用「再套一层循环 + 一堆 If」去模拟计数器。
+    # 12 这个数字来自现状：已评审通过的最长流程是 11 个节点。
+    # 纯提示，**不改变生成结果**，只是让人有机会复核。
+    if len(nodes) >= 12 and nested_loop:
+        # 文案不带 ⚠️（QA/用户 2026-11-02）：和上面所有 warn 保持同一格式，
+        # 否则在读 lint 输出时它比真错误还像错误，容易盖住真正的 E。
+        warn("原子方案 %d 个节点且有嵌套循环，确认是否存在「累计状态」需求被硬拼"
+             "（若命中 B-1 应改用脚本）" % len(nodes),
+             "B-1 判定见 docs/流程规格DSL.md §11.1；确实是长线性流程则忽略这条")
+
+    # ---------- 脚本模块（Script.module + 顶层 scripts） ----------
+    # 放在节点循环之后：这些规则要跨节点（同一脚本可能被多个节点引用），
+    # 而且需要「全流程引用了哪些脚本」的全局视角（规则 8）。
+    _lint_scripts(spec, _script_table(spec, err), err, warn)
 
     return errors, warns
 

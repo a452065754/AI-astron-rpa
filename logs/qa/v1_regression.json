@@ -1,0 +1,689 @@
+[
+ {
+  "file": "Excel写公式加格式小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "Excel合并单元格与插入行小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "Excel复制粘贴与删除小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "Excel多表合并小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [
+   [
+    1,
+    "合并多表（Python子流程）",
+    "$p: 参数引用（历史写法）"
+   ]
+  ],
+  "scripts_field": []
+ },
+ {
+  "file": "Excel工作表管理小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "Excel已开工作簿与插图小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "Excel批注与格式小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "Excel按列去重小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [
+   [
+    1,
+    "按列去重（Python子流程）",
+    "$p: 参数引用（历史写法）"
+   ]
+  ],
+  "scripts_field": []
+ },
+ {
+  "file": "Excel按条件拆表小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [
+   [
+    1,
+    "按条件拆表（Python子流程）",
+    "$p: 参数引用（历史写法）"
+   ]
+  ],
+  "scripts_field": []
+ },
+ {
+  "file": "Excel文本数字互转小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "Excel查找替换小流程.json",
+  "errors": [],
+  "warnings": [
+   {
+    "msg": "第 2 个节点（全表查找替换）（Excel.search_and_replace_excel_content）：2 个必填参数未写，将用默认值：match_range, output_type",
+    "fix": "默认值不合适时再显式写"
+   }
+  ],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "Excel生成空白模板小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "Excel统计行列小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "Excel订单表导出小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "Excel转JSON小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "Excel逐行读取小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "FTP上传下载与增删小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "FTP连接与目录操作小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "HTTP下载文件小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "HTTP请求小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "PDF合并小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "PDF抽取指定页小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "PDF文本层转Word小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "PDF版面还原Word小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [
+   [
+    1,
+    "版面分析重建Word（Python子流程）",
+    "$p: 参数引用（历史写法）"
+   ]
+  ],
+  "scripts_field": []
+ },
+ {
+  "file": "PDF表格转Excel小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "PDF转Docx小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "PDF转可编辑Word小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [
+   [
+    2,
+    "OCR识别（Python子流程）",
+    "$p: 参数引用（历史写法）"
+   ]
+  ],
+  "scripts_field": []
+ },
+ {
+  "file": "PDF页数与图片提取小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "System系统与文件小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "Word批注光标与删除小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "Word批量替换小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "Word提取文本小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "Word生成表格报告小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "Word读取表格小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "Word转PDF小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "gen_合并txt.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "gen_按部门拆分Excel.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [
+   [
+    1,
+    "按部门拆分Excel（自动脚本，改逻辑需开发）",
+    "$script:（新内嵌脚本）"
+   ]
+  ],
+  "scripts_field": [
+   "excel_split_by_dept"
+  ]
+ },
+ {
+  "file": "n2s_word2pdf.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "n2s_word2txt.json",
+  "errors": [],
+  "warnings": [
+   {
+    "msg": "第 1 个节点（打开Word）（Docx.open_docx）：4 个必填参数未写，将用默认值：default_application, encoding, open_pwd_flag, write_pwd_flag",
+    "fix": "默认值不合适时再显式写"
+   }
+  ],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "列表与文本处理小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "列表高级操作小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "剪贴板与进程信息小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "加解密与时间差小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "图像元素CV操作小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "子流程回声小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "字典与数学计算小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "字符串清洗小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "对话框弹窗小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "异常捕获与提前返回小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "批量PDF版面还原小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [
+   [
+    4,
+    "版面还原这个文件",
+    "$p: 参数引用（历史写法）"
+   ]
+  ],
+  "scripts_field": []
+ },
+ {
+  "file": "批量Word转PDF小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "数据类型转换与补齐小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "数据表复制与筛选小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "数据表循环遍历小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "数据表行列与公式小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "数据表读写与查找替换小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "文件夹压缩解压小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "文件夹批量复制小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "文件夹按类型整理小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [
+   [
+    1,
+    "按类型整理（Python子流程）",
+    "$p: 参数引用（历史写法）"
+   ]
+  ],
+  "scripts_field": []
+ },
+ {
+  "file": "文件夹清空与删除小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "文件夹重命名与移动小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "文件批量复制小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "文件批量重命名小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "文件按扩展名归档小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "文本文件转存小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "文本编码解码小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "时间戳转换小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "条件分支与While循环小流程.json",
+  "errors": [],
+  "warnings": [
+   {
+    "msg": "原子方案 28 个节点且有嵌套循环，确认是否存在「累计状态」需求被硬拼（若命中 B-1 应改用脚本）",
+    "fix": "B-1 判定见 docs/流程规格DSL.md §11.1；确实是长线性流程则忽略这条"
+   }
+  ],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "桌面元素与窗口操作小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "桌面窗口关闭小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "桌面鼠标键盘操作小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "模块回声小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "浏览器多标签与Cookie小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "浏览器打开取标题小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "浏览器执行Js小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "相似元素小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "系统打印与虚拟PDF小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "网页上传下载与元素属性小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "网页元素操作与截图小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "网页元素点击小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "网页元素读取与结构小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "网页填写输入框小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "网页填表并截图存证小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "网页数据抓取小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "网页滑块拖拽小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "计数循环与提前退出小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "软件启停与Cmd小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
+  "file": "运行子流程小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [
+   [
+    3,
+    "动态调用子流程模块（Script.module：走 _module_call，按 main(args) 签名传字典）",
+    "$p: 参数引用（历史写法）"
+   ]
+  ],
+  "scripts_field": []
+ }
+]

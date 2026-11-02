@@ -26,6 +26,23 @@ docs/relocate-report.json
 # 每次落库都会把旧的主流程快照存到这里（本地留档即可，不进仓库）
 flows/_archive/
 
+# ============ 平台环境专属的本地台账（**绝不能入库**）============
+# scripts/module_ledger.json：脚本名 → 平台 moduleId（雪花号）。
+# moduleId 是本环境专属的，换设备/换服务端全是废号；而且它只是「省一次建模块」的缓存，
+# 丢了会自动重建（探活失败即重建），不需要版本化。
+# 旧名 logs/script_modules.json 也留着规则，防老分支误提交。
+logs/module_ledger.json
+logs/script_modules.json
+# logs/ 下的临时试验脚本/落盘日志一律不入库（跑完随手可删）
+logs/_tmp_*
+# nl2spec/ai_flow 的「录制包」与自测产物（每次跑都重新生成，可随时删）
+logs/n2s_*/
+logs/nl2spec_selftest*.json
+logs/replay_*
+logs/replay_out.json
+# 内嵌脚本的本地落盘副本（由 resolve_scripts 从规格 scripts.code 生成，改它不生效）
+scripts/mod_gen_*.py
+
 # 复现包的中间产物（每次跑都重新生成，可随时整个删掉）
 docs/repro/_tmp/
 
