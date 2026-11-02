@@ -504,6 +504,24 @@ SYSTEM_PROMPT = """你是 Astron RPA 的「流程规格（spec）生成器」。
      节点写 `"msg": "$结果"` 之前先让脚本只返回字符串给一个独立变量，或直接用 `"$summary"`。
 - 失败必须 `raise RuntimeError("中文原因")`，不许抛英文堆栈或静默 `return None`。
 
+5) **脚本健壮性四条**（数据异常 + 重复运行，一条都不许省）
+脚本报 SUCCESS 却少输出几行，比直接报错更糟 —— 业务人员不会发现。四条都是硬要求：
+
+   ① **分组/拆分/去重前必须处理该列空值，不许让行无声消失**
+      `pandas.groupby` 默认 `dropna=True`，空值那些行**不会出现在任何输出文件里**。两种写法任选：
+      - `df[col] = df[col].fillna("<空>")` 再 `groupby(col)`（空值单独成一组，文件名 `<空>.xlsx`）
+      - `groupby(col, dropna=False)`
+      **无论哪种，`summary` 必须写明「含空值 N 行」/「跳过 N 行」，N>0 时再 `logger.warning(...)` 记一条。**
+      验收标准：输入 3 行（含 1 行空值）→ **输出必须能对上 3 行**，或明确报「跳过 1 行」。
+   ② **缺失/异常行必须给显式策略，不许 `try: ... except: pass`**
+      跳过就计数并写进 summary；实在处理不了就 `raise RuntimeError("第 5 行「部门」为空，无法拆分")`。
+      summary 里的 `processed` + `skipped` 必须能和输入行数对上。
+   ③ **读取参数化**：凡读 Excel / CSV / Word 的脚本，`sheet_name` 必须是**流程参数**（默认 `""` = 第一张表），
+      并在 summary 里打印**实际读到的 sheet 名** —— 否则用户换了 sheet 会拿到「看起来成功的错数据」。
+   ④ **写入默认可重跑**：`out_dir` 用 `os.makedirs(..., exist_ok=True)`；输出文件已存在时**默认不覆盖** ——
+      要么加 `overwrite` 流程参数（默认 `"false"`），要么唯一化改名（`xxx(1).xlsx`，自己写个 `_unique()`）。
+      同一流程连跑两次不许互相冲掉。
+
 # 选原子容易踩的几个点
 - **`Folder.folder_create` 的语义是「在父目录下建一个子目录」**：
   `target_path` = **父目录**，`folder_name` = **新目录名**（不是完整路径）。
@@ -533,7 +551,10 @@ SYSTEM_PROMPT = """你是 Astron RPA 的「流程规格（spec）生成器」。
 ⑦ 用了 `Script.module` 的话：命中 B-1~B-4 哪一条？写进 `why` 了吗？`maintain_hint` 写了吗？
    `args.get` 的名字和 `module_param` 的 `varName` 对得上吗？
 ⑧ **有没有在哪段字符串里内嵌 `$变量` / `$结果[字段]`？** 一个都不能有 ——
-   要拼接用数组 `["文字","$var","文字"]`，要打印摘要让脚本自己打日志。"""
+   要拼接用数组 `["文字","$var","文字"]`，要打印摘要让脚本自己打日志。
+⑨ 用了脚本的话：**分组/拆分前处理空值了吗？`sheet_name` / `overwrite` 参数化了吗？
+   `summary` 里的 processed + skipped 能和输入行数对上吗？**（健壮性四条，少一条就是把
+   「少几行数据」的坑埋给业务人员）"""
 
 
 # ============================================================

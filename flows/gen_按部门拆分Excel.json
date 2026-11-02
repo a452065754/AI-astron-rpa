@@ -27,15 +27,27 @@
       "type": "Str",
       "default": "F:\\demo\\out\\split",
       "describe": "拆分后文件的输出目录"
+    },
+    {
+      "name": "sheet_name",
+      "type": "Str",
+      "default": "0",
+      "describe": "读取的 sheet 名（填 0 或留空=第一张表）"
+    },
+    {
+      "name": "overwrite",
+      "type": "Str",
+      "default": "false",
+      "describe": "目标文件已存在时是否覆盖（true=覆盖，false=自动改名 文件名(1).xlsx）"
     }
   ],
   "scripts": {
     "excel_split_by_dept": {
       "name": "按部门拆分Excel",
       "why": "命中判定 B-2：输出文件数取决于「部门」列的唯一值，原子无法动态生成文件名",
-      "maintain_hint": "改拆哪一列 → 改参数 split_column；改输出目录 → 改参数 out_dir；改逻辑需找开发改 Python",
+      "maintain_hint": "改拆哪一列 → 改参数 split_column；改输出目录 → 改参数 out_dir；读第几张表 → 改参数 sheet_name（0=第一张）；重跑要不要覆盖 → 改参数 overwrite；列里有空值会单独输出 空值.xlsx（不丢行）；改逻辑需找开发改 Python",
       "atom_suggestion": "Excel 按列唯一值拆分成多表",
-      "code": "def main(args):\n    import os\n    import pandas as pd\n    try:\n        from astronverse.workflowlib import logger\n    except Exception:                     # 本地裸跑（没有 astronverse）时退回标准库\n        import logging\n        logger = logging.getLogger(\"excel_split\")\n\n    src_file = args.get('src_file')\n    split_column = args.get('split_column')\n    out_dir = args.get('out_dir')\n\n    if not os.path.exists(src_file):\n        raise RuntimeError(f'源文件不存在: {src_file}')\n\n    os.makedirs(out_dir, exist_ok=True)\n\n    try:\n        df = pd.read_excel(src_file)\n    except Exception as e:\n        raise RuntimeError(f'读取Excel失败: {e}')\n\n    if split_column not in df.columns:\n        raise RuntimeError(f'列名 \"{split_column}\" 不存在于Excel中')\n\n    grouped = df.groupby(split_column)\n    output_files = []\n\n    for dept, group_df in grouped:\n        # 清理文件名中的非法字符\n        safe_dept = str(dept).replace('/', '_').replace('\\\\', '_').replace('*', '_').replace('?', '_').replace('\"', '_').replace('<', '_').replace('>', '_').replace('|', '_')\n        out_path = os.path.join(out_dir, f\"{safe_dept}.xlsx\")\n        try:\n            group_df.to_excel(out_path, index=False)\n            output_files.append(out_path)\n        except Exception as e:\n            raise RuntimeError(f'写入文件失败: {out_path}, 原因: {e}')\n\n    summary = f'拆分完成：{len(output_files)} 个部门，共 {len(df)} 行'\n    logger.info(summary)                  # 人话摘要进执行日志（流程里就不用再放打印节点）\n    logger.info('输出目录：%s' % out_dir)\n\n    return {'ok': True, 'summary': summary, 'outputs': output_files[:5]}\n"
+      "code": "def main(args):\n    import os\n    import pandas as pd\n    try:\n        from astronverse.workflowlib import logger\n    except Exception:                     # 本地裸跑（没有 astronverse）时退回标准库\n        import logging\n        logger = logging.getLogger(\"excel_split\")\n\n    src_file = (args.get('src_file') or '').strip()\n    split_column = (args.get('split_column') or '').strip()\n    out_dir = (args.get('out_dir') or '').strip()\n    sheet_name = (args.get('sheet_name') or '').strip()\n    overwrite = str(args.get('overwrite') or 'false').strip().lower() in ('true', '1', 'yes')\n\n    if not os.path.exists(src_file):\n        raise RuntimeError(f'源文件不存在: {src_file}')\n\n    os.makedirs(out_dir, exist_ok=True)\n\n    # 健壮性③：读哪张表由参数决定（'' 或 '0' = 第一张表），并在摘要里报出实际读的是哪张\n    try:\n        if sheet_name in ('', '0'):\n            df = pd.read_excel(src_file)\n            sheet_real = '第一张表'\n        else:\n            df = pd.read_excel(src_file, sheet_name=sheet_name)\n            sheet_real = sheet_name\n    except Exception as e:\n        raise RuntimeError(f'读取Excel失败: {e}')\n\n    if split_column not in df.columns:\n        raise RuntimeError(f'列名 \"{split_column}\" 不存在于Excel中，可用的列：{list(df.columns)}')\n\n    total_rows = len(df)\n\n    # 健壮性①：分组前先处理空值 —— pandas.groupby 默认 dropna=True 会把空值行**静默丢掉**。\n    # 这里统一填 \"<空>\" 再分组：空值单独成一组、单独出一个文件，一行都不少。\n    blank_mask = df[split_column].isna() | (df[split_column].astype(str).str.strip() == '')\n    blank_rows = int(blank_mask.sum())\n    df = df.copy()\n    df[split_column] = df[split_column].fillna('<空>')\n    df.loc[df[split_column].astype(str).str.strip() == '', split_column] = '<空>'\n\n    output_files = []\n    written_rows = 0\n    for key, group_df in df.groupby(split_column, dropna=False):\n        safe = '空值' if str(key) == '<空>' else str(key)\n        for ch in '/\\\\*?\"<>|:':              # 文件名非法字符统一换成下划线\n            safe = safe.replace(ch, '_')\n\n        target = os.path.join(out_dir, f'{safe}.xlsx')\n        # 健壮性④：默认不覆盖 —— 同一流程连跑两次不许互相冲掉\n        if os.path.exists(target) and not overwrite:\n            n = 1\n            while os.path.exists(os.path.join(out_dir, f'{safe}({n}).xlsx')):\n                n += 1\n            target = os.path.join(out_dir, f'{safe}({n}).xlsx')\n\n        try:\n            group_df.to_excel(target, index=False)\n        except Exception as e:\n            raise RuntimeError(f'写入文件失败: {target}, 原因: {e}')\n        output_files.append(target)\n        written_rows += len(group_df)\n\n    # 健壮性②：输入行数必须等于写出行数，对不上宁可报错也不要静默少行\n    if written_rows != total_rows:\n        raise RuntimeError(f'行数对不上：输入 {total_rows} 行，实际写出 {written_rows} 行，'\n                           f'请检查「{split_column}」列')\n\n    summary = f'拆分完成：{len(output_files)} 个分组，共 {written_rows} 行（读取 {sheet_real}）'\n    if blank_rows > 0:\n        summary += f'；其中「{split_column}」为空 {blank_rows} 行，已单独输出为 空值.xlsx'\n        logger.warning('「%s」列有 %d 行为空，已单独成组（不丢行）' % (split_column, blank_rows))\n    logger.info(summary)\n    logger.info('输出目录：%s' % out_dir)\n\n    return {'ok': True, 'summary': summary, 'processed': written_rows,\n            'skipped': 0, 'blank_grouped': blank_rows, 'outputs': output_files[:5]}\n"
     }
   },
   "nodes": [
@@ -44,7 +56,7 @@
       "alias": "按部门拆分Excel（自动脚本，改逻辑需开发）",
       "inputs": {
         "content": "$script:excel_split_by_dept",
-        "module_param": "$json:[{\"varName\": \"src_file\", \"varValue\": \"$p:src_file\"}, {\"varName\": \"split_column\", \"varValue\": \"$p:split_column\"}, {\"varName\": \"out_dir\", \"varValue\": \"$p:out_dir\"}]"
+        "module_param": "$json:[{\"varName\": \"src_file\", \"varValue\": \"$p:src_file\"}, {\"varName\": \"split_column\", \"varValue\": \"$p:split_column\"}, {\"varName\": \"out_dir\", \"varValue\": \"$p:out_dir\"}, {\"varName\": \"sheet_name\", \"varValue\": \"$p:sheet_name\"}, {\"varName\": \"overwrite\", \"varValue\": \"$p:overwrite\"}]"
       },
       "out": {
         "program_script": "split_result"

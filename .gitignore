@@ -46,6 +46,19 @@ scripts/mod_gen_*.py
 # 复现包的中间产物（每次跑都重新生成，可随时整个删掉）
 docs/repro/_tmp/
 
+# 每次落库自动生成的评审单（带时间戳；同一流程反复跑会堆十几份，属噪音）
+# 需要留档就单独挑几份，别整目录进仓库
+docs/reviews/
+
+# 流程跑动时新生成的测试数据（这些目录**从未入库**，堵住 git add . 的手滑）
+demo/_archive_in/
+demo/_organize_in/
+demo/_split_out/
+# 注意：demo/_excel_out、_merge_out、_word_out、_zip_out、_rename_in 等目录**已经被跟踪**，
+# .gitignore 对已跟踪文件无效（它们仍会显示 M）。要彻底止噪得 `git rm --cached`，
+# 但那些文件里混着流程的输入夹具，误删会连带改坏用例 —— 所以约定：
+# **提交时不要 `git add demo/`**，只 add 明确路径。流程产出的变动留在工作区即可。
+
 # 网页流程的截图存证产物（每次运行都会覆盖，不入库）
 demo/_web_out/
 
