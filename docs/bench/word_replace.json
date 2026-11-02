@@ -1,0 +1,100 @@
+{
+  "name": "批量替换Word文档公司名",
+  "nl_examples": [
+    "把D盘Word文件夹里的所有文档里的'旧公司'换成'新公司'",
+    "批量替换多个Word文件中的指定文本",
+    "将多个docx文件中的旧名称替换为新名称"
+  ],
+  "keywords": [
+    "Word",
+    "批量替换",
+    "公司名",
+    "Docx.replace",
+    "文件循环"
+  ],
+  "params": [
+    {
+      "name": "src_dir",
+      "type": "Str",
+      "default": "D:\\demo\\word_files",
+      "describe": "源Word文件所在文件夹路径"
+    },
+    {
+      "name": "old_name",
+      "type": "Str",
+      "default": "旧公司名",
+      "describe": "需要被替换的旧公司名"
+    },
+    {
+      "name": "new_name",
+      "type": "Str",
+      "default": "新公司名",
+      "describe": "替换后的新公司名"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "File.file_search",
+      "alias": "查找Word文件",
+      "inputs": {
+        "folder_path": "$p:src_dir",
+        "find_type": "exact",
+        "search_pattern": "*.docx"
+      },
+      "out": {
+        "find_file_result": "word_files"
+      }
+    },
+    {
+      "atom": "Code.ForList",
+      "alias": "遍历Word文件",
+      "inputs": {
+        "list": "$word_files"
+      },
+      "out": {
+        "index": "idx",
+        "item": "item"
+      }
+    },
+    {
+      "atom": "Docx.open_docx",
+      "alias": "打开Word文档",
+      "inputs": {
+        "file_path": "$item",
+        "visible_flag": false
+      },
+      "out": {
+        "doc_obj": "doc"
+      }
+    },
+    {
+      "atom": "Docx.replace",
+      "alias": "替换公司名",
+      "inputs": {
+        "doc": "$doc",
+        "origin_word": "$p:old_name",
+        "new_word": "$p:new_name",
+        "replace_type": "str",
+        "replace_method": "all",
+        "ignore_case": false
+      },
+      "out": {}
+    },
+    {
+      "atom": "Docx.save_docx",
+      "alias": "保存文档",
+      "inputs": {
+        "doc": "$doc",
+        "save_type": "save",
+        "close_flag": true
+      },
+      "out": {}
+    },
+    {
+      "atom": "Code.ForEnd",
+      "alias": "循环结束",
+      "inputs": {},
+      "out": {}
+    }
+  ]
+}

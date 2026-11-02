@@ -1,0 +1,75 @@
+{
+  "name": "Word文档提取文字存为txt",
+  "nl_examples": [
+    "把Word文档里的文字全部提取出来存成txt",
+    "读取docx内容并保存为文本文件",
+    "将word文件转换为txt格式"
+  ],
+  "keywords": [
+    "Word",
+    "txt",
+    "提取",
+    "文字",
+    "转换"
+  ],
+  "params": [
+    {
+      "name": "src_file",
+      "type": "Str",
+      "default": "D:\\demo\\input.docx",
+      "describe": "源Word文件路径"
+    },
+    {
+      "name": "dst_file",
+      "type": "Str",
+      "default": "D:\\demo\\output.txt",
+      "describe": "目标txt文件路径"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "Docx.open_docx",
+      "alias": "打开Word文档",
+      "inputs": {
+        "file_path": "$p:src_file",
+        "visible_flag": false
+      },
+      "out": {
+        "doc_obj": "doc_obj"
+      }
+    },
+    {
+      "atom": "Docx.read_docx",
+      "alias": "读取Word内容",
+      "inputs": {
+        "doc": "$doc_obj",
+        "select_range": "all"
+      },
+      "out": {
+        "doc_data": "doc_content"
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "写入txt文件",
+      "inputs": {
+        "file_path": "$p:dst_file",
+        "msg": "$doc_content",
+        "file_option": "create"
+      },
+      "out": {
+        "write_file_path": "write_result"
+      }
+    },
+    {
+      "atom": "Docx.close_docx",
+      "alias": "关闭Word文档",
+      "inputs": {
+        "doc": "$doc_obj",
+        "save_type": "abort",
+        "pkill_flag": false
+      },
+      "out": {}
+    }
+  ]
+}

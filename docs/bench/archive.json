@@ -1,0 +1,107 @@
+{
+  "name": "按扩展名分类文件",
+  "nl_examples": [
+    "把指定文件夹里的文件按后缀名分类到不同的子文件夹",
+    "自动整理文件夹，jpg放图片，docx放文档",
+    "扫描目录并将文件移动到以扩展名命名的子目录中"
+  ],
+  "keywords": [
+    "文件分类",
+    "扩展名",
+    "移动文件",
+    "文件夹整理"
+  ],
+  "params": [
+    {
+      "name": "source_dir",
+      "type": "Str",
+      "default": "D:\\demo\\source",
+      "describe": "源文件夹路径"
+    },
+    {
+      "name": "target_dir",
+      "type": "Str",
+      "default": "D:\\demo\\target",
+      "describe": "目标文件夹路径"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "File.get_file_list",
+      "alias": "获取文件列表",
+      "inputs": {
+        "folder_path": "$p:source_dir",
+        "traverse_subfolder": "no",
+        "tempfile_include": false
+      },
+      "out": {
+        "file_list": "file_list"
+      }
+    },
+    {
+      "atom": "Code.ForList",
+      "alias": "遍历文件",
+      "inputs": {
+        "list": "$file_list"
+      },
+      "out": {
+        "index": "idx",
+        "item": "item"
+      }
+    },
+    {
+      "atom": "File.file_info",
+      "alias": "获取扩展名",
+      "inputs": {
+        "file_path": "$item",
+        "info_type": "extension"
+      },
+      "out": {
+        "file_info": "ext"
+      }
+    },
+    {
+      "atom": "Code.If",
+      "alias": "判断扩展名是否为空",
+      "inputs": {
+        "condition": "$ext"
+      },
+      "out": {}
+    },
+    {
+      "atom": "Folder.folder_create",
+      "alias": "创建分类文件夹",
+      "inputs": {
+        "target_path": "$p:target_dir",
+        "folder_name": "$ext"
+      },
+      "out": {
+        "new_folder_path": "category_dir"
+      }
+    },
+    {
+      "atom": "File.file_move",
+      "alias": "移动文件到分类文件夹",
+      "inputs": {
+        "file_path": "$item",
+        "target_folder": "$category_dir",
+        "state_type": "create"
+      },
+      "out": {
+        "move_file_path": "moved_file"
+      }
+    },
+    {
+      "atom": "Code.IfEnd",
+      "alias": "判断结束",
+      "inputs": {},
+      "out": {}
+    },
+    {
+      "atom": "Code.ForEnd",
+      "alias": "循环结束",
+      "inputs": {},
+      "out": {}
+    }
+  ]
+}

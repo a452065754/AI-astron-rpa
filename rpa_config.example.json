@@ -24,5 +24,13 @@
   },
   "defaults": {
     "robot_id": "<默认机器人 id>"
+  },
+  "llm": {
+    "_说明": "只有 nl2spec.py（自然语言直接生成流程规格）用得到；其余脚本不需要。任何 OpenAI 兼容的 /chat/completions 都行。也可以改用环境变量 NL2SPEC_API_KEY / NL2SPEC_BASE / NL2SPEC_MODEL，优先级高于本段。",
+    "provider": "xfyun-maas",
+    "base": "https://maas-api.cn-huabei-1.xf-yun.com/v2",
+    "model": "xopqwen36v35b",
+    "api_key": "<LLM API Key>",
+    "_备注": "实测：spark-x2.5-4b 处理 9k token 的规格提示词会超时（>240s），spark-x2.5 也不稳；xopqwen36v35b 4-8 秒返回，是当前可用项。"
   }
 }

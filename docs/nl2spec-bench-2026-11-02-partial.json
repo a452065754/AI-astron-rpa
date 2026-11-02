@@ -1,0 +1,58 @@
+{
+ "meta": {
+  "date": "2026-11-02",
+  "model": "xopqwen36v35b",
+  "retries": 3,
+  "usable_atoms": 309
+ },
+ "results": [
+  {
+   "id": "word_text",
+   "nl": "把 Word 文档里的文字全部提取出来存成 txt",
+   "ref": "Word提取文本小流程.json",
+   "ok": true,
+   "ref_atoms": [
+    "File.get_file_list",
+    "Code.ForList",
+    "Code.If",
+    "Docx.open_docx",
+    "Docx.read_docx",
+    "File.file_write",
+    "Docx.close_docx",
+    "Code.IfEnd",
+    "Code.ForEnd"
+   ],
+   "ref_nodes": 9,
+   "rounds": 1,
+   "nodes": 3,
+   "atoms": [
+    "Docx.open_docx",
+    "Docx.convert_format",
+    "Docx.close_docx"
+   ],
+   "name": "Word转TXT",
+   "params": [
+    "src_file",
+    "dst_file"
+   ],
+   "elapsed": 3.2,
+   "errors_per_round": [
+    0
+   ],
+   "atom_overlap": 0.22,
+   "atom_extra": [
+    "Docx.convert_format"
+   ],
+   "atom_missing": [
+    "Code.ForEnd",
+    "Code.ForList",
+    "Code.If",
+    "Code.IfEnd",
+    "Docx.read_docx",
+    "File.file_write",
+    "File.get_file_list"
+   ],
+   "spec_path": "docs\\bench\\word_text.json"
+  }
+ ]
+}

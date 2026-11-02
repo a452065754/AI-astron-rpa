@@ -113,6 +113,31 @@ DEAD_ATOMS = {
 ELEMENT_TYPES = {"WebPick", "UiaPick", "CvPick", "Pick", "Element"}
 
 
+def _fmt_opt(v):
+    """枚举值按「JSON 里的真实写法」展示。
+
+    为什么不能直接 `str(v)`：平台 Bool 参数的 options 是 JSON 布尔，`str(True)` 得到
+    `True`，模型看到就照抄成字符串 `"True"` —— 而引擎要的是不加引号的 `true`。
+    这一处小差别会让流程「能跑但行为相反」（坑 69）。
+    """
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if v is None:
+        return "null"
+    if isinstance(v, str):
+        return '"%s"' % v
+    return str(v)
+
+
+def _type_hint(p):
+    t = (p.get("types") or "").strip()
+    if t == "Bool":
+        return "（这是布尔参数，写 JSON 的 true / false，不要加引号）"
+    if t in ("Int", "Float"):
+        return "（这是数字参数，写 %s 不加引号）" % t.lower()
+    return ""
+
+
 def _walk_refs(value, out):
     """递归收集 $p: / $var: / $xxx 引用。"""
     if isinstance(value, dict):
@@ -285,12 +310,58 @@ def lint(spec, atoms):
                     "可用参数：" + ", ".join(sorted(schema)))
 
         # 枚举
+        #
+        # 布尔枚举是最贵的一个坑（2026-11-02 由 nl2spec 首次暴露）：
+        # 平台把 Bool 参数的 options 声明成 JSON 布尔 `[{"label":"是","value":true},...]`，
+        # 而生成器 `_coerce_literals` 只把**真 bool** 编译成 `{"type":"python"}`。
+        # 规格里写成字符串 `"False"` 会被 f-string 变成 `'False'` —— 非空字符串 = 真值，
+        # 于是 `visible_flag="False"` 反而**显示**窗口（坑 69 的原始事故）。
+        # 以前的提示用 `str(True)` → "可选：True / False"，模型照抄成字符串，越改越错；
+        # 所以这里统一改用 `_fmt_opt`（布尔出 true/false、字符串带引号）。
         for k, raw in inputs.items():
             p = schema.get(k) or {}
             opts = [o.get("value") if isinstance(o, dict) else o for o in (p.get("options") or [])]
             if opts and isinstance(raw, str) and not raw.startswith("$") and raw not in opts:
-                err("%s（%s）：%s 的取值 %r 不合法" % (where, atom_key, k, raw),
-                    "可选：" + " / ".join(str(x) for x in opts))
+                if all(isinstance(o, bool) for o in opts) and raw.strip().lower() in ("true", "false"):
+                    lit = raw.strip().lower()
+                    err("%s（%s）：%s 是布尔参数，写成了字符串 %r" % (where, atom_key, k, raw),
+                        '改成 JSON 布尔 %s（**不要引号**：%s，不是 "%s"）'
+                        % (lit, lit, raw.strip()))
+                else:
+                    err("%s（%s）：%s 的取值 %r 不合法" % (where, atom_key, k, raw),
+                        "可选：" + " / ".join(_fmt_opt(x) for x in opts) + _type_hint(p))
+
+        # $json: 用在**路径类字符串参数**上 → 高度可疑，给警告
+        #
+        # 先说明白：`$json:` 本身不限于 need_parse 参数 —— `ListProcess.create_new_list`
+        # 的 custom_list、`DictProcess.create_new_dict` 的 dict_data 都要求传字符串化 JSON，
+        # 这 5 条历史流程靠它跑通（全量回归实测）。所以**不能一刀切成错误**。
+        # 但路径/文件名参数被包成 `$json:[{"varName":...}]` 必炸：引擎把整段 JSON 文本
+        # 当路径（nl2spec 实测踩到）。这类参数名高度可识别，单独提醒。
+        _PATHISH = ("path", "file", "dir", "folder", "name")
+        for k, raw in inputs.items():
+            if not (isinstance(raw, str) and raw.startswith("$json:")):
+                continue
+            p = schema.get(k) or {}
+            if p.get("need_parse") or not any(w in k.lower() for w in _PATHISH):
+                continue
+            warn("%s（%s）：%s 像是路径/文件名字符串，不该用 $json: 包" % (where, atom_key, k),
+                 '直接写值或引用：%s 或 "$p:xxx"（$json: 是给 list/dict 之类结构化参数用的）'
+                 % ('"%s"' % (p.get("default") or "值")))
+
+        # 「拼接数组」被写成了字符串
+        #
+        # 规格里字符串拼接要写成**真 JSON 数组**：["$p:a", "\\\\", "$p:b"]。
+        # 模型常输出成字符串 "[\"$p:a\", ...]"（看起来像数组，其实是字面量），
+        # 引擎会把它原样当路径 → 真跑报「文件路径:[$p:dst_dir,\,...]有误」。
+        # 静态校验以前放过它（因为它是合法字符串），只有真跑才炸。
+        for k, raw in inputs.items():
+            if not isinstance(raw, str):
+                continue
+            t = raw.strip()
+            if t.startswith("[") and t.endswith("]") and "$" in t:
+                err("%s（%s）：%s 把拼接数组写成了字符串" % (where, atom_key, k),
+                    '改成真正的 JSON 数组，例如 ["$p:dir", "\\\\", "$p:name"]（去掉外层引号）')
 
         # 引用
         refs = []
@@ -307,6 +378,22 @@ def lint(spec, atoms):
                         ("已声明：" + (", ".join(pnames) or "（无）")))
             elif kind == "var":
                 if name not in produced:
+                    # 把「表达式」当变量名：`"$key_pos == -1"`（nl2spec 实测，模型想写条件判断）。
+                    # 引擎不会求值这种东西，只会当变量名找不到 → 报错也看不懂。专门指路。
+                    if re.search(r"[\s=!<>+\-*/()]", name):
+                        err("%s：$%s 看起来是一个表达式，不是变量名" % (where, name),
+                            "条件判断要用 Code.If 节点（inputs: args1 / condition / args2），"
+                            "不要在 $ 引用里写表达式")
+                        continue
+                    # 循环变量没产出，几乎只有一个原因：循环块的 out 写成空了。
+                    # 引擎不会自动提供 item/index，必须 `"out": {"index":"idx","item":"item"}`
+                    # （nl2spec 实测：模型连写 3 轮 `"out": {}` + 引用 `$item`，卡死在这）
+                    if name in ("item", "index", "idx") and loop_stack:
+                        open_atom = loop_stack[-1][0]
+                        err("%s：循环变量 $%s 没有产出" % (where, name),
+                            '%s 的 out 要显式声明，写成 "out": {"index":"idx","item":"item"}；'
+                            "引擎不会自动提供（你当前这块的 out 是空的）" % open_atom)
+                        continue
                     cand = difflib.get_close_matches(name, sorted(produced), n=2, cutoff=0.6)
                     err("%s：变量 $%s 在前面没有产出" % (where, name),
                         ("可用变量：" + ", ".join(sorted(produced))) if produced else

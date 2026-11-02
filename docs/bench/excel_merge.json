@@ -1,0 +1,152 @@
+{
+  "name": "合并多个Excel文件",
+  "nl_examples": [
+    "把F:\\demo\\in目录下的所有xlsx文件合并到一个Excel里",
+    "合并指定文件夹里的多个Excel表格",
+    "将多个Excel文件的数据汇总到一张表"
+  ],
+  "keywords": [
+    "Excel",
+    "合并",
+    "xlsx",
+    "文件列表",
+    "循环"
+  ],
+  "params": [
+    {
+      "name": "input_dir",
+      "type": "Str",
+      "default": "F:\\demo\\in",
+      "describe": "源Excel文件所在目录"
+    },
+    {
+      "name": "output_file",
+      "type": "Str",
+      "default": "F:\\demo\\out\\merged.xlsx",
+      "describe": "合并后的输出文件路径"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "File.file_search",
+      "alias": "查找Excel文件",
+      "inputs": {
+        "folder_path": "$p:input_dir",
+        "find_type": "exact",
+        "search_pattern": "*.xlsx"
+      },
+      "out": {
+        "find_file_result": "excel_files"
+      }
+    },
+    {
+      "atom": "Excel.create_excel",
+      "alias": "创建目标Excel",
+      "inputs": {
+        "file_path": "F:\\demo\\out",
+        "file_name": "merged.xlsx",
+        "default_application": "Excel",
+        "visible_flag": false,
+        "exist_handle_type": "overwrite"
+      },
+      "out": {
+        "create_excel_obj": "target_excel"
+      }
+    },
+    {
+      "atom": "Code.ForList",
+      "alias": "遍历Excel文件",
+      "inputs": {
+        "list": "$excel_files"
+      },
+      "out": {
+        "index": "idx",
+        "item": "item"
+      }
+    },
+    {
+      "atom": "Excel.open_excel",
+      "alias": "打开源Excel",
+      "inputs": {
+        "file_path": "$item",
+        "default_application": "Excel",
+        "visible_flag": false,
+        "update_links": false
+      },
+      "out": {
+        "open_excel_obj": "source_excel"
+      }
+    },
+    {
+      "atom": "Excel.get_excel_worksheet_names",
+      "alias": "获取源工作表名",
+      "inputs": {
+        "excel": "$source_excel",
+        "sheet_range": "all"
+      },
+      "out": {
+        "sheet_names": "sheet_names"
+      }
+    },
+    {
+      "atom": "Code.ForList",
+      "alias": "遍历工作表",
+      "inputs": {
+        "list": "$sheet_names"
+      },
+      "out": {
+        "index": "idx",
+        "item": "item"
+      }
+    },
+    {
+      "atom": "Excel.copy_excel_worksheet",
+      "alias": "复制工作表到目标",
+      "inputs": {
+        "excel": "$target_excel",
+        "source_sheet_name": "$item",
+        "new_sheet_name": "$item",
+        "location": "last",
+        "copy_type": "current_workbook",
+        "other_excel_obj": "$source_excel",
+        "is_cover": false
+      },
+      "out": {}
+    },
+    {
+      "atom": "Code.ForEnd",
+      "alias": "结束工作表循环",
+      "inputs": {},
+      "out": {}
+    },
+    {
+      "atom": "Excel.close_excel",
+      "alias": "关闭源Excel",
+      "inputs": {
+        "excel": "$source_excel",
+        "close_range_flag": "one",
+        "save_type_one": "abort",
+        "save_type_all": "abort",
+        "pkill_flag": false
+      },
+      "out": {}
+    },
+    {
+      "atom": "Code.ForEnd",
+      "alias": "结束文件循环",
+      "inputs": {},
+      "out": {}
+    },
+    {
+      "atom": "Excel.save_excel",
+      "alias": "保存目标Excel",
+      "inputs": {
+        "excel": "$target_excel",
+        "save_type": "save",
+        "exist_handle_type": "overwrite",
+        "close_flag": true
+      },
+      "out": {}
+    }
+  ]
+}

@@ -1,0 +1,82 @@
+{
+  "name": "统计Excel表格行列数",
+  "nl_examples": [
+    "帮我看看这个Excel文件有多少行多少列",
+    "统计一下表格的尺寸",
+    "获取Excel的行数和列数"
+  ],
+  "keywords": [
+    "Excel",
+    "行数",
+    "列数",
+    "统计",
+    "尺寸"
+  ],
+  "params": [
+    {
+      "name": "src_file",
+      "type": "Str",
+      "default": "D:\\demo\\data.xlsx",
+      "describe": "源Excel文件路径"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "Excel.open_excel",
+      "alias": "打开Excel",
+      "inputs": {
+        "file_path": "$p:src_file",
+        "default_application": "Excel",
+        "visible_flag": false,
+        "update_links": false
+      },
+      "out": {
+        "open_excel_obj": "excel_obj"
+      }
+    },
+    {
+      "atom": "Excel.get_excel_row_num",
+      "alias": "获取行数",
+      "inputs": {
+        "excel": "$excel_obj",
+        "get_col_type": "all"
+      },
+      "out": {
+        "excel_row_num": "row_num"
+      }
+    },
+    {
+      "atom": "Excel.get_excel_col_num",
+      "alias": "获取列数",
+      "inputs": {
+        "excel": "$excel_obj",
+        "get_row_type": "all",
+        "output_type": "number"
+      },
+      "out": {
+        "excel_col_num": "col_num"
+      }
+    },
+    {
+      "atom": "Excel.close_excel",
+      "alias": "关闭Excel",
+      "inputs": {
+        "excel": "$excel_obj",
+        "close_range_flag": "one",
+        "save_type_one": "abort",
+        "save_type_all": "abort",
+        "pkill_flag": false
+      },
+      "out": {}
+    },
+    {
+      "atom": "Report.print",
+      "alias": "打印结果",
+      "inputs": {
+        "report_type": "info",
+        "msg": "行数: $row_num, 列数: $col_num"
+      },
+      "out": {}
+    }
+  ]
+}

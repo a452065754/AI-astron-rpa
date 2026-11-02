@@ -1,0 +1,80 @@
+{
+  "name": "批量重命名文件",
+  "nl_examples": [
+    "把 F:\\demo\\in 文件夹里的文件批量重命名成 改名_序号",
+    "F盘demoin目录下的所有文件加上改名_前缀和序号",
+    "重命名指定文件夹内的文件为前缀加数字"
+  ],
+  "keywords": [
+    "批量重命名",
+    "文件重命名",
+    "文件夹",
+    "序号"
+  ],
+  "params": [
+    {
+      "name": "src_dir",
+      "type": "Str",
+      "default": "F:\\demo\\in",
+      "describe": "源文件夹路径"
+    },
+    {
+      "name": "prefix",
+      "type": "Str",
+      "default": "改名_",
+      "describe": "重命名前缀"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "File.get_file_list",
+      "alias": "获取文件列表",
+      "inputs": {
+        "folder_path": "$p:src_dir",
+        "traverse_subfolder": false,
+        "tempfile_include": false
+      },
+      "out": {
+        "file_list": "file_list"
+      }
+    },
+    {
+      "atom": "Code.ForList",
+      "alias": "遍历文件",
+      "inputs": {
+        "list": "$file_list"
+      },
+      "out": {
+        "index": "idx",
+        "item": "item"
+      }
+    },
+    {
+      "atom": "StringProcess.concatenate_string",
+      "alias": "拼接新文件名",
+      "inputs": {
+        "string_data_1": "$p:prefix",
+        "string_data_2": "$idx",
+        "concat_type": "none"
+      },
+      "out": {
+        "concat_string": "new_name"
+      }
+    },
+    {
+      "atom": "File.file_rename",
+      "alias": "重命名文件",
+      "inputs": {
+        "file_path": "$item",
+        "new_name": "$new_name"
+      },
+      "out": {}
+    },
+    {
+      "atom": "Code.ForEnd",
+      "alias": "循环结束",
+      "inputs": {},
+      "out": {}
+    }
+  ]
+}

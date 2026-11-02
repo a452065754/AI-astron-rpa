@@ -1,0 +1,44 @@
+{
+  "name": "合并PDF文件",
+  "nl_examples": [
+    "把F:\\demo\\a.pdf和F:\\demo\\b.pdf合并成一个PDF，放到F:\\demo\\out",
+    "合并两个PDF文件到指定目录",
+    "将a.pdf和b.pdf合并输出到out文件夹"
+  ],
+  "keywords": [
+    "PDF",
+    "合并",
+    "merge",
+    "文件处理"
+  ],
+  "params": [
+    {
+      "name": "src_files",
+      "type": "Str",
+      "default": "F:\\demo\\a.pdf;F:\\demo\\b.pdf",
+      "describe": "待合并的PDF文件路径，多个文件用分号分隔"
+    },
+    {
+      "name": "output_dir",
+      "type": "Str",
+      "default": "F:\\demo\\out",
+      "describe": "合并后文件的保存目录"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "PDF.merge_pdf_files",
+      "alias": "合并PDF",
+      "inputs": {
+        "merge_type": "file",
+        "files_path": "$p:src_files",
+        "save_dir": "$p:output_dir",
+        "exist_handle_type": "overwrite",
+        "new_pwd_flag": false
+      },
+      "out": {
+        "pdf_merge_file_path": "merged_pdf_path"
+      }
+    }
+  ]
+}

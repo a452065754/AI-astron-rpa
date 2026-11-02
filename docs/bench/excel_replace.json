@@ -1,0 +1,85 @@
+{
+  "name": "Excel查找替换",
+  "nl_examples": [
+    "把Excel里的旧值替换成新值",
+    "查找并替换Excel表格中的内容",
+    "Excel内容替换"
+  ],
+  "keywords": [
+    "Excel",
+    "查找",
+    "替换",
+    "搜索",
+    "修改"
+  ],
+  "params": [
+    {
+      "name": "src_file",
+      "type": "Str",
+      "default": "D:\\demo\\data.xlsx",
+      "describe": "源Excel文件路径"
+    },
+    {
+      "name": "find_str",
+      "type": "Str",
+      "default": "旧值",
+      "describe": "要查找的旧值"
+    },
+    {
+      "name": "replace_str",
+      "type": "Str",
+      "default": "新值",
+      "describe": "替换成的新值"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "Excel.open_excel",
+      "alias": "打开Excel",
+      "inputs": {
+        "file_path": "$p:src_file",
+        "visible_flag": false
+      },
+      "out": {
+        "open_excel_obj": "excel_obj"
+      }
+    },
+    {
+      "atom": "Excel.search_and_replace_excel_content",
+      "alias": "执行查找替换",
+      "inputs": {
+        "excel": "$excel_obj",
+        "find_str": "$p:find_str",
+        "replace_str": "$p:replace_str",
+        "replace_flag": true,
+        "lookup_range_excel": "all",
+        "search_range": "all"
+      },
+      "out": {
+        "search_excel_result": "replace_result"
+      }
+    },
+    {
+      "atom": "Excel.save_excel",
+      "alias": "保存Excel",
+      "inputs": {
+        "excel": "$excel_obj",
+        "save_type": "save",
+        "exist_handle_type": "overwrite",
+        "close_flag": false
+      },
+      "out": {}
+    },
+    {
+      "atom": "Excel.close_excel",
+      "alias": "关闭Excel",
+      "inputs": {
+        "excel": "$excel_obj",
+        "close_range_flag": "one",
+        "save_type_one": "abort",
+        "pkill_flag": false
+      },
+      "out": {}
+    }
+  ]
+}

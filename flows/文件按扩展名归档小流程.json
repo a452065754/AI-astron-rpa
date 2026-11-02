@@ -70,19 +70,16 @@
       }
     },
     {
-      "atom": "StringProcess.replace_content_in_string",
-      "alias": "去掉扩展名前面的点",
+      "atom": "StringProcess.extract_content_from_string",
+      "alias": "取扩展名（去掉点）",
       "out": {
-        "replaced_content_string": "ext_clean"
+        "extract_from_string": "ext_clean"
       },
       "inputs": {
         "text": "$ext",
-        "replace_type": "string",
-        "replaced_string": ".",
-        "regex_formula": "",
-        "new_value": "",
-        "first_flag": true,
-        "ignore_case_flag": false
+        "extract_type": "regex",
+        "regex_formula": "[^.]+$",
+        "first_flag": true
       }
     },
     {

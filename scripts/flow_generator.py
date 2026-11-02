@@ -668,6 +668,71 @@ def _json_refs(obj, var_names, param_names=None):
     return obj
 
 
+def _contains_var_ref(obj):
+    """递归检查 payload 里是否含运行时才知道的引用（`$var:` 循环变量，rpa 形式
+    `{"type":"var",...}`）。"""
+    if isinstance(obj, dict):
+        if obj.get("rpa") == "special":
+            for part in (obj.get("value") or []):
+                if isinstance(part, dict) and part.get("type") == "var":
+                    return True
+        return any(_contains_var_ref(v) for v in obj.values())
+    if isinstance(obj, list):
+        return any(_contains_var_ref(v) for v in obj)
+    if isinstance(obj, str):
+        return obj.startswith("$var:")
+    return False
+
+
+def _bake_refs(obj, param_defaults):
+    """把 module_param 里的 `$p:x` 引用 / 内联 `rpa:special(p_var)` 结构解析成字面量
+    默认值（用于「设计器可解析」的 module_param）。
+
+    兼容两种规格写法：
+      - 规范写法：`"varValue": "$p:src_pdf"`（字符串引用）
+      - 历史内联写法：`"varValue": {"rpa":"special","value":[{"type":"p_var",
+        "value":"src_pdf"}]}`
+    多段拼接（如 `out_dir` + `"\\"` + `out_name` + `".docx"`）会被拼接成字符串。
+    设计器前端解析不了 `rpa:special`，烘焙成字面量后设计器即可正常打开；引擎把该 JSON
+    字符串传给模块，模块 `json.loads` 后拿到 dict（与 `main(args)` 契约一致）。
+    含真正循环变量 `$var:`（rpa `type=="var"`）的无法烘焙，应保持 `rpa:special`
+    （设计器无法显示，但引擎可跑，改用本地真跑验证）。
+    """
+    if isinstance(obj, dict):
+        if obj.get("rpa") == "special":
+            parts = obj.get("value") or []
+            resolved = []
+            for part in parts:
+                if not isinstance(part, dict):
+                    continue
+                t = part.get("type")
+                if t == "p_var":
+                    name = part.get("value")
+                    if name not in param_defaults:
+                        raise ValueError(f"module_param 里的 $p:{name} 未在规格的 params 中声明")
+                    resolved.append(param_defaults[name])
+                elif t == "other":
+                    resolved.append(part.get("value"))
+                elif t == "var":
+                    raise ValueError("module_param 含循环变量 $var:，无法烘焙（应保持 rpa:special）")
+                else:
+                    resolved.append(part.get("value"))
+            if len(resolved) == 1:
+                return resolved[0]
+            return "".join("" if v is None else str(v) for v in resolved)
+        return {k: _bake_refs(v, param_defaults) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_bake_refs(v, param_defaults) for v in obj]
+    if isinstance(obj, str):
+        if obj.startswith("$p:"):
+            name = obj[3:]
+            if name not in param_defaults:
+                raise ValueError(f"module_param 里的 $p:{name} 未在规格的 params 中声明")
+            return param_defaults[name]
+        return obj
+    return obj
+
+
 def build_process_content(template, atom_dict, elements=None, robot_id=DEFAULT_ROBOT_ID, strict=True):
     """把模板/规格构建成落库用的扁平节点数组。
 
@@ -681,6 +746,7 @@ def build_process_content(template, atom_dict, elements=None, robot_id=DEFAULT_R
     节点里用 `$p:src_file` 引用 → `{"type":"p_var","value":"src_file"}`。
     """
     param_names = {p.get("name") for p in (template.get("params") or []) if p.get("name")}
+    param_defaults = {p.get("name"): p.get("default") for p in (template.get("params") or []) if p.get("name")}
     var_names = {}          # schema 输出 key 的变量名 → 用于 $ 解析（这里用变量名本身）
     var_defined = set()     # 所有已定义的变量名
     nodes = []
@@ -722,18 +788,25 @@ def build_process_content(template, atom_dict, elements=None, robot_id=DEFAULT_R
             elif pkey in spec["inputs"]:
                 raw_in = spec["inputs"][pkey]
                 if isinstance(raw_in, str) and raw_in.startswith("$json:"):
-                    # 复杂参数：原样传 JSON 字符串，并标 need_parse=json_str
-                    # 引擎 params.py 会 json.loads 后再包 complex_param_parser()，
-                    # 这是 Script.module 的 module_param 唯一能用的形式（传 "" 会变成 [None]）。
-                    # 里面允许写 "$var:item" / "$p:out_dir" 引用变量（见 _json_refs）。
+                    # 复杂参数：Script.module 的 module_param 唯一能用的形式。
+                    # 分支处理（2026-11-02 修「请求参数解析失败」设计器打不开）：
+                    #   - 含 `$var:`（循环变量）→ 需运行时求值，保持 rpa:special
+                    #     （设计器无法显示，但引擎可跑；评审改用本地真跑验证）
+                    #   - 仅 `$p:` + 字面量 → 烘焙成默认值字面量，去掉 rpa:special / $json:
+                    #     包裹，设计器即可正常解析，引擎 json.loads 后传 dict 给模块
                     try:
                         payload = json.loads(raw_in[6:])
                     except Exception as e:
                         raise ValueError(f"{atom_key}.{pkey} 的 $json: 不是合法 JSON：{e}")
-                    payload = _json_refs(payload, var_defined, param_names)
-                    input_list.append({"key": pkey,
-                                       "value": json.dumps(payload, ensure_ascii=False),
-                                       "need_parse": "json_str"})
+                    if _contains_var_ref(payload):
+                        payload = _json_refs(payload, var_defined, param_names)
+                        input_list.append({"key": pkey,
+                                           "value": json.dumps(payload, ensure_ascii=False),
+                                           "need_parse": "json_str"})
+                    else:
+                        baked = _bake_refs(payload, param_defaults)
+                        input_list.append({"key": pkey,
+                                           "value": json.dumps(baked, ensure_ascii=False)})
                 else:
                     input_list.append({"key": pkey,
                                        "value": resolve_input(raw_in, var_defined, param_names)})

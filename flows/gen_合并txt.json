@@ -1,0 +1,96 @@
+{
+  "name": "合并txt文件",
+  "nl_examples": [
+    "把F:/demo/in文件夹里所有的txt文件内容合并成一个all.txt，合并结果放到F:/demo/out",
+    "将指定目录下的所有文本文件内容拼接并保存到新文件"
+  ],
+  "keywords": [
+    "合并",
+    "txt",
+    "文件",
+    "循环",
+    "写入"
+  ],
+  "params": [
+    {
+      "name": "src_dir",
+      "type": "Str",
+      "default": "F:\\demo\\in",
+      "describe": "源文件目录"
+    },
+    {
+      "name": "dst_dir",
+      "type": "Str",
+      "default": "F:\\demo\\out",
+      "describe": "目标文件目录"
+    },
+    {
+      "name": "dst_file",
+      "type": "Str",
+      "default": "all.txt",
+      "describe": "合并后的文件名"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "File.file_search",
+      "alias": "查找txt文件",
+      "inputs": {
+        "folder_path": "$p:src_dir",
+        "find_type": "fuzzy",
+        "search_pattern": ".txt"
+      },
+      "out": {
+        "find_file_result": "txt_files"
+      }
+    },
+    {
+      "atom": "File.file_create",
+      "alias": "创建合并文件",
+      "inputs": {
+        "dst_path": "$p:dst_dir",
+        "file_name": "$p:dst_file"
+      },
+      "out": {
+        "new_file_path": "dst_file_path"
+      }
+    },
+    {
+      "atom": "Code.ForList",
+      "alias": "循环读取文件",
+      "inputs": {
+        "list": "$txt_files"
+      },
+      "out": {
+        "index": "idx",
+        "item": "item"
+      }
+    },
+    {
+      "atom": "File.file_read",
+      "alias": "读取当前文件",
+      "inputs": {
+        "file_path": "$item"
+      },
+      "out": {
+        "read_file_content": "file_content"
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "追加内容到合并文件",
+      "inputs": {
+        "file_path": "$dst_file_path",
+        "msg": "$file_content",
+        "write_type": "append"
+      },
+      "out": {}
+    },
+    {
+      "atom": "Code.ForEnd",
+      "alias": "循环结束",
+      "inputs": {},
+      "out": {}
+    }
+  ]
+}

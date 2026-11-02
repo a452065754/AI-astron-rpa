@@ -1,0 +1,489 @@
+{
+ "meta": {
+  "date": "2026-11-02",
+  "model": "xopqwen36v35b",
+  "retries": 3,
+  "usable_atoms": 309
+ },
+ "results": [
+  {
+   "id": "pdf_merge",
+   "nl": "把 F:\\demo\\a.pdf 和 F:\\demo\\b.pdf 合并成一个 PDF，放到 F:\\demo\\out",
+   "ref": "PDF合并小流程.json",
+   "ok": true,
+   "ref_atoms": [
+    "PDF.merge_pdf_files"
+   ],
+   "ref_nodes": 1,
+   "rounds": 1,
+   "nodes": 1,
+   "atoms": [
+    "PDF.merge_pdf_files"
+   ],
+   "name": "合并PDF文件",
+   "params": [
+    "src_files",
+    "output_dir"
+   ],
+   "elapsed": 2.7,
+   "errors_per_round": [
+    0
+   ],
+   "atom_overlap": 1.0,
+   "atom_extra": [],
+   "atom_missing": [],
+   "spec_path": "docs\\bench\\pdf_merge.json"
+  },
+  {
+   "id": "word2pdf",
+   "nl": "把 F:\\demo\\报表.docx 转成 PDF",
+   "ref": "Word转PDF小流程.json",
+   "ok": true,
+   "ref_atoms": [
+    "Docx.open_docx",
+    "Docx.convert_format",
+    "Docx.close_docx"
+   ],
+   "ref_nodes": 3,
+   "rounds": 2,
+   "nodes": 3,
+   "atoms": [
+    "Docx.open_docx",
+    "Docx.convert_format",
+    "Docx.close_docx"
+   ],
+   "name": "Word转PDF",
+   "params": [
+    "src_file",
+    "output_dir",
+    "output_name"
+   ],
+   "elapsed": 6.5,
+   "errors_per_round": [
+    1,
+    0
+   ],
+   "atom_overlap": 1.0,
+   "atom_extra": [],
+   "atom_missing": [],
+   "spec_path": "docs\\bench\\word2pdf.json"
+  },
+  {
+   "id": "file_rename",
+   "nl": "把 F:\\demo\\in 文件夹里的文件批量重命名成 改名_序号",
+   "ref": "文件批量重命名小流程.json",
+   "ok": true,
+   "ref_atoms": [
+    "File.get_file_list",
+    "Code.ForList",
+    "Code.If",
+    "File.file_rename",
+    "Code.IfEnd",
+    "Code.ForEnd"
+   ],
+   "ref_nodes": 6,
+   "rounds": 2,
+   "nodes": 5,
+   "atoms": [
+    "File.get_file_list",
+    "Code.ForList",
+    "StringProcess.concatenate_string",
+    "File.file_rename",
+    "Code.ForEnd"
+   ],
+   "name": "批量重命名文件",
+   "params": [
+    "src_dir",
+    "prefix"
+   ],
+   "elapsed": 7.0,
+   "errors_per_round": [
+    4,
+    0
+   ],
+   "atom_overlap": 0.67,
+   "atom_extra": [
+    "StringProcess.concatenate_string"
+   ],
+   "atom_missing": [
+    "Code.If",
+    "Code.IfEnd"
+   ],
+   "spec_path": "docs\\bench\\file_rename.json"
+  },
+  {
+   "id": "excel_split",
+   "nl": "把 Excel 表格按某一列的值拆成多个文件，每个值一个文件",
+   "ref": "Excel按条件拆表小流程.json",
+   "ok": false,
+   "ref_atoms": [
+    "Script.module"
+   ],
+   "ref_nodes": 1,
+   "error": "自愈 4 轮仍未通过（最后问题：1 个错误）。看 --dump-dir 里的录制了解每轮细节。",
+   "elapsed": 20.6,
+   "rounds": 4
+  },
+  {
+   "id": "compress",
+   "nl": "把 F:\\demo\\in 文件夹压缩成 zip，再解压到 F:\\demo\\out",
+   "ref": "文件夹压缩解压小流程.json",
+   "ok": false,
+   "ref_atoms": [
+    "System.compress",
+    "System.uncompress",
+    "Report.print"
+   ],
+   "ref_nodes": 3,
+   "error": "自愈 4 轮仍未通过（最后问题：4 个错误）。看 --dump-dir 里的录制了解每轮细节。",
+   "elapsed": 13.7,
+   "rounds": 4
+  },
+  {
+   "id": "excel_merge",
+   "nl": "把 F:\\demo\\in 里的多个 xlsx 合并成一张表",
+   "ref": "Excel多表合并小流程.json",
+   "ok": true,
+   "ref_atoms": [
+    "Script.module"
+   ],
+   "ref_nodes": 1,
+   "rounds": 2,
+   "nodes": 11,
+   "atoms": [
+    "File.file_search",
+    "Excel.create_excel",
+    "Code.ForList",
+    "Excel.open_excel",
+    "Excel.get_excel_worksheet_names",
+    "Code.ForList",
+    "Excel.copy_excel_worksheet",
+    "Code.ForEnd",
+    "Excel.close_excel",
+    "Code.ForEnd",
+    "Excel.save_excel"
+   ],
+   "name": "合并多个Excel文件",
+   "params": [
+    "input_dir",
+    "output_file"
+   ],
+   "elapsed": 39.6,
+   "errors_per_round": [
+    7,
+    0
+   ],
+   "atom_overlap": 0.0,
+   "atom_extra": [
+    "Code.ForEnd",
+    "Code.ForList",
+    "Excel.close_excel",
+    "Excel.copy_excel_worksheet",
+    "Excel.create_excel",
+    "Excel.get_excel_worksheet_names",
+    "Excel.open_excel",
+    "Excel.save_excel",
+    "File.file_search"
+   ],
+   "atom_missing": [
+    "Script.module"
+   ],
+   "spec_path": "docs\\bench\\excel_merge.json"
+  },
+  {
+   "id": "excel_dedup",
+   "nl": "把 Excel 表格按某一列去重，保留第一次出现的行",
+   "ref": "Excel按列去重小流程.json",
+   "ok": false,
+   "ref_atoms": [
+    "Script.module"
+   ],
+   "ref_nodes": 1,
+   "error": "自愈 4 轮仍未通过（最后问题：1 个错误）。看 --dump-dir 里的录制了解每轮细节。",
+   "elapsed": 26.2,
+   "rounds": 4
+  },
+  {
+   "id": "word_text",
+   "nl": "把 Word 文档里的文字全部提取出来存成 txt",
+   "ref": "Word提取文本小流程.json",
+   "ok": true,
+   "ref_atoms": [
+    "File.get_file_list",
+    "Code.ForList",
+    "Code.If",
+    "Docx.open_docx",
+    "Docx.read_docx",
+    "File.file_write",
+    "Docx.close_docx",
+    "Code.IfEnd",
+    "Code.ForEnd"
+   ],
+   "ref_nodes": 9,
+   "rounds": 1,
+   "nodes": 4,
+   "atoms": [
+    "Docx.open_docx",
+    "Docx.read_docx",
+    "File.file_write",
+    "Docx.close_docx"
+   ],
+   "name": "Word文档提取文字存为txt",
+   "params": [
+    "src_file",
+    "dst_file"
+   ],
+   "elapsed": 3.6,
+   "errors_per_round": [
+    0
+   ],
+   "atom_overlap": 0.44,
+   "atom_extra": [],
+   "atom_missing": [
+    "Code.ForEnd",
+    "Code.ForList",
+    "Code.If",
+    "Code.IfEnd",
+    "File.get_file_list"
+   ],
+   "spec_path": "docs\\bench\\word_text.json"
+  },
+  {
+   "id": "pdf_pages",
+   "nl": "把 PDF 的第 1 到 2 页抽出来另存成一个新 PDF",
+   "ref": "PDF抽取指定页小流程.json",
+   "ok": true,
+   "ref_atoms": [
+    "PDF.extract_pdf_file"
+   ],
+   "ref_nodes": 1,
+   "rounds": 1,
+   "nodes": 1,
+   "atoms": [
+    "PDF.extract_pdf_file"
+   ],
+   "name": "PDF抽取指定页",
+   "params": [
+    "src_file",
+    "save_dir",
+    "new_file_name"
+   ],
+   "elapsed": 3.0,
+   "errors_per_round": [
+    0
+   ],
+   "atom_overlap": 1.0,
+   "atom_extra": [],
+   "atom_missing": [],
+   "spec_path": "docs\\bench\\pdf_pages.json"
+  },
+  {
+   "id": "excel_stat",
+   "nl": "统计 Excel 表格有多少行多少列",
+   "ref": "Excel统计行列小流程.json",
+   "ok": true,
+   "ref_atoms": [
+    "Excel.open_excel",
+    "Excel.get_excel_worksheet_names",
+    "Excel.get_excel_row_num",
+    "Excel.get_excel_col_num",
+    "Report.print",
+    "Report.print",
+    "Excel.close_excel"
+   ],
+   "ref_nodes": 7,
+   "rounds": 2,
+   "nodes": 5,
+   "atoms": [
+    "Excel.open_excel",
+    "Excel.get_excel_row_num",
+    "Excel.get_excel_col_num",
+    "Excel.close_excel",
+    "Report.print"
+   ],
+   "name": "统计Excel表格行列数",
+   "params": [
+    "src_file"
+   ],
+   "elapsed": 7.6,
+   "errors_per_round": [
+    2,
+    0
+   ],
+   "atom_overlap": 0.83,
+   "atom_extra": [],
+   "atom_missing": [
+    "Excel.get_excel_worksheet_names"
+   ],
+   "spec_path": "docs\\bench\\excel_stat.json"
+  },
+  {
+   "id": "excel_replace",
+   "nl": "把 Excel 表格里的旧值查找替换成新值",
+   "ref": "Excel查找替换小流程.json",
+   "ok": true,
+   "ref_atoms": [
+    "Excel.open_excel",
+    "Excel.search_and_replace_excel_content",
+    "Excel.save_excel"
+   ],
+   "ref_nodes": 3,
+   "rounds": 1,
+   "nodes": 4,
+   "atoms": [
+    "Excel.open_excel",
+    "Excel.search_and_replace_excel_content",
+    "Excel.save_excel",
+    "Excel.close_excel"
+   ],
+   "name": "Excel查找替换",
+   "params": [
+    "src_file",
+    "find_str",
+    "replace_str"
+   ],
+   "elapsed": 5.2,
+   "errors_per_round": [
+    0
+   ],
+   "atom_overlap": 1.0,
+   "atom_extra": [
+    "Excel.close_excel"
+   ],
+   "atom_missing": [],
+   "spec_path": "docs\\bench\\excel_replace.json"
+  },
+  {
+   "id": "word_replace",
+   "nl": "把多个 Word 文档里的旧公司名批量替换成新公司名",
+   "ref": "Word批量替换小流程.json",
+   "ok": true,
+   "ref_atoms": [
+    "File.get_file_list",
+    "Code.ForList",
+    "Code.If",
+    "Docx.open_docx",
+    "Docx.replace",
+    "Docx.save_docx",
+    "Code.IfEnd",
+    "Code.ForEnd"
+   ],
+   "ref_nodes": 8,
+   "rounds": 2,
+   "nodes": 6,
+   "atoms": [
+    "File.file_search",
+    "Code.ForList",
+    "Docx.open_docx",
+    "Docx.replace",
+    "Docx.save_docx",
+    "Code.ForEnd"
+   ],
+   "name": "批量替换Word文档公司名",
+   "params": [
+    "src_dir",
+    "old_name",
+    "new_name"
+   ],
+   "elapsed": 9.8,
+   "errors_per_round": [
+    3,
+    0
+   ],
+   "atom_overlap": 0.62,
+   "atom_extra": [
+    "File.file_search"
+   ],
+   "atom_missing": [
+    "Code.If",
+    "Code.IfEnd",
+    "File.get_file_list"
+   ],
+   "spec_path": "docs\\bench\\word_replace.json"
+  },
+  {
+   "id": "pdf2excel",
+   "nl": "把 PDF 里的表格提取出来转成 Excel",
+   "ref": "PDF表格转Excel小流程.json",
+   "ok": true,
+   "ref_atoms": [
+    "PDF.extract_forms_from_pdf"
+   ],
+   "ref_nodes": 1,
+   "rounds": 1,
+   "nodes": 4,
+   "atoms": [
+    "PDF.extract_forms_from_pdf",
+    "Excel.open_excel",
+    "Excel.save_excel",
+    "Excel.close_excel"
+   ],
+   "name": "PDF表格提取转Excel",
+   "params": [
+    "pdf_file_path",
+    "excel_save_dir",
+    "excel_file_name"
+   ],
+   "elapsed": 3.8,
+   "errors_per_round": [
+    0
+   ],
+   "atom_overlap": 1.0,
+   "atom_extra": [
+    "Excel.close_excel",
+    "Excel.open_excel",
+    "Excel.save_excel"
+   ],
+   "atom_missing": [],
+   "spec_path": "docs\\bench\\pdf2excel.json"
+  },
+  {
+   "id": "archive",
+   "nl": "把文件夹里的文件按扩展名分到不同子文件夹",
+   "ref": "文件按扩展名归档小流程.json",
+   "ok": true,
+   "ref_atoms": [
+    "File.get_file_list",
+    "Code.ForList",
+    "File.file_info",
+    "StringProcess.extract_content_from_string",
+    "Folder.folder_create",
+    "File.file_move",
+    "Code.ForEnd"
+   ],
+   "ref_nodes": 7,
+   "rounds": 3,
+   "nodes": 8,
+   "atoms": [
+    "File.get_file_list",
+    "Code.ForList",
+    "File.file_info",
+    "Code.If",
+    "Folder.folder_create",
+    "File.file_move",
+    "Code.IfEnd",
+    "Code.ForEnd"
+   ],
+   "name": "按扩展名分类文件",
+   "params": [
+    "source_dir",
+    "target_dir"
+   ],
+   "elapsed": 10.4,
+   "errors_per_round": [
+    3,
+    1,
+    0
+   ],
+   "atom_overlap": 0.86,
+   "atom_extra": [
+    "Code.If",
+    "Code.IfEnd"
+   ],
+   "atom_missing": [
+    "StringProcess.extract_content_from_string"
+   ],
+   "spec_path": "docs\\bench\\archive.json"
+  }
+ ]
+}

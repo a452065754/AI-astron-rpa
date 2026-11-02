@@ -57,8 +57,46 @@ python scripts/install.py --key <API_KEY> --host <host:port>   # 拿到 Key 后�
 装完就能直接说人话了：
 
 ```bash
+# ① 已有流程能覆盖 → 直接复用（关键词匹配，不花 LLM 的钱）
 python scripts/ai_flow.py --nl "把这张表按部门拆成多个文件"
+
+# ② 没现成的 → 让 LLM 现场生成一份新规格（L3，需要配 llm.api_key）
+python scripts/nl2spec.py "把 F:\in 下所有 xlsx 合并成一张表" --verify --robot-name 我的新流程
 ```
+
+### 自然语言直接生成流程（L3）
+
+`nl2spec.py` 把人话变成**能跑的流程**，全程不需要 AI 会话介入：
+
+```
+人话 → LLM 直出 spec → spec_lint 校验 → 不过就把报错回灌重写（自愈）
+    → 通过 → 落库真跑 → 跑挂了拿真实报错再回灌 → 产出正确才算完
+```
+
+| 命令 | 干什么 |
+| --- | --- |
+| `nl2spec.py "需求"` | 生成 + 静态校验，落盘到 `flows/gen_*.json` |
+| `nl2spec.py "需求" --verify --robot-name X` | 再加**真跑验证闭环**（推荐）：失败会把引擎真实报错回灌给模型重写 |
+| `nl2spec.py "需求" --set src_file=F:\真实\a.xlsx` | 把真实路径/列名钉进参数默认值（模型只会编 `D:\demo\x.xlsx`） |
+| `nl2spec.py --selftest` | 离线自证（不需要 key、不联网） |
+| `nl2spec.py --check` | 检查 LLM 配置 |
+| `nl2spec.py --serve --port 8899` | 起 HTTP 接口给别的系统调（`POST /nl2spec`） |
+| `nl2spec_bench.py` | 跑 14 条已评审流程的对照基准，出报告 |
+
+配置（`rpa_config.json`，也可用环境变量覆盖）：
+
+```json
+"llm": {"provider":"xfyun-maas","base":"https://maas-api.cn-huabei-1.xf-yun.com/v2",
+        "model":"xopqwen36v35b","api_key":"<你的 key>"}
+```
+
+> 任何 **OpenAI 兼容** `/chat/completions` 都能用（DeepSeek / OpenAI / vLLM / Ollama / one-api）。
+> 实测：4B 级小模型吃不下 9k token 的规格提示词（会超时），要 30B 以上才有稳定产出。
+
+**实测水平（2026-11-02，14 条已评审流程对照）**：结构合法 **11–12/14**（1 轮 5 条、2 轮 5 条、3 轮 1 条），
+原子选择与人工答案重合 **71–77%**；端到端真跑并核对产出 **3/3 成功**（txt 合并 / Word 提取文字 / Word 转 PDF）。
+**明确的边界**：当正确解法是「调 Python 子流程模块」（`Script.module`）时，模型会硬用原子拼装然后失败
+（如「Excel 按列拆表 / 按列去重」两条稳定失败）。报告见 `docs/nl2spec-bench-2026-11-02.md`。
 
 ### 手工方式
 

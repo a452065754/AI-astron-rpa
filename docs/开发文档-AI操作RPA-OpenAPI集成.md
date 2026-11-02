@@ -142,14 +142,32 @@ Base：`http://192.168.76.130:32742/api/rpa-openapi`
 | GET | `/workflows/get` | 列出当前用户的流程 | API Key / 会话 | ✅ 200 |
 | GET | `/workflows/get/{project_id}` | 获取指定流程详情（metadata+参数） | API Key / 会话 | ✅ 200 |
 | POST | `/workflows/upsert` | 创建/更新流程（**仅 metadata，不含节点**） | **仅桌面会话** | — |
-| POST | `/workflows/execute` | 同步执行流程（超时返 202） | API Key | — |
-| POST | `/workflows/execute-async` | 异步执行流程（立即返回任务ID） | API Key | — |
+| POST | `/workflows/execute` | 同步执行流程（超时返 202） | API Key | ✅ 202 |
+| POST | `/workflows/execute-async` | 异步执行流程（立即返回任务ID） | API Key | ✅ 202 |
 | POST | `/workflows/stop-current` | 停止当前用户运行中的执行 | API Key | — |
 | GET | `/workflows/get-astron` | 获取绑定的星辰 Agent 工作流 | 仅会话 | — |
 | POST | `/workflows/copy-workflow` | 复制工作流 | API Key | — |
 | GET | `/executions/{id}` | 查询执行状态/结果 | API Key | — |
 | POST | `/executions/{id}/cancel` | 取消执行 | API Key | — |
 | GET/POST | `/mcp/` | MCP（StreamableHTTP） | API Key | — |
+
+**执行链路真实响应结构（2026-11-02 实测，写客户端必看）**：
+
+```jsonc
+// ① POST /workflows/execute-async   body: {"project_id": "<robotId>", "params": {"k": "v"}}
+// → 202
+{"code":"0000","msg":"","data":{"executionId":"836a4229-b2b1-4e1f-a94f-0d084d71f019"}}
+
+// ② GET /executions/{id}
+{"code":"0000","data":{"execution":{
+  "id":"...", "project_id":"<robotId>", "status":"COMPLETED",
+  "parameters":{...}, "result":{"code":"0000","msg":"运行成功","data":{...}},
+  "error":null, "exec_position":"EXECUTOR", "version":1,
+  "start_time":"2026-11-02T05:26:46","end_time":"2026-11-02T05:26:52"}}}
+```
+
+> ⚠️ **两个易错点**：① `executionId` 在 `data.executionId`，**顶层没有**这个字段；② 轮询结果在 `data.execution`，**顶层没有 `status`**。只取顶层会永远读不到状态。
+> ⚠️ `execute-async` 的 body 字段名是 **`params`（dict）**，不是 `parameters`；模型 `extra="forbid"`，多传字段直接 422。
 
 > ⚠️ **路径注意**：列表是 `/workflows/get`（不是 `/workflows`）。直接打 `/workflows` 会 401 `Session authentication required`——该路径没有 API Key 回退逻辑。鉴权依赖对照（源码 `routers/workflows.py`）：`/upsert`、`/get-astron` 用 `get_user_id_from_header`（仅会话）；`/get`、`/get/{project_id}` 用 `get_user_id_with_fallback`（API Key 可用）；execute 系列用 `get_user_id_from_api_key`。
 

@@ -1,0 +1,234 @@
+{
+  "name": "Excel按列去重",
+  "nl_examples": [
+    "把Excel表格按某一列去重，保留第一次出现的行",
+    "Excel去重处理，保留首次出现记录",
+    "清理Excel重复数据，只留第一条"
+  ],
+  "keywords": [
+    "Excel",
+    "去重",
+    "保留首次",
+    "列"
+  ],
+  "params": [
+    {
+      "name": "src_file",
+      "type": "Str",
+      "default": "D:\\demo\\data.xlsx",
+      "describe": "源Excel文件路径"
+    },
+    {
+      "name": "dest_file",
+      "type": "Str",
+      "default": "D:\\demo\\data_dedup.xlsx",
+      "describe": "去重后保存的文件路径"
+    },
+    {
+      "name": "key_col",
+      "type": "Str",
+      "default": "A",
+      "describe": "用于去重的列标（如A, B, C）"
+    },
+    {
+      "name": "sheet_name",
+      "type": "Str",
+      "default": "Sheet1",
+      "describe": "工作表名称"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "Excel.open_excel",
+      "alias": "打开源文件",
+      "inputs": {
+        "file_path": "$p:src_file",
+        "visible_flag": false,
+        "default_application": "Excel",
+        "update_links": false
+      },
+      "out": {
+        "open_excel_obj": "excel_obj"
+      }
+    },
+    {
+      "atom": "Excel.read_excel",
+      "alias": "读取全部数据",
+      "inputs": {
+        "excel": "$excel_obj",
+        "read_range": "all",
+        "start_col": "A",
+        "end_col": "Z",
+        "start_row": "1",
+        "end_row": "-1",
+        "replace_none": true,
+        "read_display": false,
+        "trim_spaces": false
+      },
+      "out": {
+        "read_excel_contents": "all_data"
+      }
+    },
+    {
+      "atom": "ListProcess.create_new_list",
+      "alias": "创建已见值集合",
+      "inputs": {
+        "list_type": "empty"
+      },
+      "out": {
+        "created_list_data": "seen_keys"
+      }
+    },
+    {
+      "atom": "ListProcess.create_new_list",
+      "alias": "创建去重后数据列表",
+      "inputs": {
+        "list_type": "empty"
+      },
+      "out": {
+        "created_list_data": "dedup_data"
+      }
+    },
+    {
+      "atom": "Code.ForList",
+      "alias": "遍历数据行",
+      "inputs": {
+        "list": "$all_data"
+      },
+      "out": {
+        "index": "idx",
+        "item": "item"
+      }
+    },
+    {
+      "atom": "ListProcess.get_value_from_list",
+      "alias": "获取当前行键值",
+      "inputs": {
+        "list_data": "$item",
+        "index": "$p:key_col"
+      },
+      "out": {
+        "get_list_value": "current_key"
+      }
+    },
+    {
+      "atom": "ListProcess.get_list_position",
+      "alias": "检查键值是否已存在",
+      "inputs": {
+        "list_data": "$seen_keys",
+        "value": "$current_key"
+      },
+      "out": {
+        "get_list_position": "key_pos"
+      }
+    },
+    {
+      "atom": "Code.If",
+      "alias": "判断是否重复",
+      "inputs": {
+        "args1": "$key_pos",
+        "condition": "==",
+        "args2": "-1"
+      },
+      "out": {
+        "index": "idx",
+        "item": "item"
+      }
+    },
+    {
+      "atom": "ListProcess.insert_value_to_list",
+      "alias": "添加到去重列表",
+      "inputs": {
+        "list_data": "$dedup_data",
+        "value": "$item",
+        "insert_method": "append"
+      },
+      "out": {
+        "inserted_list_data": "dedup_data"
+      }
+    },
+    {
+      "atom": "ListProcess.insert_value_to_list",
+      "alias": "添加到已见集合",
+      "inputs": {
+        "list_data": "$seen_keys",
+        "value": "$current_key",
+        "insert_method": "append"
+      },
+      "out": {
+        "inserted_list_data": "seen_keys"
+      }
+    },
+    {
+      "atom": "Code.IfEnd",
+      "alias": "判断结束",
+      "inputs": {},
+      "out": {}
+    },
+    {
+      "atom": "Code.ForEnd",
+      "alias": "循环结束",
+      "inputs": {},
+      "out": {}
+    },
+    {
+      "atom": "Excel.create_excel",
+      "alias": "创建新Excel",
+      "inputs": {
+        "file_path": "$p:dest_file",
+        "file_name": "dedup.xlsx",
+        "visible_flag": false,
+        "default_application": "Excel",
+        "exist_handle_type": "overwrite"
+      },
+      "out": {
+        "create_excel_obj": "new_excel_obj"
+      }
+    },
+    {
+      "atom": "Excel.edit_excel",
+      "alias": "写入去重数据",
+      "inputs": {
+        "excel": "$new_excel_obj",
+        "edit_range": "row",
+        "value": "$json:[{\"varName\": \"dedup_data\", \"varValue\": \"$dedup_data\"}]",
+        "start_row": "1",
+        "start_col": "A",
+        "edit_type": "overwrite"
+      },
+      "out": {}
+    },
+    {
+      "atom": "Excel.save_excel",
+      "alias": "保存新文件",
+      "inputs": {
+        "excel": "$new_excel_obj",
+        "save_type": "save",
+        "close_flag": false
+      },
+      "out": {}
+    },
+    {
+      "atom": "Excel.close_excel",
+      "alias": "关闭源文件",
+      "inputs": {
+        "excel": "$excel_obj",
+        "save_type_one": "abort",
+        "close_range_flag": "one",
+        "pkill_flag": false
+      },
+      "out": {}
+    },
+    {
+      "atom": "Excel.close_excel",
+      "alias": "关闭新文件",
+      "inputs": {
+        "excel": "$new_excel_obj",
+        "save_type_one": "save",
+        "close_range_flag": "one",
+        "pkill_flag": false
+      },
+      "out": {}
+    }
+  ]
+}

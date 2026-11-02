@@ -1,0 +1,82 @@
+{
+  "name": "Word转PDF",
+  "nl_examples": [
+    "把F:\\demo\\报表.docx转成PDF",
+    "将报表文档导出为PDF格式",
+    "Word文件转PDF"
+  ],
+  "keywords": [
+    "Word",
+    "PDF",
+    "转换",
+    "导出",
+    "Docx"
+  ],
+  "params": [
+    {
+      "name": "src_file",
+      "type": "Str",
+      "default": "F:\\demo\\报表.docx",
+      "describe": "源Word文件路径"
+    },
+    {
+      "name": "output_dir",
+      "type": "Str",
+      "default": "F:\\demo",
+      "describe": "输出PDF所在的目录"
+    },
+    {
+      "name": "output_name",
+      "type": "Str",
+      "default": "报表.pdf",
+      "describe": "输出的PDF文件名"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "Docx.open_docx",
+      "alias": "打开Word",
+      "inputs": {
+        "file_path": "$p:src_file",
+        "default_application": "Default",
+        "visible_flag": false,
+        "encoding": "utf-8",
+        "open_pwd_flag": false,
+        "write_pwd_flag": false
+      },
+      "out": {
+        "doc_obj": "doc_obj"
+      }
+    },
+    {
+      "atom": "Docx.convert_format",
+      "alias": "导出PDF",
+      "inputs": {
+        "doc": "$doc_obj",
+        "output_path": "$p:output_dir",
+        "default_name": false,
+        "output_name": "$p:output_name",
+        "output_file_type": "pdf",
+        "page_type": 0,
+        "page_start": 1,
+        "page_end": 1,
+        "save_type": "overwrite"
+      },
+      "out": {}
+    },
+    {
+      "atom": "Docx.close_docx",
+      "alias": "关闭Word",
+      "inputs": {
+        "doc": "$doc_obj",
+        "close_range_flag": "one",
+        "save_type": "abort",
+        "file_path": "",
+        "file_name": "",
+        "exist_handle_type": "cancel",
+        "pkill_flag": false
+      },
+      "out": {}
+    }
+  ]
+}

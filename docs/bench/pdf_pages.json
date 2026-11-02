@@ -1,0 +1,51 @@
+{
+  "name": "PDF抽取指定页",
+  "nl_examples": [
+    "把PDF的前两页单独存出来",
+    "从源PDF里抽出第1到2页生成新文件",
+    "提取PDF第1至2页到新路径"
+  ],
+  "keywords": [
+    "PDF",
+    "抽取",
+    "指定页",
+    "另存"
+  ],
+  "params": [
+    {
+      "name": "src_file",
+      "type": "Str",
+      "default": "D:\\demo\\source.pdf",
+      "describe": "源PDF文件路径"
+    },
+    {
+      "name": "save_dir",
+      "type": "Str",
+      "default": "D:\\demo\\output",
+      "describe": "新PDF保存目录"
+    },
+    {
+      "name": "new_file_name",
+      "type": "Str",
+      "default": "extracted_pages.pdf",
+      "describe": "新PDF文件名"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "PDF.extract_pdf_file",
+      "alias": "抽取PDF指定页",
+      "inputs": {
+        "file_path": "$p:src_file",
+        "page_range": "1-2",
+        "save_dir": "$p:save_dir",
+        "new_file_name": "$p:new_file_name",
+        "exist_handle_type": "overwrite",
+        "new_pwd_flag": false
+      },
+      "out": {
+        "extract_file_path": "new_pdf_path"
+      }
+    }
+  ]
+}

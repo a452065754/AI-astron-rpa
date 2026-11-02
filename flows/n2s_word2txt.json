@@ -1,0 +1,74 @@
+{
+  "name": "Word转TXT",
+  "nl_examples": [
+    "把F:/demo/报表.docx里的文字全部提取出来，存成F:/demo/out/报表.txt",
+    "将Word文档导出为纯文本文件",
+    "提取docx内容保存为txt"
+  ],
+  "keywords": [
+    "Word",
+    "TXT",
+    "读取",
+    "写入"
+  ],
+  "params": [
+    {
+      "name": "src_file",
+      "type": "Str",
+      "default": "F:\\demo\\报表.docx",
+      "describe": "源Word文件路径"
+    },
+    {
+      "name": "dst_file",
+      "type": "Str",
+      "default": "F:\\demo\\out\\报表.txt",
+      "describe": "目标TXT文件路径"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "Docx.open_docx",
+      "alias": "打开Word",
+      "inputs": {
+        "file_path": "$p:src_file",
+        "visible_flag": false
+      },
+      "out": {
+        "doc_obj": "doc"
+      }
+    },
+    {
+      "atom": "Docx.read_docx",
+      "alias": "读取内容",
+      "inputs": {
+        "doc": "$doc",
+        "select_range": "all"
+      },
+      "out": {
+        "doc_data": "content"
+      }
+    },
+    {
+      "atom": "Docx.close_docx",
+      "alias": "关闭Word",
+      "inputs": {
+        "doc": "$doc",
+        "close_range_flag": "one",
+        "save_type": "abort",
+        "pkill_flag": false
+      },
+      "out": {}
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "写入TXT",
+      "inputs": {
+        "file_path": "$p:dst_file",
+        "msg": "$content",
+        "write_type": "overwrite",
+        "file_option": "create"
+      },
+      "out": {}
+    }
+  ]
+}

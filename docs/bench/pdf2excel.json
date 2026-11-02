@@ -1,0 +1,93 @@
+{
+  "name": "PDF表格提取转Excel",
+  "nl_examples": [
+    "把PDF里的表格提取出来转成Excel",
+    "提取PDF中的表格数据并保存为Excel文件",
+    "将PDF文档中的表格转换为Excel格式"
+  ],
+  "keywords": [
+    "PDF",
+    "表格",
+    "Excel",
+    "提取",
+    "转换"
+  ],
+  "params": [
+    {
+      "name": "pdf_file_path",
+      "type": "Str",
+      "default": "D:\\demo\\input.pdf",
+      "describe": "PDF文件路径"
+    },
+    {
+      "name": "excel_save_dir",
+      "type": "Str",
+      "default": "D:\\demo\\output",
+      "describe": "Excel保存目录"
+    },
+    {
+      "name": "excel_file_name",
+      "type": "Str",
+      "default": "extracted_tables.xlsx",
+      "describe": "Excel文件名"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "PDF.extract_forms_from_pdf",
+      "alias": "提取PDF表格",
+      "inputs": {
+        "file_path": "$p:pdf_file_path",
+        "select_range": "all",
+        "page_range": "",
+        "combine_flag": false,
+        "save_dir": "$p:excel_save_dir",
+        "exist_handle_type": "overwrite"
+      },
+      "out": {
+        "forms_file_path": "excel_file_path"
+      }
+    },
+    {
+      "atom": "Excel.open_excel",
+      "alias": "打开Excel",
+      "inputs": {
+        "file_path": "$excel_file_path",
+        "default_application": "Default",
+        "visible_flag": false,
+        "update_links": false
+      },
+      "out": {
+        "open_excel_obj": "excel_obj"
+      }
+    },
+    {
+      "atom": "Excel.save_excel",
+      "alias": "保存并重命名Excel",
+      "inputs": {
+        "excel": "$excel_obj",
+        "save_type": "save_as",
+        "exist_handle_type": "overwrite",
+        "close_flag": false,
+        "file_path": "$p:excel_save_dir",
+        "file_name": "$p:excel_file_name"
+      },
+      "out": {}
+    },
+    {
+      "atom": "Excel.close_excel",
+      "alias": "关闭Excel",
+      "inputs": {
+        "close_range_flag": "one",
+        "excel": "$excel_obj",
+        "save_type_one": "abort",
+        "save_type_all": "abort",
+        "file_path": "",
+        "file_name": "",
+        "exist_handle_type": "cancel",
+        "pkill_flag": false
+      },
+      "out": {}
+    }
+  ]
+}
