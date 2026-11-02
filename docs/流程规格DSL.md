@@ -463,6 +463,9 @@ def main(args):
    → 拆/分组前统一 `df[col] = df[col].fillna("<空>")` 或 `groupby(col, dropna=False)`，
    并在 `summary` 里写「含空值 N 行」，N>0 时 `logger.warning`。
    验收标准：**输入 3 行（含 1 行空值）→ 输出必须能对上 3 行**，或明确报「跳过 N 行」。
+   「没值」有两种，别混着说：真空/空串（`str.strip()==''`）与 Excel 错误值（`isna()`，
+   配 `keep_default_na=False` 时剩下的 NaN 只可能是错误值）→ 各自单独成组、单独出文件
+   （`空值.xlsx` / `错误值.xlsx`），summary 分两句说。
 7. **读哪张表必须参数化**：`sheet_name` 是流程参数，只接受 `''`/`'0'`（第一张）或**真实 sheet 名**；
    要按序号读第 N 张，必须先 `pd.ExcelFile(src).sheet_names[N]` 拿到真名（直接把 `"1"` 当 sheet 名传会报
    `Worksheet named '1' not found`）。`summary` 里要报出实际读到的 sheet 名。

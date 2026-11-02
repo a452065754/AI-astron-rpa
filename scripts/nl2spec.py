@@ -513,6 +513,10 @@ SYSTEM_PROMPT = """你是 Astron RPA 的「流程规格（spec）生成器」。
       - `groupby(col, dropna=False)`
       **无论哪种，`summary` 必须写明「含空值 N 行」/「跳过 N 行」，N>0 时再 `logger.warning(...)` 记一条。**
       验收标准：输入 3 行（含 1 行空值）→ **输出必须能对上 3 行**，或明确报「跳过 1 行」。
+      **另外「没值」有两种，别混着说**：真空/空串（`str.strip()==''`）和 Excel 错误值（`isna()`，
+      配 `keep_default_na=False` 时剩下的 NaN 只可能是错误值）。两种都要单独成组、单独出文件
+      （`空值.xlsx` / `错误值.xlsx`），summary 分两句说 —— 否则业务人员会去查「哪行没填部门」，
+      而实际那行是公式报错。
    ② **缺失/异常行必须给显式策略，不许 `try: ... except: pass`**
       跳过就计数并写进 summary；实在处理不了就 `raise RuntimeError("第 5 行「部门」为空，无法拆分")`。
       summary 里的 `processed` + `skipped` 必须能和输入行数对上。
