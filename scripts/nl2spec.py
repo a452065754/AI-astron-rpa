@@ -504,8 +504,8 @@ SYSTEM_PROMPT = """你是 Astron RPA 的「流程规格（spec）生成器」。
      节点写 `"msg": "$结果"` 之前先让脚本只返回字符串给一个独立变量，或直接用 `"$summary"`。
 - 失败必须 `raise RuntimeError("中文原因")`，不许抛英文堆栈或静默 `return None`。
 
-5) **脚本健壮性四条**（数据异常 + 重复运行，一条都不许省）
-脚本报 SUCCESS 却少输出几行，比直接报错更糟 —— 业务人员不会发现。四条都是硬要求：
+5) **脚本健壮性五条**（数据异常 + 重复运行 + 值保真，一条都不许省）
+脚本报 SUCCESS 却少几行 / 改了几个值，比直接报错更糟 —— 业务人员不会发现。五条都是硬要求：
 
    ① **分组/拆分/去重前必须处理该列空值，不许让行无声消失**
       `pandas.groupby` 默认 `dropna=True`，空值那些行**不会出现在任何输出文件里**。两种写法任选：
@@ -516,15 +516,28 @@ SYSTEM_PROMPT = """你是 Astron RPA 的「流程规格（spec）生成器」。
    ② **缺失/异常行必须给显式策略，不许 `try: ... except: pass`**
       跳过就计数并写进 summary；实在处理不了就 `raise RuntimeError("第 5 行「部门」为空，无法拆分")`。
       summary 里的 `processed` + `skipped` 必须能和输入行数对上。
-   ③ **读取参数化**：凡读 Excel / CSV / Word 的脚本，`sheet_name` 必须是**流程参数**（默认 `""` = 第一张表），
-      **纯数字按索引解释（0 基）、非数字按表名解释** —— `sheet_name="1"` 必须读**第二张表**，
-      不能变成「找名字叫 1 的 sheet」（业务人员的直觉一定是前者）；
-      并在 summary 里打印**实际读到的 sheet** —— 否则用户换了 sheet 会拿到「看起来成功的错数据」。
+   ③ **读取参数化（sheet 口径）**：凡读 Excel 的脚本，`sheet_name` 必须是**流程参数**，只接受两种取值：
+      `''` / `'0'`（第一张）或**真实 sheet 名**。想按序号读第 N 张，必须先拿到真名再读：
+      `real = pd.ExcelFile(src_file).sheet_names[N - 1]` —— **不能**把 `"1"` 直接当 sheet 名传进去
+      （会报 `Worksheet named '1' not found`，业务人员看不懂）。summary 里要打印**实际读到的 sheet 名**。
    ④ **写入默认可重跑**：`out_dir` 用 `os.makedirs(..., exist_ok=True)`；输出文件已存在时**默认不覆盖** ——
-      要么加 `overwrite` 流程参数（默认 `"false"`），要么唯一化改名（`xxx(1).xlsx`，自己写个 `_unique()`）。
-      同一流程连跑两次不许互相冲掉。**改名必须说出来**：命改名分支时 `logger.warning(...)` 并在
-      summary 里带一句「N 个同名文件已改名写入」/ 返回 `renamed` 列表 —— 否则业务人员打开
-      `华南.xlsx` 看到的是上次的数据，会以为「流程没生效」（又是「看起来成功的错数据」）。
+      加 `overwrite` 流程参数（默认 `"false"`），命中时唯一化改名 `xxx(1).xlsx`。
+      **改名必须说出来**：`logger.warning(...)` 并在 summary 里点名「N 个同名文件已改名写入」/ 返回 `renamed` 列表。
+      **只写 `logger.info` 等于没说**（业务人员在界面上看不到，会以为新数据没生效）。
+   ⑤ **值保真：不许让 pandas 把源表里的值悄悄改掉**
+      - 只做搬运/拆分/合并（不参与计算）的流程，读取**一律加 `keep_default_na=False`**。
+        否则 pandas 默认把 `NA` / `N/A` / `NULL` / `None` / `#N/A` 等当成缺失值 → 输出变空白，
+        而**行数还对得上**，② 的行数对账根本抓不到。
+      - 加了 `keep_default_na=False` 后空单元格是 `''` 不是 `NaN`，所以空判定必须写成
+        `df[col].isna() | (df[col].astype(str).str.strip() == '')`，**两种都认**。
+      - **真 Excel 错误值（`#N/A` / `#VALUE!` / `#REF!`）任何参数都救不回来**，必须点名告警：
+        用 openpyxl 扫目标 sheet 的 `cell.data_type == 'e'`，有就在 summary 里写
+        「源表有 N 个错误值（如 #N/A），输出已变空白，请核对」+ `logger.warning`。
+        参考写法（只扫目标 sheet，别扫全簿）：
+            import openpyxl
+            errs = [(c.coordinate, c.value)
+                    for row in openpyxl.load_workbook(src_file)[ws_name].iter_rows()
+                    for c in row if c.data_type == 'e']
 
 # 选原子容易踩的几个点
 - **`Folder.folder_create` 的语义是「在父目录下建一个子目录」**：
@@ -556,9 +569,10 @@ SYSTEM_PROMPT = """你是 Astron RPA 的「流程规格（spec）生成器」。
    `args.get` 的名字和 `module_param` 的 `varName` 对得上吗？
 ⑧ **有没有在哪段字符串里内嵌 `$变量` / `$结果[字段]`？** 一个都不能有 ——
    要拼接用数组 `["文字","$var","文字"]`，要打印摘要让脚本自己打日志。
-⑨ 用了脚本的话：**分组/拆分前处理空值了吗？`sheet_name` / `overwrite` 参数化了吗？
-   `summary` 里的 processed + skipped 能和输入行数对上吗？**（健壮性四条，少一条就是把
-   「少几行数据」的坑埋给业务人员）"""
+⑨ 用了脚本的话：**分组/拆分前处理空值了吗？读取加了 `keep_default_na=False` 吗？
+   真错误值（#N/A）点名告警了吗？`sheet_name` / `overwrite` 参数化了吗？
+   summary 里的 processed + skipped 能和输入行数对上吗？**（健壮性五条，少一条就是把
+   「少几行 / 改了几个值」的坑埋给业务人员）"""
 
 
 # ============================================================
