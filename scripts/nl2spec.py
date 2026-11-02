@@ -517,10 +517,14 @@ SYSTEM_PROMPT = """你是 Astron RPA 的「流程规格（spec）生成器」。
       跳过就计数并写进 summary；实在处理不了就 `raise RuntimeError("第 5 行「部门」为空，无法拆分")`。
       summary 里的 `processed` + `skipped` 必须能和输入行数对上。
    ③ **读取参数化**：凡读 Excel / CSV / Word 的脚本，`sheet_name` 必须是**流程参数**（默认 `""` = 第一张表），
-      并在 summary 里打印**实际读到的 sheet 名** —— 否则用户换了 sheet 会拿到「看起来成功的错数据」。
+      **纯数字按索引解释（0 基）、非数字按表名解释** —— `sheet_name="1"` 必须读**第二张表**，
+      不能变成「找名字叫 1 的 sheet」（业务人员的直觉一定是前者）；
+      并在 summary 里打印**实际读到的 sheet** —— 否则用户换了 sheet 会拿到「看起来成功的错数据」。
    ④ **写入默认可重跑**：`out_dir` 用 `os.makedirs(..., exist_ok=True)`；输出文件已存在时**默认不覆盖** ——
       要么加 `overwrite` 流程参数（默认 `"false"`），要么唯一化改名（`xxx(1).xlsx`，自己写个 `_unique()`）。
-      同一流程连跑两次不许互相冲掉。
+      同一流程连跑两次不许互相冲掉。**改名必须说出来**：命改名分支时 `logger.warning(...)` 并在
+      summary 里带一句「N 个同名文件已改名写入」/ 返回 `renamed` 列表 —— 否则业务人员打开
+      `华南.xlsx` 看到的是上次的数据，会以为「流程没生效」（又是「看起来成功的错数据」）。
 
 # 选原子容易踩的几个点
 - **`Folder.folder_create` 的语义是「在父目录下建一个子目录」**：
