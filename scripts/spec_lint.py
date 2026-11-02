@@ -309,18 +309,30 @@ def _lint_scripts(spec, scripts, err, warn):
                             '（模块里 args.get 拿到的就是这个值）')
                         continue
                     vv = it.get("varValue")
-                    if vv is None or isinstance(vv, bool):
+                    # 文案必须按**类型**分开（QA N10-e）：`null` 的错名是 `name 'null' is not
+                    # defined`、改法是空串；照抄布尔分支的「改成 "true" / "false"」等于指错方向，
+                    # 而「照着改就能过」正是这条 lint 的全部价值。
+                    if isinstance(vv, bool):
                         err("%s：module_param 里 %s 的 varValue 是 %s —— "
-                            "不能是 JSON 布尔/空值（true/false/null）" % (where, vn, json.dumps(vv)),
-                            '引擎会把它们当 Python 源码求值，报 '
-                            "NameError: name 'true' is not defined。"
-                            '改成字符串 "true" / "false"')
+                            "不能是 JSON 布尔（true/false）" % (where, vn, json.dumps(vv)),
+                            "引擎会把它们当 Python 源码求值，报 "
+                            "NameError: name '%s' is not defined。" % json.dumps(vv)
+                            + '改成字符串 "true" / "false"')
+                    elif vv is None:
+                        err("%s：module_param 里 %s 的 varValue 是 null —— "
+                            "不能是 JSON 空值" % (where, vn),
+                            "引擎会把 null 当 Python 源码求值，报 "
+                            "NameError: name 'null' is not defined。"
+                            '改成空字符串 ""，或用字符串 "null"（模块侧自己判断）')
                     elif isinstance(vv, (int, float)):
+                        # 数字在 Python 里是合法字面量（3 → 3），**不会** NameError，
+                        # 所以只 warn（判 err 会把本来能跑的流程判死）；但模块契约要求 str。
+                        to = "float" if isinstance(vv, float) else "int"
                         warn("%s：module_param 里 %s 的 varValue 是数字 %s"
                              "（模块拿到的 args 约定全是字符串）" % (where, vn, json.dumps(vv)),
-                             '建议改成字符串 "%s"，模块侧用 int(args.get("%s")) 转换；'
-                             "否则 args.get() 拿到的是 int，.strip()/.lower() 会 AttributeError"
-                             % (vv, vn))
+                             '建议改成字符串 "%s"，模块侧用 %s(args.get("%s")) 转换；'
+                             "否则 args.get() 拿到的是 %s，.strip()/.lower() 会 AttributeError"
+                             % (vv, to, vn, to))
 
         # ---------- 规则 7：out.program_script（对所有 Script.module 生效） ----------
         if "program_script" not in (node.get("out") or {}):

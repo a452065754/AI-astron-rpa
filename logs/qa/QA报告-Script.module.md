@@ -680,3 +680,169 @@ V10-4 baked 模式提醒：受影响节点 1 个 / src_file、split_column、out
 - 数字留 warn 的裁剪判断正确，建议保留。
 - `--param-binding` 两种模式的落法差异、全量兼容性、提醒机制都验过了，无回归。
 - 全量：**88 条 flows 0 错 / 3 警**；V2 9/9、V3/V4/V5/V6/V7/V8/V10 全绿。
+
+---
+
+# 第五轮（Round-5）：交付前独立验收
+
+## 0. 前置：**本次改动还没提交**，交付验收无法按 commit 做
+
+```
+$ git log --oneline -3
+bac8046 feat(L3): 自然语言直出流程 —— nl2spec + 自愈 + 真跑验证闭环
+d225cea feat: 能力化改造——新增能力自举验收与规格DSL规范…
+86d1c19 fix(robot): 删除 2 个空机器人…
+
+$ git show --stat HEAD | head
+（HEAD 仍是上一轮的 nl2spec 提交，Script.module 这件事的全部改动还在工作区）
+```
+
+所以下面第 1 节按**工作区**给出「该进 / 不该进」清单；等工程师提交后，用同一条命令复核一遍即可
+（预计 30 秒）。**这不是 P0**，但如果就这么 `git add -A` 提交，会把 39 张评审单 + 34 个 demo 二进制变更一起带进去。
+
+## 1. 工作区清单（`git add -An .` 的**真实**结果，按目录汇总）
+
+```
+     39 docs/reviews          ← ❌ 不该进：每次落库自动生成的评审单（文件名带时间戳），一次 39 张
+     12 logs/qa               ← ✅ 该进（lead 已定）；我顺手清掉了 1 个临时落盘 → 实际 11 个文件
+      9 demo/_archive_in      ← ❌ 不该进：流程跑出来的测试输入（.md/.txt/.xlsx 夹具）
+      8 demo/_merge_out 等    ← ❌ 不该进：demo 二进制产物改动（本次共 34 处 M/D）
+      5 scripts/*.py          ← ✅ 该进：ai_flow / flow_generator / nl2spec / spec_lint / rpa_config
+      1 flows/gen_按部门拆分Excel.json  ← ✅ 该进（E2E 生成的交付物）
+      1 docs/原子需求池.md     ← ✅ 该进（新文档）
+      其他 docs/*.md           ← ✅ 该进：流程规格DSL / 待办清单 / 开发进度 / 平台缺陷清单 / 交接清单 / 功能蓝图
+      1 .gitignore / rpa_config.example.json ← ✅ 该进
+```
+
+被 `.gitignore` 正确挡住的（**已确认**，抽查 `git status --ignored`）：
+
+```
+logs/_tmp_*（含 _tmp_binding_roundtrip.py / _tmp_e1_param_binding.py / _tmp_nl2spec_dump/ …）✅ 已忽略
+scripts/mod_gen_*.py                                                                          ✅ 已忽略
+flows/_archive/                                                                                ✅ 已忽略
+logs/nl2spec_selftest*.json / logs/n2s_*/ / logs/replay_*                                      ✅ 已忽略
+```
+
+**建议**：提交时 `git add` 具体路径，或先 `git checkout -- demo/` 再提交；
+`docs/reviews/` 建议加进 `.gitignore`（它是每次运行的产物，39 张里 30+ 是同名流程的不同时间戳）。
+`logs/qa/` 现在 11 个文件（1 报告 + 9 用例脚本 + `v1_regression.json` 明细）。
+
+## 2. 从干净状态复跑（`rm -rf scripts/__pycache__` 之后）
+
+```
+v1_regression   flows 总数 88 / 总错误 err 0 / 总警告 warn 3 / 0 错误流程数 88
+v2_negative     未通过：无        （V3 + N1~N9 全 PASS）
+v4_strategy     未通过：无        （4/4）
+v5_resolve_dry  未通过：无        （5/5，create/save/open_module 调用 0 次）
+v6_hardness     V6-1~V6-4 全 PASS
+v7_bonus        A-1/A-2×2/B-1~B-4 全 PASS（7/7）
+v8_newrules     R-a/R-b/R-c 全 PASS（3/3）
+v9（N10）        N10-a/b/c/d PASS；N10-e FAIL（null 的 fix 文案未改，见 §4）
+v10             V10-1~V10-4 全 PASS（5/5）
+nl2spec --selftest
+                ✅ 自证通过：生成链路（抽取 / 校验 / 回灌 / 收敛 / 落盘 / 脚本模块）离线可跑通。
+```
+
+## 3. 重点：`flows/gen_按部门拆分Excel.json` 的静态侧证据（lead 指定角度）
+
+### 3.1 单跑 lint（模型原文 与 load_spec 后各跑一遍）
+
+```
+文件：flows\gen_按部门拆分Excel.json
+节点数：1 ；scripts：['excel_split_by_dept']
+params：[('src_file', 'F:/demo/data/销售明细.xlsx'), ('split_column', '部门'), ('out_dir', 'F:/demo/out/split')]
+
+== 模型原文（load_spec 之前） ==   错误 0 条 / 警告 0 条
+== load_spec 规范化后 ==          错误 0 条 / 警告 0 条
+```
+
+→ **0 错 0 警**，而且「模型原文」也干净（说明它一次成型，不是靠 `load_spec` 补出来的）。
+
+### 3.2 人工读 `scripts.code`（44 行）看有没有硬编码
+
+```
+read_excel   1 处：df = pd.read_excel(src_file)
+to_excel     1 处：group_df.to_excel(out_path, index=False)
+sheet_name   0 处：—                      ← 见 3.4
+groupby      1 处：grouped = df.groupby(split_column)
+index=       1 处：group_df.to_excel(out_path, index=False)
+
+硬编码盘符/绝对路径：无 ✅
+硬编码中文字面量：全部是报错/摘要文案（"源文件不存在: …" / "列名 … 不存在于Excel中" / "拆分完成：N 个部门…"）
+args.get 读到的参数：['out_dir', 'split_column', 'src_file']
+规格 params 声明：   ['src_file', 'split_column', 'out_dir']    ← 一一对上
+```
+
+**结论：这份 AI 写的脚本没有把路径/列名写死**，三个可调项全部从 `args` 取，且与 `module_param` 完全对应。
+
+### 3.3 真跑一遍（本机 pandas，不连平台）验证「业务人员只改参数」到不到得了
+
+新增用例 `logs/qa/v11_tunability.py`：把交付流程里的 `code` 原样拿出来，在本机造 xlsx 直接调用 `main(args)`。
+
+```
+T1  按「部门」拆（原始参数）                → 3 个文件（华南/华东/华北.xlsx）        PASS
+T1b **只改 split_column：部门 → 区域**      → 变成 南区/东区/北区.xlsx              PASS
+T2  **改错列名（"科室"）**                  → RuntimeError: 列名 "科室" 不存在于Excel中   PASS
+T3  **改 out_dir（换成新的中文目录）**       → 3 个文件落到新目录，目录自动创建        PASS
+T4  想拆第二张表（sheet2 只有「西北」）       → 产出里从未出现「西北」                 PASS（如实体现边界）
+T5  同参数再跑一次                          → 3 个文件全部被**静默覆盖**，无 overwrite 参数  FAIL（P2）
+T6  部门列有空单元格（输入 3 行，1 行部门为空）→ 只写出 2 行，**空部门那一行被静默丢弃**   FAIL（P1）
+```
+
+**这是「能微调」的正面证据**：改列名、改输出目录都真的生效；改错会在跑之前就给中文报错
+（`列名 "科室" 不存在于Excel中`，业务人员能自己看懂并改回来），不用找开发。
+
+**T4 是边界（可接受但要说清）**：`pd.read_excel(src_file)` 没有 `sheet_name` 参数 →
+只读第一张表。业务人员想拆第二张表必须找开发改代码。这不违反「脚本是兜底」的定位，
+但违反文档 §11.6-1「所有可调项提升为流程参数（路径、列名、**sheet 名**、阈值、是否覆盖）」
+—— 规范自己定的条款没落实，属**生成质量问题**，建议在 prompt 里把这条写硬（或在
+`feedback_prompt` 的检查清单里加一条）。
+
+**T5 / T6 是真缺口，见 §4。**
+
+## 4. 本轮新发现（都不是「能力」问题，是「AI 写的代码质量」问题）
+
+### T6（P1）：拆分列有空值时**静默丢行**
+
+```
+输入 3 行数据：SO1/华南、SO2/(空)、SO3/华东
+输出：华南.xlsx 1 行 + 华东.xlsx 1 行 = 2 行
+返回：{"ok": true, "summary": "拆分完成：2 个部门，共 3 行"}
+```
+`df.groupby(split_column)` 默认 `dropna=True`，空部门那一行**不出现在任何输出文件里**，
+而 `summary` 里「共 3 行」会让人以为全处理了。业务人员拿到的是**少一行的结果且无任何提示**
+——这是「静默拿到不完整数据」，按 lead 定的分级属于 P1（不到 P0：数据干净时不触发）。
+**建议**（改 prompt，不改 lint）：在 `SYSTEM_PROMPT §三-4` 的可维护性补偿里加一条硬要求：
+> 分组/聚合前先处理空值：`df[col] = df[col].fillna("<空>")` 或 `groupby(..., dropna=False)`，
+> 并在 `summary` 里写明「跳过 N 行空值」；**不许让行无声消失**。
+
+改完后这条流程要重新生成（它是 E2E 产物，`flows/gen_按部门拆分Excel.json` 里的 code 是固化的）。
+
+### T5（P2）：没有「是否覆盖」参数，重跑静默覆盖
+
+`to_excel` 直接覆盖同名文件，流程里没有 `overwrite` 参数、也没有告警。
+业务人员想保留上一版必须自己先换 `out_dir`。这与 §11.6-1 的「是否覆盖」同理。
+
+### N10-e（P2，未修）：`null` 的 fix 文案照抄了布尔分支
+
+```
+[E] …varValue 是 null —— 不能是 JSON 布尔/空值（true/false/null）
+    fix → 引擎会把它们当 Python 源码求值，报 NameError: name 'true' is not defined。改成字符串 "true" / "false"
+```
+对 `null` 应给 `""`。同一处还有 `int(...)` 应为 `float(...)`（数字 warn 的 fix）。
+
+## 5. 交付结论
+
+**可交付。没有 P0。**
+
+依据：
+1. 88 条 flows 全量回归 **0 错误**（3 条警告均为既有/设计如此），历史写法零误伤；
+2. 生成期校验能力完整：N1~N10 共 13 个负向用例全部按预期拦住，且错误信息能照着改；
+3. `--binding` 两种模式全量等价，切默认不会引入结构性回归；
+4. 交付物 `gen_按部门拆分Excel.json` 单跑 **0 错 0 警**，脚本无硬编码，改参数**真的生效**（本机真跑 T1/T1b/T2/T3 证实）。
+
+交付前建议（不阻断）：
+- **提交卫生**：`git add` 具体路径，别把 39 张 `docs/reviews/` + 34 个 demo 二进制变更带进去；
+  `docs/reviews/` 建议进 `.gitignore`。
+- **T6 静默丢行**：改 prompt 加「不许让行无声消失」，然后重新生成那条流程（否则固化在 flows/ 里）。
+- **T5 / N10-e**：文案与 `overwrite` 参数，下一轮一起收。
