@@ -944,3 +944,174 @@ v11 的 4 组改造还在工作区。交付前需补提交（否则下次没人�
 
 **可交付。没有 P0。** 6 个 P1 全部闭环（N10 硬防护 / why 硬化 / 空值静默丢行 / 等），
 剩余 R6-a、R6-b 为 P2（体验层，不产生错数据），R6-c 为提交动作。
+
+---
+
+# Round 7：最后一轮交付验收（AA 提交卫生 / BB 清态全量 / CC 脏值角度）
+
+时间：2026-11-02　｜　方式：全静态 + 本地裸跑，不连平台、不建机器人、不调 LLM、不执行落库路径。
+被测状态：HEAD = `fab8c6b`，工作区另有**已暂存未提交**的「脚本健壮性五条」(`scripts/nl2spec.py`
++ `docs/流程规格DSL.md` + 重生成的 `flows/gen_按部门拆分Excel.json`)。
+下文所有结果都是在**这份工作区内容**上跑出来的。
+
+## 7.1 AA 提交卫生
+
+7 个 commit（原 5 个 + `d112b6c` R6-a/R6-b + `fab8c6b` v11 收紧）：
+
+| commit | 文件数 | 违规路径 |
+|---|---|---|
+| `0936e9c` feat(script) | 27 | 无 |
+| `5e833e9` chore(spec_lint) | 1 | 无 |
+| `f1ce440` fix(spec_lint) N10-e | 4 | 无 |
+| `0f1cf39` docs(readme) | 2 | 无 |
+| `9b04362` fix(script) 健壮性四条 | 3 | 无 |
+| `d112b6c` fix(script) R6-a/R6-b | 4 | 无 |
+| `fab8c6b` test(qa) v11 收紧 | 1 | 无 |
+
+检查口径：`docs/reviews/`、`demo/`、`logs/_tmp*`、`scripts/mod_gen_*`、`flows/_archive/`
+→ **7 个 commit 合计 0 条违规**。
+
+```
+HEAD 里 logs/qa/ 共 12 个:
+    QA报告-Script.module.md   v1_regression.json   v1_regression.py   v2_negative.py
+    v4_strategy.py            v5_resolve_dry.py    v6_hardness.py     v7_bonus.py
+    v8_newrules.py            v9_bool_in_module_param.py
+    v10_param_binding.py      v11_tunability.py
+docs/原子需求池.md        在 HEAD: True
+flows/gen_按部门拆分Excel.json 在 HEAD: True
+```
+（`v12_dirty_value.py` 是本轮新增，尚未入库 —— 唯一待办。）
+
+## 7.2 BB 清态全量（先 `rm -rf scripts/__pycache__`）
+
+| 用例 | 结果 |
+|---|---|
+| V1 `v1_regression.py` | 88 条 / **0 错误 / 3 警告** / 0 解析失败 / 85 条 0 错 0 警 / 9 条含 `Script.module` |
+| V2 `v2_negative.py` | V3 + N1~N9 **10/10 PASS** |
+| V9 `v9_bool_in_module_param.py` | **5/5 PASS** |
+| V10 `v10_param_binding.py` | **5/5 PASS** |
+| V11 `v11_tunability.py` | **4/4 PASS**，退出码 0 |
+| `spec_lint --offline flows/gen_按部门拆分Excel.json` | `✅ 结构与引用全部通过` |
+| `nl2spec.py --selftest` | `✅ 自证通过` |
+
+V11 四组明细（按 lead 口径收紧后）：
+
+```
+D1 正常（行数/文件数守恒）                  PASS
+D2 空值不静默丢行                       PASS
+D3 重复运行不静默覆盖                     PASS
+D4 错误列名 → 中文报错且不动文件              PASS
+```
+
+- **D2** 三条断言全绿：`输入 3 行 / 产出 3 行`、`空值.xlsx 存在=True`、`summary 明说「为空 1 行」=True`；
+- **D3** 改成 **md5 比对**（不再看文件名）：
+
+```
+  第 1 次：
+     华东.xlsx   md5=4d6199bf318f51d586af65a1a4cb2f50 size=4944
+     华南.xlsx   md5=a3266ad6d3f2626d25eb4c5dfaa88694 size=4970
+  第 2 次产出：['华东(1).xlsx', '华东.xlsx', '华南(1).xlsx', '华南.xlsx']
+  --- 第 1 次产出在跑完第 2 次之后 ---
+     华东.xlsx   md5 4d6199bf…（未变）
+     华南.xlsx   md5 a3266ad6…（未变）
+  md5 被改的旧文件：（无）
+  新增文件：['华东(1).xlsx', '华南(1).xlsx']（其中 (N) 后缀：2 个）
+  改名是否写进 summary/日志：是
+  断言：第 1 次产出的 md5 全部未变、第 2 次改名新增 → PASS
+```
+  summary 实际输出：`… ；2 个同名文件已改名写入（旧文件未动）`，
+  日志另有 `logger.warning('目标文件已存在，本次写入 … 华南(1).xlsx（未覆盖 … 华南.xlsx）；如需覆盖请把 overwrite 设为 "true"')`
+  → **R6-a 已闭环**。
+- **D4**：`RuntimeError: 列名 "科室" 不存在于Excel中，可用的列：['订单号','部门','区域','金额']`，
+  目录里新增文件 `（无）`、被改动文件 `（无）`。
+- 附加 O3b：`sheet_name=1` → 产出 `['西北.xlsx']`（读到第二张表）→ **R6-b 已闭环**。
+
+## 7.3 CC 脏值角度（新增 `logs/qa/v12_dirty_value.py`）
+
+造「部门 + 金额」且金额列是 Excel **公式错误值** `#N/A` / `#DIV/0!` 的数据（4 行）：
+
+**X1 金额列有错误值**
+```
+输入（openpyxl 直读）：('SO0002','华东','#N/A')  ('SO0003','华南','#DIV/0!')
+运行结果：summary = "拆分完成：3 个分组，共 4 行（读取 明细）；源表有 2 个错误值（如 #N/A、#DIV/0!），输出已变空白，请核对"
+         error_cells=2
+日志：源表「明细」有 2 个 Excel 错误值（C3、C4），这些单元格已变成空白，拆分结果需要人工核对
+产出 华东.xlsx：('SO0002','华东','（空）')     产出 华南.xlsx：('SO0003','华南','（空）')
+行数：输入 4 行 / 产出 4 行
+→ PASS：值救不回来，但**点名告警了**（行数对得上、用户知道去核对）
+```
+**关键结论：`#N/A` 是救不回来的。** 我试过
+`keep_default_na=False` / `na_values=[]` / `na_filter=False` / `dtype=str` 全部无效 ——
+pandas 3.0.3 的 excel 读取器在更底层就把错误值映射成 NaN。
+但**能 100% 准确识别**：`keep_default_na=False` 之后真空单元格变成 `''`，剩下的 NaN 只可能是错误值。
+```python
+df = pd.read_excel(src, keep_default_na=False)
+bad = df.isna()        # 只剩 Excel 错误值
+```
+另验证 openpyxl 的 `cell.data_type == 'e'` 路线同样准确（`B2='#N/A'`/`B3='#DIV/0!'` 都被识别为 `e`）——
+工程师 prompt ⑤ 里给的写法是对的。
+
+**X2 分组列本身是 `#N/A`**
+```
+summary = "拆分完成：3 个分组，共 3 行（读取 明细）；其中「部门」为空 1 行，已单独输出为 空值.xlsx；源表有 1 个错误值（如 #N/A），输出已变空白，请核对"
+行数：输入 3 行 / 产出 3 行 → 守恒
+```
+行没丢、错误值也披露了，但同一句里先说「为空 1 行」→ 业务人员会去查「哪行没填部门」，
+实际那行是公式报错。**建议（P2）**：把 `#N/A` 归到错误值口径，别混进「为空」计数。
+
+## 7.4 本轮结论
+
+- 7 个 commit 提交卫生 **0 违规**；`logs/qa/` 12 个用例、`docs/原子需求池.md`、交付流程都在库里。
+- 清态全量 **全绿**：V1 0 错、V2 10/10、V9 5/5、V10 5/5、V11 4/4、交付物 lint 0 错 0 警、selftest 通过。
+- 脏值角度：`#N/A` 会被 pandas 抹成空白（已实测确认无法用读取参数保住），
+  当前实现**已通过 openpyxl 扫 `data_type=='e'` 点名告警** → 与 D2「守恒或明说」同口径，可接受。
+
+**交付判断：可交付，没有 P0。** 待办仅剩：
+1. 把已暂存的「脚本健壮性五条」+ 重生成的流程提交（本报告的测试就是跑在这份内容上）；
+2. `logs/qa/v12_dirty_value.py` 入库；
+3. P2：X2 里 `#N/A` 与「为空」的措辞要分开。
+
+---
+
+## 7.5 最终复核（HEAD = `58d38d8`，工作区干净）
+
+工程师把「脚本健壮性五条」提成 `58d38d8` 后，在**干净 HEAD** 上又整跑了一遍：
+
+| 用例 | 结果 |
+|---|---|
+| V1 | 88 条 / 0 错误 / 3 警告 / 0 解析失败 / 85 条 0 错 0 警 |
+| V2 | V3 + N1~N9 **10/10 PASS** |
+| V9 | **5/5 PASS** |
+| V10 | **5/5 PASS** |
+| V11 | **4/4 PASS**，EXIT=0 |
+| V12 | X1/X2 **均 PASS**，EXIT=0 |
+| 交付物 lint | `✅ 结构与引用全部通过` |
+| selftest | `✅ 自证通过` |
+
+**7.3 的 P2 也已闭环**：分组列是 `#N/A` 时不再混进「为空」计数 ——
+```
+X2 → 结论：行没丢，且没被误标成空值
+```
+即 `blank_mask` 只统计真真空，错误值单独进 `error_cells`。
+
+commit 全景（8 个，全部新建、无 amend、无违规路径）：
+
+```
+0936e9c feat(script): AI 自己写 Python 模块（主交付）
+5e833e9 chore(spec_lint): 数字型 varValue 修法文案
+f1ce440 fix(spec_lint): varValue 报错文案按类型分开（N10-e）
+0f1cf39 docs(readme): B-1~B-4 与 SYSTEM_PROMPT 逐字对齐（+ DSL §11.6 6~8 条）
+9b04362 fix(script): 脚本健壮性四条（T6/T4/T5）
+d112b6c fix(script): R6-a 改名告警 / R6-b sheet_name 数字按索引 + 收 v11
+fab8c6b test(qa): 收紧 v11 的 D2 断言
+58d38d8 fix(script): 脚本健壮性五条（值保真 + 错误值点名 + 改名有感 + sheet 序号口径）
+```
+
+### 最终交付判断
+
+**可交付。没有 P0，没有遗留 P1，P2 清零。**
+
+- `logs/qa/` 13 个文件（12 个用例 + 本报告）全部入库，任何人可复跑；
+- 回归门禁：V1 / V2 / V9 / V10 / V11 / V12 + 交付物 lint + selftest，八项全绿；
+- 业务人员可微调性有静态侧证据：D1~D4 手改参数在**本机真跑**通过，改错有中文报错，重跑不丢数据；
+- `11a`（切 bound 后 9 条重落库）按定稿**未执行**；`n2s_脚本能力验证_20261102` 保持 B 态未动。
