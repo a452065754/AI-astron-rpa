@@ -5,20 +5,25 @@
 本项目把「人话 → RPA 流程」做成一条可交付的流水线：**生成 → 校验 → 本地真跑 → 评审单 →（人工通过后）发布**。
 流程搭好之后**不需要 AI 参与**，在 Astron RPA 设计器/调度里就能独立运行。
 
-## 当前状态（2026-10-31）
+## 当前状态（2026-11-02）
+
+> ⚠️ **先读这段，别误读下面的数字**：这个项目的**产品是「AI 搭 RPA 流程」这项能力**，不是 `flows/` 里那 84 条流程——它们是**能力的验收用例**（实测 86% 默认参数指向 `demo/`）。**用户明确：已生成流程不迁移，迁移的是能力。**
+> 能力由四样支撑：**规格 DSL**（[`docs/流程规格DSL.md`](docs/流程规格DSL.md)）、**生成器**（`scripts/flow_generator.py`）、**能力白名单 + 雷区清单**（346 个原子哪些能用 / 15 条缺陷 + 11 个坑）、**交付链路**（发布 → openapi 登记 → `execute-async`，已实测跑通）。
+> 迁移后用 `python scripts/capability_bootstrap.py` 一条命令验收（本机实测 **7/7**，加 `--live` 端到端 **8/8**）。详见 [`docs/待办清单.md`](docs/待办清单.md) §0.0–§0.1。
 
 | 指标 | 值 |
 | --- | --- |
-| 流程规格 | **75 条**（`flows/*.json`） |
-| 原子覆盖率 | **271 / 346 = 78.3%**（已剔除 11 个作废 key）；**25 个域满覆盖** |
-| 已全覆盖的域 | **14 个**：Excel 35/35 · Docx 19/19 · Code 18/18 · File 13/13 · Network 12/12 · ListProcess 15/15 · Folder 9/9 · PDF 8/8 · TimeProcess 6/6 · Encrypt 6/6 · Software 3/3 · BrowserScript 1/1 · **BrowserSoftware 20/20 · BrowserElement 22/22** |
-| 机器自检 | 75/75 lint 通过 · 全部本地真跑 `SUCCESS` 并核对副作用 |
+| 流程规格 | **84 条**（`flows/*.json`）＝ **能力验证集**（非业务交付物，见上）；已落库 **75 条**，未落库 9 条（需元素/真实窗口，见 `docs/待办清单.md` §3.1） |
+| 原子覆盖率 | **271 / 346 = 78.3%**（已剔除 11 个作废 key）；**26 个域满覆盖** |
+| 已全覆盖的域 | **26 个**：Excel 35/35 · BrowserElement 22/22 · BrowserSoftware 20/20 · Docx 19/19 · Code 18/18 · ListProcess 15/15 · File 13/13 · Network 12/12 · StringProcess 10/10 · Folder 9/9 · PDF 8/8 · Gui 8/8 · DictProcess 6/6 · Encrypt 6/6 · TimeProcess 6/6 · MathProcess 5/5 · CV 5/5 · Window 4/4 · WinEle 6/6 · **Dialog 6/6** · DataConvertProcess 3/3 · DataProcess 1/1 · Report 1/1 · Script 3/3 · Software 3/3 |
+| 机器自检 | 84/84 lint 通过 · 全部本地真跑 `SUCCESS` 并核对副作用 |
 | 平台缺陷 | 见 `docs/平台缺陷清单.md`（A 缺陷 15 / B 行为差异 8 / C 环境限制 9 类 / D 我方误判 6）；**可直接发平台的复现包在 `docs/repro/`**（15 条一键复跑，实测 15/15 成立） |
-| 人工评审 | **0 条**（评审单在 `docs/reviews/`，待看） |
-| 已发布 | 1 条（早期验证） |
+| **人工评审** | **已通过 13 条**（2026-11-02） |
+| **已发布** | **13 条 published v1**（评审通过项，全部登记 openapi 可执行列表；平台共 20 条可执行） |
+| **脱离 AI 独立运行** | ✅ **已实测**：API Key 调 `execute-async` 触发已发布流程，删掉的产出文件按预期重新生成 |
 
-**核心能力已通，当前卡在「人工评审」这一环。** 下一步做什么、换设备怎么接，看
-[`docs/待办清单.md`](docs/待办清单.md)（唯一真源）和 [`docs/交接清单.md`](docs/交接清单.md)。
+**能力链路已闭环，业务价值待接入**：人话 → AI 生成 → 机器自检 → 人工评审 → 发布 → **外部 API 独立调用（无需 AI / 无需设计器）**。这条链已经在 13 条验证流程上端到端跑通，**现在缺的是一个真实业务场景**。下一步做什么、换设备怎么接，看
+[`docs/待办清单.md`](docs/待办清单.md)（唯一真源，§0.0 是项目定位）和 [`docs/交接清单.md`](docs/交接清单.md)。
 
 > **换电脑/换 AI 接力必读**
 >
@@ -193,7 +198,7 @@ python scripts/element_pick.py --check <elementId>
 | **加解密与时间差** | 对称加解密往返 + 时间加减与时间差 |
 | Excel 订单表导出 / 文本文件转存 / 网页元素点击 | 基础原子流程 |
 
-> 原子覆盖率：346 个有效原子中已用 **271 个（78.3%）**，25 个域满覆盖（Excel 35/35 · BrowserElement 22/22 · BrowserSoftware 20/20 · Docx 19/19 · Code 18/18 · ListProcess 15/15 · File 13/13 · Network 12/12 · StringProcess 10/10 · Folder 9/9 · PDF 8/8 · Gui 8/8 · DictProcess 6/6 · Encrypt 6/6 · TimeProcess 6/6 · MathProcess 5/5 · CV 5/5 · Window 4/4 · WinEle 6/6 · **Dialog 6/6** …）。`python scripts/coverage_report.py` 随时看缺口；
+> 原子覆盖率：346 个有效原子中已用 **271 个（78.3%）**，26 个域满覆盖（Excel 35/35 · BrowserElement 22/22 · BrowserSoftware 20/20 · Docx 19/19 · Code 18/18 · ListProcess 15/15 · File 13/13 · Network 12/12 · StringProcess 10/10 · Folder 9/9 · PDF 8/8 · Gui 8/8 · DictProcess 6/6 · Encrypt 6/6 · TimeProcess 6/6 · MathProcess 5/5 · CV 5/5 · Window 4/4 · WinEle 6/6 · **Dialog 6/6** …）。`python scripts/coverage_report.py` 随时看缺口；
 > `python scripts/atom_impl_check.py` 核对「字典里有但本机没实现」的原子（当前 39 个，IE 系整块缺失）。
 > 没覆盖的为什么没覆盖、其中哪些是平台缺陷哪些是环境限制，看 **`docs/平台缺陷清单.md`**。
 
