@@ -448,8 +448,9 @@ SYSTEM_PROMPT = """你是 Astron RPA 的「流程规格（spec）生成器」。
 
 # 二、只有命中下列任一条，才允许用脚本（记作 B-1~B-4）
 
-- **B-1 跨迭代累计状态**：计数器、累加器、"已经写到第几行"、循环里要记住上一个值
-  —— 原子没有变量赋值。
+- **B-1 跨迭代累计状态**：累加器、"已经写到第几行"、循环里要记住上一个值、累计体每轮都要变形
+  —— **单纯一个标量计数器不算**（用 `DataProcess.set_variable_value` 初始化 +
+  `MathProcess.self_calculation_number` 每轮自增 + `Code.While` 判条件，原子就能做）。
 - **B-2 输出个数/文件名取决于运行时数据**：按某列的唯一值拆成 N 个文件、按分组名建目录
   —— N 和名字只有跑起来才知道。
 - **B-3 复杂数据变换**：分组聚合、透视表、行列转置、多表按 key 关联。
@@ -671,7 +672,9 @@ ASSESS_SYSTEM = """你是 Astron RPA 的「可实现性判官」。用户给一�
 
 # 默认答案：能（feasible: true）
 只有命中下列任一条，才判 `feasible: false`（这些情况原子确实没有对应能力）：
-- **B-1 跨迭代累计状态**：需要计数器/累加器/"记住上一个值"/"已经写到第几行" —— 原子没有变量赋值。
+- **B-1 跨迭代累计状态**：累计体每轮都要变形（行→分组→汇总）、或要「记住上一个值」做前后比较
+  再决定这一步写什么。（**单纯「数到第 N 轮就停」不是 B-1** —— 标量计数器用
+  `DataProcess.set_variable_value` + `MathProcess.self_calculation_number` + `Code.While` 就能表达。）
 - **B-2 输出个数或文件名取决于运行时数据**：按某列的唯一值拆成 N 个文件、按分组名建目录、
   文件数只有跑起来才知道 —— 原子没有「动态生成文件名/动态控制循环次数」的能力。
 - **B-3 复杂数据变换**：分组聚合、透视表、行列转置、多表按 key 关联。
@@ -680,6 +683,8 @@ ASSESS_SYSTEM = """你是 Astron RPA 的「可实现性判官」。用户给一�
 # 不要误判成 false 的情况
 - 「步骤多」≠ false。3~20 个原子线性串起来 → 仍然 `feasible: true`。
 - 「要循环」「要条件判断」≠ false。平台有 `Code.ForList` / `Code.While` / `Code.If`。
+- 「要计数 / 数到第 N 轮停 / 累加到某个值」≠ false。`DataProcess.set_variable_value` 能初始化变量，
+  `MathProcess.self_calculation_number` 能每轮自增，配合 `Code.While` 就是标准计数器写法。
 - 「要读写 Excel/Word/PDF、要发邮件、要开网页点元素」≠ false。都有现成原子。
 - 只是「我不知道该用哪个原子」≠ false。你手上就有原子清单。
 

@@ -114,6 +114,18 @@ DEAD_ATOMS = {
 # 元素类参数（要靠 elements 槽位从元素库取真实元素，不能写字面量）
 ELEMENT_TYPES = {"WebPick", "UiaPick", "CvPick", "Pick", "Element"}
 
+# 「标量计数器」的正经写法（D1 提示用它来豁免，避免误伤合法长流程）：
+# 先用 `DataProcess.set_variable_value` 初始化一个变量，再在循环体里用
+# `MathProcess.self_calculation_number`（add/sub，出参写回同名变量）让它每轮自增/自减，
+# `Code.While` 的条件读这个变量。两个原子都在字典里、本机有实现。
+# 2026-11-03 复核 `条件分支与While循环小流程`（28 节点 / While + Continue + ForDict）实测：
+#   i 初始化 0 → 连跑 3 轮，第 2 轮被 Continue 跳过 → 产出「第 1 轮 / 第 3 轮」，
+#   结果文件记「While 结束计数：3」，四份证据文件互相印证。
+#   **所以 B-1 里「引擎没有变量赋值/自增原子」的说法是错的**。D1 提示据此收窄：
+#   三样齐备 = 正经计数器，不提示；缺任一样（典型「ForList + 一堆 If 假装计数」）照旧提示。
+COUNTER_INIT_ATOMS = {"DataProcess.set_variable_value"}
+COUNTER_STEP_ATOMS = {"MathProcess.self_calculation_number"}
+
 # ---------------------------- 内嵌脚本（scripts）校验用常量 ----------------------------
 #
 # 模块运行环境**离线**，第三方库只有这几个（实测 `%APPDATA%/astron-rpa/python_core/Lib/
@@ -648,6 +660,7 @@ def lint(spec, atoms):
     produced = set()      # 上游已产出的变量名
     loop_stack = []       # (atom, 节点序号)
     nested_loop = False   # 出现过「循环套循环」（D1 提示用）
+    used_atoms = set()    # 用到的原子 key（D1 判断计数器是否是正经写法）
     for idx, node in enumerate(nodes, 1):
         if not isinstance(node, dict):
             err("第 %d 个节点不是对象" % idx)
@@ -655,6 +668,7 @@ def lint(spec, atoms):
         atom_key = node.get("atom") or ""
         alias = node.get("alias") or ""
         where = "第 %d 个节点%s" % (idx, "（%s）" % alias if alias else "")
+        used_atoms.add(atom_key)
 
         atom = atoms.get(atom_key)
         if not atom:
@@ -936,15 +950,25 @@ def lint(spec, atoms):
     # 为什么不加「> N 个节点就必须用脚本」这类硬阈值（用户 2026-11-02 拍板）：
     #   15 步表格处理确实该用原子，阈值会误伤合法长流程。
     # 但「节点多 + 嵌套循环」是模型硬拼 B-1（跨迭代累计状态）的高发组合：
-    # 原子没有变量赋值，模型只好用「再套一层循环 + 一堆 If」去模拟计数器。
+    # 模型想模拟计数器，却不用变量原子，只好「再套一层循环 + 一堆 If」。
     # 12 这个数字来自现状：已评审通过的最长流程是 11 个节点。
     # 纯提示，**不改变生成结果**，只是让人有机会复核。
-    if len(nodes) >= 12 and nested_loop:
+    #
+    # 2026-11-03 收窄（复核待办 11b）：如果计数器已经是「set_variable_value 初始化 +
+    # self_calculation_number 自增 + Code.While 判条件」这套正经写法，就不该再提示 ——
+    # 那正是原子能表达 B-1 的证据，提示只会变成噪音（`条件分支与While循环小流程` 就属这类，
+    # 已真跑 3 轮、Continue 跳过第 2 轮、四份证据文件一致）。
+    counter_ok = (COUNTER_INIT_ATOMS & used_atoms
+                  and COUNTER_STEP_ATOMS & used_atoms
+                  and "Code.While" in used_atoms)
+    if len(nodes) >= 12 and nested_loop and not counter_ok:
         # 文案不带 ⚠️（QA/用户 2026-11-02）：和上面所有 warn 保持同一格式，
         # 否则在读 lint 输出时它比真错误还像错误，容易盖住真正的 E。
         warn("原子方案 %d 个节点且有嵌套循环，确认是否存在「累计状态」需求被硬拼"
              "（若命中 B-1 应改用脚本）" % len(nodes),
-             "B-1 判定见 docs/流程规格DSL.md §11.1；确实是长线性流程则忽略这条")
+             "B-1 判定见 docs/流程规格DSL.md §11.1；"
+             "标量计数器请用 DataProcess.set_variable_value + "
+             "MathProcess.self_calculation_number（那样这条提示会自动消失）")
 
     # ---------- 脚本模块（Script.module + 顶层 scripts） ----------
     # 放在节点循环之后：这些规则要跨节点（同一脚本可能被多个节点引用），

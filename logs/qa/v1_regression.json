@@ -546,12 +546,7 @@
  {
   "file": "条件分支与While循环小流程.json",
   "errors": [],
-  "warnings": [
-   {
-    "msg": "原子方案 28 个节点且有嵌套循环，确认是否存在「累计状态」需求被硬拼（若命中 B-1 应改用脚本）",
-    "fix": "B-1 判定见 docs/流程规格DSL.md §11.1；确实是长线性流程则忽略这条"
-   }
-  ],
+  "warnings": [],
   "script_nodes": [],
   "scripts_field": []
  },
