@@ -16,13 +16,13 @@
     {
       "name": "src_file",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\源文件.txt",
+      "default": "${PROJECT_ROOT}/demo/源文件.txt",
       "describe": "源文本文件路径"
     },
     {
       "name": "dst_file",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\目标文件.txt",
+      "default": "${PROJECT_ROOT}/demo/目标文件.txt",
       "describe": "目标文件路径（含文件名）"
     }
   ],

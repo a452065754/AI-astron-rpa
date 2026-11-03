@@ -16,13 +16,13 @@
     {
       "name": "src_pdf",
       "type": "Str",
-      "default": "F:/AI-Workbench/10-Projects/星辰开源/demo/带表格测试.pdf",
+      "default": "${PROJECT_ROOT}/demo/带表格测试.pdf",
       "describe": "源 PDF 文件路径（需有文本层+表格线；扫描件识别不到表格）"
     },
     {
       "name": "out_dir",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo",
+      "default": "${PROJECT_ROOT}/demo",
       "describe": "Excel 输出目录"
     },
     {

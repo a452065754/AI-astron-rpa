@@ -236,6 +236,55 @@ def print_mcp_config():
     print(json.dumps(snippet, ensure_ascii=False, indent=2))
 
 
+# ---------------------------------------------------------------- 4.5 demo 目录
+def prepare_demo_dirs():
+    """把流程里声明为「目录」的默认值先建出来。
+
+    ## 为什么安装脚本要管这个
+
+    流程默认值写的是 `${PROJECT_ROOT}/demo/...`（发布时解析成仓库根），但
+    `demo/` 下有输出目录被 `.gitignore` 挡着 —— 新机器 clone 下来这些目录**不存在**，
+    而 `ai_flow` 的**运行前预检会直接把「目录不存在」判成 error 并拒绝落库**。
+    结果是：一条本来能跑的流程，在新机器上卡在预检。
+
+    这里只建「参数名以 `_dir` 结尾」的目录（`out_dir` / `dst_dir` / `src_dir` / `in_dir`），
+    且**必须落在本仓库的 `demo/` 下**才建 —— 不会去动用户机器上的其它路径。
+    """
+    flows_dir = os.path.join(ROOT, "flows")
+    if not os.path.isdir(flows_dir):
+        step("demo 目录", "skip", "没有 flows/，跳过")
+        return
+    demo = os.path.join(ROOT, "demo")
+    made, seen = 0, 0
+    for name in sorted(os.listdir(flows_dir)):
+        if not name.endswith(".json"):
+            continue
+        try:
+            with open(os.path.join(flows_dir, name), encoding="utf-8") as f:
+                spec = json.load(f)
+        except Exception:
+            continue
+        for p in spec.get("params") or []:
+            pname = (p or {}).get("name") or ""
+            v = (p or {}).get("default")
+            if not pname.endswith("_dir") or not isinstance(v, str):
+                continue
+            v = v.replace("${PROJECT_ROOT}", ROOT)
+            v = os.path.normpath(v)
+            # 只处理仓库内 demo/ 下的（防手滑在别人的盘上建目录）
+            if os.path.normcase(v).startswith(os.path.normcase(demo + os.sep)):
+                seen += 1
+                if not os.path.isdir(v):
+                    try:
+                        os.makedirs(v, exist_ok=True)
+                        made += 1
+                    except Exception as e:
+                        step("demo 目录", "warn", "建 %s 失败：%s" % (v, e))
+                        return
+    step("demo 目录", "ok" if made else "skip",
+         ("新建 %d 个（共检查 %d 个流程目录参数）" % (made, seen)) if seen else "没有需要准备的目录")
+
+
 # ---------------------------------------------------------------- 5. 自检
 def doctor(skip=False):
     if skip:
@@ -307,6 +356,7 @@ def main():
     cfg = write_config(a.key, a.host, a.robot_id, a.client_python, a.local_port, a.scheme)
     install_skill(a.no_skill, a.skill_dir)
     register_mcp(a.no_register_mcp, a.mcp_file)
+    prepare_demo_dirs()
     doctor(a.skip_doctor)
 
     if a.json:

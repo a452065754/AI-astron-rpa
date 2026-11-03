@@ -16,13 +16,13 @@
     {
       "name": "in_dir",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_folder_in",
+      "default": "${PROJECT_ROOT}/demo/_folder_in",
       "describe": "源目录（只取它下面的第一层子文件夹）"
     },
     {
       "name": "out_dir",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_folder_out",
+      "default": "${PROJECT_ROOT}/demo/_folder_out",
       "describe": "目标目录（不存在会自动建）"
     }
   ],

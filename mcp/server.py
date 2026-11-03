@@ -32,10 +32,12 @@ MCP 层保持零依赖，`git clone` 完就能用。
       "mcpServers": {
         "astron-rpa": {
           "command": "python",
-          "args": ["F:/AI-Workbench/10-Projects/星辰开源/mcp/server.py"]
+          "args": ["<仓库绝对路径>/mcp/server.py"]
         }
       }
     }
+
+`scripts/install.py` 会按本机实际路径自动写这份配置，不用手抄。
 """
 import json
 import os

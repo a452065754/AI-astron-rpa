@@ -16,7 +16,7 @@
     {
       "name": "src_excel",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_dedup.xlsx",
+      "default": "${PROJECT_ROOT}/demo/_dedup.xlsx",
       "describe": "要去重的源 Excel（只取第一个 sheet）"
     },
     {
@@ -28,7 +28,7 @@
     {
       "name": "out_file",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_merge_out\\去重.xlsx",
+      "default": "${PROJECT_ROOT}/demo/_merge_out/去重.xlsx",
       "describe": "输出去重结果（已存在自动编号，不覆盖）"
     },
     {

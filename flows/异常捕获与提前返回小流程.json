@@ -20,13 +20,13 @@
     {
       "name": "bad_file",
       "type": "Str",
-      "default": "F:/AI-Workbench/10-Projects/星辰开源/demo/_code_out",
+      "default": "${PROJECT_ROOT}/demo/_code_out",
       "describe": "故意指向一个文件夹（不是文件），读取时必然报错，用来触发异常"
     },
     {
       "name": "out_dir",
       "type": "Str",
-      "default": "F:/AI-Workbench/10-Projects/星辰开源/demo/_code_out",
+      "default": "${PROJECT_ROOT}/demo/_code_out",
       "describe": "证据文件输出目录"
     }
   ],

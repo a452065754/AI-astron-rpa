@@ -17,13 +17,13 @@
     {
       "name": "in_dir",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_word_in",
+      "default": "${PROJECT_ROOT}/demo/_word_in",
       "describe": "待转换的 Word 所在文件夹（只扫第一层）"
     },
     {
       "name": "out_dir",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_pdf_out",
+      "default": "${PROJECT_ROOT}/demo/_pdf_out",
       "describe": "PDF 输出目录"
     },
     {

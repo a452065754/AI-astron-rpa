@@ -15,13 +15,13 @@
     {
       "name": "src_file",
       "type": "Str",
-      "default": "F:\\demo\\报表.docx",
+      "default": "${PROJECT_ROOT}/demo/报表.docx",
       "describe": "源Word文件路径"
     },
     {
       "name": "dst_file",
       "type": "Str",
-      "default": "F:\\demo\\out\\报表.txt",
+      "default": "${PROJECT_ROOT}/demo/_word_out/报表.txt",
       "describe": "目标TXT文件路径"
     }
   ],

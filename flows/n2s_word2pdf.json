@@ -15,13 +15,13 @@
     {
       "name": "src_docx",
       "type": "Str",
-      "default": "F:\\demo\\报表.docx",
+      "default": "${PROJECT_ROOT}/demo/报表.docx",
       "describe": "源Word文件路径"
     },
     {
       "name": "out_dir",
       "type": "Str",
-      "default": "F:\\demo\\out",
+      "default": "${PROJECT_ROOT}/demo/_word_out",
       "describe": "PDF输出目录"
     },
     {

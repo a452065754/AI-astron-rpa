@@ -20,13 +20,13 @@
     {
       "name": "src_pdf",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\20260914报废_已转正.pdf",
+      "default": "${PROJECT_ROOT}/demo/20260914报废_已转正.pdf",
       "describe": "源 PDF（扫描件也可以）"
     },
     {
       "name": "out_dir",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo",
+      "default": "${PROJECT_ROOT}/demo",
       "describe": "Word 输出目录（须已存在）"
     },
     {
@@ -38,7 +38,7 @@
     {
       "name": "ps1",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\scripts\\win_ocr.ps1",
+      "default": "${PROJECT_ROOT}/scripts/win_ocr.ps1",
       "describe": "本地 OCR 脚本（Windows 自带引擎，离线免费无密钥）"
     },
     {

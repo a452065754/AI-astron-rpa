@@ -13,7 +13,7 @@
     {
       "name": "src_file",
       "type": "Str",
-      "default": "F:\\demo\\data\\销售明细.xlsx",
+      "default": "${PROJECT_ROOT}/demo/销售明细.xlsx",
       "describe": "源Excel文件路径"
     },
     {
@@ -25,7 +25,7 @@
     {
       "name": "out_dir",
       "type": "Str",
-      "default": "F:\\demo\\out\\split",
+      "default": "${PROJECT_ROOT}/demo/_split_out",
       "describe": "拆分后文件的输出目录"
     },
     {
@@ -51,7 +51,7 @@
         {
           "name": "src_file",
           "type": "Str",
-          "default": "F:\\demo\\data\\销售明细.xlsx",
+          "default": "${PROJECT_ROOT}/demo/销售明细.xlsx",
           "describe": "源Excel文件路径"
         },
         {
@@ -63,7 +63,7 @@
         {
           "name": "out_dir",
           "type": "Str",
-          "default": "F:\\demo\\out\\split",
+          "default": "${PROJECT_ROOT}/demo/_split_out",
           "describe": "拆分后文件的输出目录"
         },
         {

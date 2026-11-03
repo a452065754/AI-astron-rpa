@@ -16,13 +16,13 @@
     {
       "name": "out_dir",
       "type": "Str",
-      "default": "F:/AI-Workbench/10-Projects/星辰开源/demo/_excel_out",
+      "default": "${PROJECT_ROOT}/demo/_excel_out",
       "describe": "输出目录"
     },
     {
       "name": "pic_path",
       "type": "Str",
-      "default": "F:/AI-Workbench/10-Projects/星辰开源/demo/pdf_pages/page_1.png",
+      "default": "${PROJECT_ROOT}/demo/pdf_pages/page_1.png",
       "describe": "要插入的图片"
     },
     {

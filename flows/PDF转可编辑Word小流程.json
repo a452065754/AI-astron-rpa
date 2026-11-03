@@ -16,13 +16,13 @@
     {
       "name": "src_pdf",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\20260914报废_已转正.pdf",
+      "default": "${PROJECT_ROOT}/demo/20260914报废_已转正.pdf",
       "describe": "源 PDF（建议先转正，否则文字方向仍是横的）"
     },
     {
       "name": "img_dir",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\pdf_pages",
+      "default": "${PROJECT_ROOT}/demo/pdf_pages",
       "describe": "PDF 页面图目录（须已存在）"
     },
     {
@@ -34,13 +34,13 @@
     {
       "name": "txt_out",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_ocr_text.txt",
+      "default": "${PROJECT_ROOT}/demo/_ocr_text.txt",
       "describe": "OCR 合并文本输出路径"
     },
     {
       "name": "ps1",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\scripts\\win_ocr.ps1",
+      "default": "${PROJECT_ROOT}/scripts/win_ocr.ps1",
       "describe": "本地 OCR 脚本（Windows 自带引擎，无需密钥）"
     },
     {
@@ -52,7 +52,7 @@
     {
       "name": "out_dir",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo",
+      "default": "${PROJECT_ROOT}/demo",
       "describe": "Word 输出目录"
     },
     {

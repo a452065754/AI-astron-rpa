@@ -67,11 +67,11 @@ def base_spec():
         "keywords": ["拆表", "按列拆分"],
         "params": [
             {"name": "src_file", "type": "Str",
-             "default": "F:\\qa\\in\\订单.xlsx", "describe": "源 Excel 路径"},
+             "default": "${PROJECT_ROOT}/qa/in/订单.xlsx", "describe": "源 Excel 路径"},
             {"name": "split_column", "type": "Str",
              "default": "部门", "describe": "按哪一列拆"},
             {"name": "out_dir", "type": "Str",
-             "default": "F:\\qa\\out", "describe": "输出目录"},
+             "default": "${PROJECT_ROOT}/qa/out", "describe": "输出目录"},
         ],
         "scripts": {
             "excel_split": {

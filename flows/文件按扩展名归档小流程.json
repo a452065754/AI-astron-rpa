@@ -16,13 +16,13 @@
     {
       "name": "in_dir",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_archive_in",
+      "default": "${PROJECT_ROOT}/demo/_archive_in",
       "describe": "要整理的文件夹（只扫第一层）"
     },
     {
       "name": "out_root",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_archive_in",
+      "default": "${PROJECT_ROOT}/demo/_archive_in",
       "describe": "分类子文件夹建在哪个目录下"
     },
     {

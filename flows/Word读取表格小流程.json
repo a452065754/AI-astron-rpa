@@ -16,7 +16,7 @@
     {
       "name": "src_docx",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\带表格测试.docx",
+      "default": "${PROJECT_ROOT}/demo/带表格测试.docx",
       "describe": "要读取的 Word 文件"
     },
     {

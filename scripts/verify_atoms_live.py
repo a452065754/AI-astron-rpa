@@ -25,7 +25,7 @@ import argparse
 import os
 import sys
 
-DEMO = r"F:\AI-Workbench\10-Projects\星辰开源\demo"
+DEMO = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "demo")
 SRC_XLSX = os.path.join(DEMO, "订单.xlsx")
 SRC_TXT = os.path.join(DEMO, "源文件.txt")
 OUT_XLSX_NAME = "导出结果"          # create_excel 会自己补 .xlsx

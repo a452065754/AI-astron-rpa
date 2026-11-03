@@ -17,13 +17,13 @@
     {
       "name": "in_dir",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\pdf_merge_in",
+      "default": "${PROJECT_ROOT}/demo/pdf_merge_in",
       "describe": "待合并 PDF 所在文件夹（该文件夹里的所有 PDF 会按文件名顺序合并）"
     },
     {
       "name": "out_dir",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo",
+      "default": "${PROJECT_ROOT}/demo",
       "describe": "合并结果输出目录"
     },
     {

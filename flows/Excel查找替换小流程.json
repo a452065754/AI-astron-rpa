@@ -16,7 +16,7 @@
     {
       "name": "src_excel",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\订单.xlsx",
+      "default": "${PROJECT_ROOT}/demo/订单.xlsx",
       "describe": "要处理的源 Excel"
     },
     {
@@ -34,7 +34,7 @@
     {
       "name": "out_dir",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_excel_out",
+      "default": "${PROJECT_ROOT}/demo/_excel_out",
       "describe": "替换后另存的目录（**不动原文件**）"
     },
     {

@@ -17,13 +17,13 @@
     {
       "name": "in_dir",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_merge_in",
+      "default": "${PROJECT_ROOT}/demo/_merge_in",
       "describe": "待合并的 Excel 所在文件夹（只扫第一层）"
     },
     {
       "name": "out_file",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_merge_out\\合并.xlsx",
+      "default": "${PROJECT_ROOT}/demo/_merge_out/合并.xlsx",
       "describe": "合并后的输出文件（已存在会自动编号，不覆盖）"
     },
     {

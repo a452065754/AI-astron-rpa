@@ -16,13 +16,13 @@
     {
       "name": "src_file",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\订单.xlsx",
+      "default": "${PROJECT_ROOT}/demo/订单.xlsx",
       "describe": "源 Excel 文件路径"
     },
     {
       "name": "out_dir",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo",
+      "default": "${PROJECT_ROOT}/demo",
       "describe": "输出目录"
     },
     {

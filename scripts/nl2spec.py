@@ -392,7 +392,7 @@ SYSTEM_PROMPT = """你是 Astron RPA 的「流程规格（spec）生成器」。
   "name": "流程名（中文，别带空格）",
   "nl_examples": ["用户可能怎么说（2-3 条）"],
   "keywords": ["关键词3-5个"],
-  "params": [{"name":"src_file","type":"Str","default":"D:\\\\demo\\\\a.xlsx","describe":"源文件"}],
+  "params": [{"name":"src_file","type":"Str","default":"${PROJECT_ROOT}/demo/a.xlsx","describe":"源文件"}],
   "scripts": {"脚本名": {"name":"模块名","why":"命中判定 B-x：……",
                          "maintain_hint":"业务人员改哪个参数","code":"def main(args):\\n    ..."}},
   "nodes": [{"atom":"原子名","alias":"中文节点名","inputs":{...},"out":{"原子输出key":"变量名"}}]
@@ -428,7 +428,14 @@ SYSTEM_PROMPT = """你是 Astron RPA 的「流程规格（spec）生成器」。
 9. 只使用「可用原子清单」里的原子。清单外的原子不存在，写了必被驳回。
 10. **路径/文件名参数**（`*_path` / `*_file` / `*_name` / `*_dir`）直接写字符串或 `"$p:x"` 引用，
     **不要**用 `$json:` 包起来 —— `$json:` 是给 list/dict 之类结构化参数用的。
-11. **默认必须用原子拼**。只有命中下面「二、允许用脚本的 B-1~B-4」之一才允许用
+11. **默认路径一律以 `${PROJECT_ROOT}` 开头，绝不许写盘符**（如 `D:\\demo\\x.xlsx` 是错的）：
+    - 正确：`"default": "${PROJECT_ROOT}/demo/订单.xlsx"`
+    - 仓库里现成的夹具在 `demo/` 下（`订单.xlsx`、`源文件.txt`、`客户.xlsx` 等），
+      原样引用它们最稳；没把握就用 `${PROJECT_ROOT}/demo/_xxx_out` 当输出目录。
+    - 发布时系统会把 `${PROJECT_ROOT}` 换成本机仓库绝对路径。**写盘符会让换机器 clone
+      下来的流程第一步就报「找不到文件」**（校验器直接判错）。
+    - 确实要指向仓库外的固定位置（共享盘）时写 UNC（`\\\\nas\\share\\x.xlsx`）或系统目录。
+12. **默认必须用原子拼**。只有命中下面「二、允许用脚本的 B-1~B-4」之一才允许用
     `Script.module`，而且必须把命中的条款写进 `scripts.<名>.why`（校验器会报错）。
     原子确实表达不了时**不许**用十几个原子硬拼一个假流程 —— 那种情况该用脚本。
 
@@ -474,7 +481,7 @@ SYSTEM_PROMPT = """你是 Astron RPA 的「流程规格（spec）生成器」。
   "why": "命中判定 B-2：输出文件数取决于「部门」列的唯一值，原子无法动态生成文件名",
   "maintain_hint": "改拆哪一列 → 改参数 split_column；改输出目录 → 改参数 out_dir；改逻辑需找开发改 Python",
   "atom_suggestion": "Excel 按列唯一值拆分成多表",
-  "params": [{"name": "src_file", "describe": "源Excel文件路径", "default": "D:////////demo////////订单.xlsx"},
+  "params": [{"name": "src_file", "describe": "源Excel文件路径", "default": "${PROJECT_ROOT}/demo/订单.xlsx"},
              {"name": "split_column", "describe": "按哪一列拆（写列名）", "default": "部门"}],
   "code": "def main(args):\\n    import os\\n    import openpyxl\\n    ...\\n    return {\\"ok\\": True}\\n"}}
 > `params` 决定**业务人员在设计器里看到的参数表格**：`describe` 是他看到的中文说明，
@@ -556,7 +563,7 @@ SYSTEM_PROMPT = """你是 Astron RPA 的「流程规格（spec）生成器」。
 # 选原子容易踩的几个点
 - **`Folder.folder_create` 的语义是「在父目录下建一个子目录」**：
   `target_path` = **父目录**，`folder_name` = **新目录名**（不是完整路径）。
-  要建 `F:/demo/out/split` 就写 `target_path = "F:/demo/out"` + `folder_name = "split"`；
+  要建 `demo/_split_out/split` 就写 `target_path = "${PROJECT_ROOT}/demo/_split_out"` + `folder_name = "split"`；
   把已经是完整目标目录的 `out_dir` 塞进 `target_path` 会建成 `.../split/split`（多一层空目录）。
   **脚本里已经有 `os.makedirs(out_dir, exist_ok=True)` 时，不要再加这个节点** ——
   多一个「建目录」节点只会让业务人员疑惑「为什么要建两次」。
@@ -1041,7 +1048,8 @@ VERIFY_FEEDBACK = """你上一次输出的规格**已经写进机器人并真跑
   语义与名字不符，例如导出类原子的 `output_path` 常常要**目录**而不是完整文件名。
 - 若是 `NameError` / `AttributeError` / `TypeError` / `KeyError` 这类 → 说明该原子在当前平台版本
   对这个用法有缺陷，**换一条实现路径**（换等价原子组合），不要硬修同一个参数。
-- 若是「文件/目录不存在」→ 把参数默认值改成需求里给的路径。
+- 若是「文件/目录不存在」→ 需求里给了真实路径就用它；没给就用 `${PROJECT_ROOT}/demo/` 下
+  现成的夹具（`订单.xlsx` / `源文件.txt` 等），**不许臆造 `D:\demo\...` 这种盘符路径**。
 只输出 JSON，不要解释。"""
 
 
@@ -1133,7 +1141,7 @@ def verify_loop(nl, index, client, spec, out_path, robot_name, rounds=2, verbose
 def apply_sets(spec, pairs):
     """`--set 参数=值`：把真实路径/真实列名塞进规格参数默认值。
 
-    为什么需要：模型不知道你的文件在哪，它只会编一个 `D:\\demo\\x.xlsx`。
+    为什么需要：模型不知道你的文件在哪，它只会编一个仓库里不存在的文件名。
     与其反复纠正模型，不如让用户一条命令把真实值钉进去（也顺带解决了「平台参数表
     会覆盖默认值」的前置问题 —— 落库时用的就是这里的值）。
     """
@@ -1278,7 +1286,7 @@ SELFTEST_SCRIPT_SPEC = {
     "nl_examples": ["把一张表按某列的值拆成多个文件"],
     "keywords": ["自测", "脚本模块", "按列拆表"],
     "params": [
-        {"name": "src_file", "type": "Str", "default": "D:\\demo\\订单.xlsx",
+        {"name": "src_file", "type": "Str", "default": "${PROJECT_ROOT}/demo/订单.xlsx",
          "describe": "源 Excel"},
         {"name": "key_col", "type": "Str", "default": "部门", "describe": "按哪列拆"},
     ],

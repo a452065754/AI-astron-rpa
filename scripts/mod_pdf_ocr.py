@@ -176,9 +176,11 @@ def main(args) -> Any:
 
 
 if __name__ == "__main__":
+    # 本机冒烟用：路径从本文件位置推，不写死某一台机器（2026-11-03 路径去机器化）
+    _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     print(main({
-        "img_dir": r"F:\AI-Workbench\10-Projects\星辰开源\demo\pdf_pages",
-        "txt_out": r"F:\AI-Workbench\10-Projects\星辰开源\demo\_ocr_text.txt",
-        "ps1": r"F:\AI-Workbench\10-Projects\星辰开源\scripts\win_ocr.ps1",
+        "img_dir": os.path.join(_root, "demo", "pdf_pages"),
+        "txt_out": os.path.join(_root, "demo", "_ocr_text.txt"),
+        "ps1": os.path.join(_root, "scripts", "win_ocr.ps1"),
         "lang": "zh-Hans-CN",
     }))

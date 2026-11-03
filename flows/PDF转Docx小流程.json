@@ -15,13 +15,13 @@
     {
       "name": "src_pdf",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\20260914报废_已转正.pdf",
+      "default": "${PROJECT_ROOT}/demo/20260914报废_已转正.pdf",
       "describe": "源 PDF 文件路径（演示默认用转正后的扫描件；原始件见 docs 说明）"
     },
     {
       "name": "img_dir",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\pdf_pages",
+      "default": "${PROJECT_ROOT}/demo/pdf_pages",
       "describe": "PDF 页面图临时目录"
     },
     {
@@ -33,7 +33,7 @@
     {
       "name": "out_dir",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo",
+      "default": "${PROJECT_ROOT}/demo",
       "describe": "输出目录"
     },
     {

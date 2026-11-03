@@ -16,25 +16,25 @@
     {
       "name": "pdf_path",
       "type": "Str",
-      "default": "F:/AI-Workbench/10-Projects/星辰开源/demo/20260914报废_已转正.pdf",
+      "default": "${PROJECT_ROOT}/demo/20260914报废_已转正.pdf",
       "describe": "源 PDF"
     },
     {
       "name": "out_dir",
       "type": "Str",
-      "default": "F:/AI-Workbench/10-Projects/星辰开源/demo/_pdf_out",
+      "default": "${PROJECT_ROOT}/demo/_pdf_out",
       "describe": "输出目录"
     },
     {
       "name": "img_dir",
       "type": "Str",
-      "default": "F:/AI-Workbench/10-Projects/星辰开源/demo/_pdf_out/imgs",
+      "default": "${PROJECT_ROOT}/demo/_pdf_out/imgs",
       "describe": "提取图片的保存目录"
     },
     {
       "name": "one_pic",
       "type": "Str",
-      "default": "F:/AI-Workbench/10-Projects/星辰开源/demo/pdf_pages/page_1.png",
+      "default": "${PROJECT_ROOT}/demo/pdf_pages/page_1.png",
       "describe": "用于图片转PDF测试的单张图片"
     }
   ],

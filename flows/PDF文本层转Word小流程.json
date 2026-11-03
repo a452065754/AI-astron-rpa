@@ -15,13 +15,13 @@
     {
       "name": "src_pdf",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\文本层测试.pdf",
+      "default": "${PROJECT_ROOT}/demo/文本层测试.pdf",
       "describe": "源 PDF（必须有文本层）"
     },
     {
       "name": "txt_dir",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo",
+      "default": "${PROJECT_ROOT}/demo",
       "describe": "中间 txt 存放目录（须已存在）"
     },
     {
@@ -33,7 +33,7 @@
     {
       "name": "out_dir",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo",
+      "default": "${PROJECT_ROOT}/demo",
       "describe": "Word 输出目录"
     },
     {

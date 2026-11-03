@@ -18,7 +18,7 @@
     {
       "name": "src_pdf",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\20260914报废_已转正.pdf",
+      "default": "${PROJECT_ROOT}/demo/20260914报废_已转正.pdf",
       "describe": "源 PDF 文件路径"
     },
     {
@@ -30,7 +30,7 @@
     {
       "name": "out_dir",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo",
+      "default": "${PROJECT_ROOT}/demo",
       "describe": "输出目录"
     },
     {

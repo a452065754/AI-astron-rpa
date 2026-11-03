@@ -16,7 +16,7 @@
     {
       "name": "out_dir",
       "type": "Str",
-      "default": "F:/AI-Workbench/10-Projects/星辰开源/demo/_folder_out",
+      "default": "${PROJECT_ROOT}/demo/_folder_out",
       "describe": "测试根目录"
     }
   ],

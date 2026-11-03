@@ -37,10 +37,32 @@ ELEMENT_CACHE = os.path.join(HERE, "docs", "element_cache.json")
 DEFAULT_ROBOT_ID = 2065231113695461380
 
 # 演示用真实数据目录（模板默认路径必须指向**真实存在**的文件，
-# 否则流程跑起来第一步就报「找不到文件」——2026-10-30 用户实测踩到）
-DEMO_DIR = r"F:\AI-Workbench\10-Projects\星辰开源\demo"
-DEMO_XLSX = DEMO_DIR + r"\订单.xlsx"
-DEMO_TXT = DEMO_DIR + r"\源文件.txt"
+# 否则流程跑起来第一步就报「找不到文件」——2026-10-30 用户实测踩到）。
+# 以前这里写死本机绝对路径 `F:\AI-Workbench\10-Projects\星辰开源\demo`，
+# 换台机器 clone 下来，内置模板生成的流程默认参数全是坏路径。改成从 `HERE` 推。
+DEMO_DIR = os.path.join(HERE, "demo")
+DEMO_XLSX = os.path.join(DEMO_DIR, "订单.xlsx")
+DEMO_TXT = os.path.join(DEMO_DIR, "源文件.txt")
+
+# 规格里「仓库内路径」的占位符（2026-11-03）。
+#
+# ## 为什么不能改成相对路径（这是本项改造最关键的结论）
+#
+# 直觉方案是把默认值写成 `demo/订单.xlsx`，让引擎按 cwd 解析。**行不通**：
+# 引擎执行前会 `os.chdir(project_dir)`（`astronverse/executor/debug/bdb.py::cmd_start`），
+# 而 `project_dir` 是 `%APPDATA%\astron\<project_id>` —— **编译缓存目录**
+# （`Config.gen_core_path = {venv_run_dir}/astron/`）。相对路径会解析到那个缓存里，
+# 必然「找不到文件」。所以默认值只能是绝对路径。
+#
+# 于是换个方向：**规格里不写某一台机器的路径，只写占位符**，发布时替换成本机仓库根。
+# 仓库因此可迁移（clone 到任何目录都成立），而落到平台的参数仍然是合法绝对路径。
+#
+# ## 用在哪里（边界很重要）
+#
+# 只替换 `params[].default` 与 `scripts.<名>.params[].default`。
+# **不能替换 `nodes[].inputs`**：那里以 `$` 开头的值表示「引用上游变量名」，
+# `${PROJECT_ROOT}` 会被当成变量名 `{PROJECT_ROOT}` 去找。
+PROJECT_ROOT_TOKEN = "${PROJECT_ROOT}"
 
 # 内嵌脚本占位前缀（2026-11-02）。
 #
@@ -616,6 +638,17 @@ def norm_win_path(v):
     return re.sub(r"[\\/]+", lambda m: "\\", v)
 
 
+def resolve_path_tokens(v):
+    """把 `${PROJECT_ROOT}` 换成本仓库根（绝对路径）。非 str 原样返回。
+
+    调用点只有「参数默认值」——见 `PROJECT_ROOT_TOKEN` 的说明：`nodes[].inputs`
+    里 `$` 开头表示变量引用，替换会把占位符误当变量名。
+    """
+    if not isinstance(v, str) or PROJECT_ROOT_TOKEN not in v:
+        return v
+    return v.replace(PROJECT_ROOT_TOKEN, HERE)
+
+
 def _normalize_scripts(spec):
     """规范化规格顶层的可选字段 `scripts`（内嵌 Python 子流程源码）。
 
@@ -677,9 +710,13 @@ def _normalize_scripts(spec):
         # 参数声明（决定设计器参数表格里有哪几行、中文说明写什么）。
         # 不写也能跑 —— 会退化成从节点 module_param 推，但没有中文说明。
         if item.get("params"):
+            # 脚本参数默认值同样要解析占位符**并**统一斜杠：占位符替换进来的是
+            # `F:\仓库根` + `/demo/x.xlsx` 这种混合形态（`HERE` 用反斜杠、规格里用正斜杠），
+            # 直接落库会让设计器参数表格显示成 `F:\a\b/demo/x.xlsx`。
             one["params"] = [
                 {"name": d.get("name"), "type": d.get("type") or "Str",
-                 "default": d.get("default"), "describe": d.get("describe") or ""}
+                 "default": norm_win_path(resolve_path_tokens(d.get("default"))),
+                 "describe": d.get("describe") or ""}
                 for d in item["params"] if isinstance(d, dict) and d.get("name")]
         out[nm] = one
     spec["scripts"] = out
@@ -731,7 +768,7 @@ def load_spec(path):
         p.setdefault("type", "Str")
         p.setdefault("default", "")
         p.setdefault("describe", "")
-        p["default"] = norm_win_path(p["default"])
+        p["default"] = norm_win_path(resolve_path_tokens(p["default"]))
     _normalize_scripts(spec)
     return spec
 

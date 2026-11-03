@@ -42,7 +42,7 @@
     {
       "name": "save_dir",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_http_out",
+      "default": "${PROJECT_ROOT}/demo/_http_out",
       "describe": "响应保存目录"
     },
     {

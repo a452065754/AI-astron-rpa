@@ -16,13 +16,13 @@
     {
       "name": "src_dir",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_folder_in",
+      "default": "${PROJECT_ROOT}/demo/_folder_in",
       "describe": "要压缩的文件夹"
     },
     {
       "name": "zip_dir",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_zip_out",
+      "default": "${PROJECT_ROOT}/demo/_zip_out",
       "describe": "压缩包放在哪个目录（不存在会自动建）"
     },
     {
@@ -34,7 +34,7 @@
     {
       "name": "unzip_dir",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_unzip_out",
+      "default": "${PROJECT_ROOT}/demo/_unzip_out",
       "describe": "解压到哪个目录（用来验证压缩包可用）"
     }
   ],

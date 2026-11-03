@@ -20,13 +20,13 @@
     {
       "name": "in_dir",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\pdf_merge_in",
+      "default": "${PROJECT_ROOT}/demo/pdf_merge_in",
       "describe": "待处理的 PDF 所在文件夹"
     },
     {
       "name": "out_dir",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo",
+      "default": "${PROJECT_ROOT}/demo",
       "describe": "输出目录（每个 PDF 生成一个同名 Word）"
     },
     {
@@ -44,7 +44,7 @@
     {
       "name": "ps1",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\scripts\\win_ocr.ps1",
+      "default": "${PROJECT_ROOT}/scripts/win_ocr.ps1",
       "describe": "Windows OCR 脚本路径"
     }
   ],

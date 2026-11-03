@@ -21,7 +21,7 @@
     {
       "name": "src_excel",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\拆表测试\\源.xlsx",
+      "default": "${PROJECT_ROOT}/demo/拆表测试/源.xlsx",
       "describe": "要拆分的源 Excel（只取第一个 sheet）"
     },
     {

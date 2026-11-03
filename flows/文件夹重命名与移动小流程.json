@@ -16,7 +16,7 @@
     {
       "name": "parent_dir",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_fmove_in",
+      "default": "${PROJECT_ROOT}/demo/_fmove_in",
       "describe": "要处理的文件夹所在的父目录"
     },
     {
@@ -34,7 +34,7 @@
     {
       "name": "target_dir",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_fmove_out",
+      "default": "${PROJECT_ROOT}/demo/_fmove_out",
       "describe": "移动到哪个目录（不存在会自动建）"
     }
   ],

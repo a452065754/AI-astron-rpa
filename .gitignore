@@ -54,6 +54,10 @@ docs/reviews/
 demo/_archive_in/
 demo/_organize_in/
 demo/_split_out/
+# 2026-11-03 路径去机器化时，两条 AI 生成流程的输出目录从仓库外 `F:\demo\...`
+# 搬进仓库（配套夹具 demo/销售明细.xlsx、demo/报表.docx、demo/_merge_txt_in/ 已入库）
+demo/_split_sorted_out/
+demo/_txt_merge_out/
 # 注意：demo/_excel_out、_merge_out、_word_out、_zip_out、_rename_in 等目录**已经被跟踪**，
 # .gitignore 对已跟踪文件无效（它们仍会显示 M）。要彻底止噪得 `git rm --cached`，
 # 但那些文件里混着流程的输入夹具，误删会连带改坏用例 —— 所以约定：

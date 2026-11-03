@@ -16,13 +16,13 @@
     {
       "name": "src_file",
       "type": "Str",
-      "default": "F:/demo/data/销售明细.xlsx",
+      "default": "${PROJECT_ROOT}/demo/销售明细.xlsx",
       "describe": "源Excel文件路径"
     },
     {
       "name": "out_dir",
       "type": "Str",
-      "default": "F:/demo/data/split_by_dept",
+      "default": "${PROJECT_ROOT}/demo/_split_sorted_out",
       "describe": "输出文件夹路径"
     },
     {
@@ -66,12 +66,12 @@
         {
           "name": "src_file",
           "describe": "源Excel文件路径",
-          "default": "F:/demo/data/销售明细.xlsx"
+          "default": "${PROJECT_ROOT}/demo/销售明细.xlsx"
         },
         {
           "name": "out_dir",
           "describe": "输出文件夹路径",
-          "default": "F:/demo/data/split_by_dept"
+          "default": "${PROJECT_ROOT}/demo/_split_sorted_out"
         },
         {
           "name": "dept_column",

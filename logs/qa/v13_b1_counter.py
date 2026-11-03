@@ -166,7 +166,10 @@ def main():
 
     real = os.path.join(ROOT, "flows", "条件分支与While循环小流程.json")
     with open(real, encoding="utf-8") as f:
-        real_spec = fg.load_spec(real) if hasattr(fg, "load_spec") else json.load(f)
+        # 用原始 JSON，不走 `fg.load_spec()`：load_spec 会把 `${PROJECT_ROOT}`
+        # 解析成本机绝对路径，而规则 1.8（默认值不许写死盘符路径）检查的是
+        # **仓库里的文件**。本门禁只关心 D1 启发式，与路径解析无关。
+        real_spec = json.load(f)
     results.append(run("F1 真实流程（计数器正经写法）", real_spec, False,
                        "条件分支与While循环小流程：init + step + While 齐 → D1 应豁免"))
 

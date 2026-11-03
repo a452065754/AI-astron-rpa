@@ -15,7 +15,7 @@
     {
       "name": "out_dir",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_similar_out",
+      "default": "${PROJECT_ROOT}/demo/_similar_out",
       "describe": "取证输出目录"
     },
     {

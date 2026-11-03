@@ -19,13 +19,13 @@
     {
       "name": "src_docx",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\20260914报废_可编辑.docx",
+      "default": "${PROJECT_ROOT}/demo/20260914报废_可编辑.docx",
       "describe": "源 Word 文件路径"
     },
     {
       "name": "out_dir",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo",
+      "default": "${PROJECT_ROOT}/demo",
       "describe": "PDF 输出目录"
     },
     {

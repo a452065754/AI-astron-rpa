@@ -21,7 +21,7 @@
     {
       "name": "out_dir",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_sys_out",
+      "default": "${PROJECT_ROOT}/demo/_sys_out",
       "describe": "输出目录（存放创建的文件、截图、证据文件）"
     },
     {

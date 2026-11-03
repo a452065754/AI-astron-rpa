@@ -49,13 +49,13 @@
     {
       "name": "local_file",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_ftp_out\\rpa_ftp_up.txt",
+      "default": "${PROJECT_ROOT}/demo/_ftp_out/rpa_ftp_up.txt",
       "describe": "待上传的本地文件"
     },
     {
       "name": "out_dir",
       "type": "Str",
-      "default": "F:\\AI-Workbench\\10-Projects\\星辰开源\\demo\\_ftp_out",
+      "default": "${PROJECT_ROOT}/demo/_ftp_out",
       "describe": "下载落地与证据文件目录"
     }
   ],

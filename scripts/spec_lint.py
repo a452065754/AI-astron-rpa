@@ -114,6 +114,14 @@ DEAD_ATOMS = {
 # 元素类参数（要靠 elements 槽位从元素库取真实元素，不能写字面量）
 ELEMENT_TYPES = {"WebPick", "UiaPick", "CvPick", "Pick", "Element"}
 
+# 系统目录下的绝对路径**不算**「绑死本机」（规则 1.8 豁免）。
+#
+# 依据：`C:\Windows\System32\mstsc.exe`、`C:\Windows\System32\charmap.exe` 这类
+# 路径在任何一台 Windows 上都是同一个位置，换机器 clone 下来照样成立；
+# 拦它只会逼人给整条规格加 `allow_abs_path`，反而把真正的检查关掉。
+SYS_PATH = re.compile(r"^[A-Za-z]:[\\/](?:Windows|Program Files(?: \(x86\))?|ProgramData)[\\/]",
+                      re.IGNORECASE)
+
 # 「标量计数器」的正经写法（D1 提示用它来豁免，避免误伤合法长流程）：
 # 先用 `DataProcess.set_variable_value` 初始化一个变量，再在循环体里用
 # `MathProcess.self_calculation_number`（add/sub，出参写回同名变量）让它每轮自增/自减，
@@ -627,6 +635,38 @@ def lint(spec, atoms):
         pnames.append(n)
     pset = set(pnames)
     pmap = {p.get("name"): p for p in params if isinstance(p, dict) and p.get("name")}
+
+    # ---------- 规则 1.8：流程参数的默认值不许写死某台机器的盘符路径（**err**） ----------
+    #
+    # 2026-11-03：`flows/` 里曾有 72 条流程 / 120 处默认值是
+    # `F:\AI-Workbench\10-Projects\星辰开源\demo\...`。本机跑得好好的，别人 clone
+    # 下来一跑就是 `[Errno 2] No such file or directory` —— 这是「把能力交给别人」
+    # 的最后一道坎。
+    #
+    # 为什么不改成相对路径（`demo/订单.xlsx`）：
+    # 引擎执行前 `os.chdir(project_dir)`（`executor/debug/bdb.py::cmd_start`），
+    # project_dir 是 `%APPDATA%\astron\<project_id>` 这个**编译缓存目录**
+    # （`Config.gen_core_path`）。相对路径会解析到缓存里，必然找不到文件。
+    # 所以默认值必须是绝对路径，但**源头**不能是某一台机器的绝对路径。
+    #
+    # 解法：规格里写 `${PROJECT_ROOT}/demo/xxx`，`flow_generator.load_spec` 在发布时
+    # 换成本机仓库根。仓库因此可迁移，落到平台的参数仍是合法绝对路径。
+    #
+    # 逃生口：确实要指向仓库外的固定位置（如共享盘 `\\nas\data`、`D:\ERP导出`）时，
+    # 在规格顶层写 `"allow_abs_path": true`（UNC 本就不拦，只有盘符路径需要）。
+    if not spec.get("allow_abs_path"):
+        for i, p in enumerate(params, 1):
+            v = (p or {}).get("default")
+            if not isinstance(v, str) or not re.match(r"^[A-Za-z]:[\\/]", v):
+                continue
+            if SYS_PATH.match(v):
+                continue  # 系统目录（C:\Windows\System32\*.exe 等）任何机器都同一个位置
+            tail = v.split("星辰开源", 1)[-1].lstrip("\\/") if "星辰开源" in v else None
+            hint = ("改成 \"${PROJECT_ROOT}/%s\"" % tail.replace("\\", "/")) if tail else \
+                "改成 \"${PROJECT_ROOT}/demo/...\"；确实在仓库外就加 \"allow_abs_path\": true"
+            err("第 %d 个流程参数 %s 的默认值写死了本机路径：%s" % (i, p.get("name"), v),
+                "%s —— 换台机器 clone 下来这条路径不存在，流程第一步就报找不到文件" % hint)
+
 
     # ---------- 元素要求（网页流程专用） ----------
     # 规格可声明 element_requirements，生成时由 element_pick 自动补齐元素（坑 126）。

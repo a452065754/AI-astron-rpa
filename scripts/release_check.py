@@ -190,7 +190,12 @@ def check_flows():
             continue
         total += 1
         try:
-            spec = fg.load_spec(os.path.join(flows_dir, name))
+            # 注意：这里必须 lint **原始文件**，不能先过 `fg.load_spec()`。
+            # load_spec 会把 `${PROJECT_ROOT}` 解析成本机绝对路径，而「参数默认值
+            # 不许写死盘符路径」（spec_lint 规则 1.8）检查的是**仓库里的文件**，
+            # 拿解析后的运行时视图去查，等于把 120 处合规写法全判成错误。
+            with io.open(os.path.join(flows_dir, name), encoding="utf-8") as f:
+                spec = json.load(f)
             errs, warns = sl.lint(spec, atoms)
         except Exception as e:
             err_flows += 1
@@ -210,7 +215,8 @@ def check_flows():
 # ---------------------------------------------------------------- 5. 门禁
 def check_gates():
     gates = [("V1 全量回归", "logs/qa/v1_regression.py"),
-             ("V13 D1 收窄", "logs/qa/v13_b1_counter.py")]
+             ("V13 D1 收窄", "logs/qa/v13_b1_counter.py"),
+             ("V14 路径去机器化", "logs/qa/v14_port_paths.py")]
     for label, rel in gates:
         path = os.path.join(ROOT, rel)
         if not os.path.isfile(path):

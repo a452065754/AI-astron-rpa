@@ -15,13 +15,13 @@
     {
       "name": "src_dir",
       "type": "Str",
-      "default": "F:\\demo\\in",
+      "default": "${PROJECT_ROOT}/demo/_merge_txt_in",
       "describe": "源文件目录"
     },
     {
       "name": "dst_dir",
       "type": "Str",
-      "default": "F:\\demo\\out",
+      "default": "${PROJECT_ROOT}/demo/_txt_merge_out",
       "describe": "目标文件目录"
     },
     {

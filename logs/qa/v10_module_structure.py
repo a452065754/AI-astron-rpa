@@ -104,7 +104,12 @@ def main():
 
     # S3 `$p:` 烘焙
     vals = {p["varName"]: p["varValue"]["value"][0]["value"] for p in (mp or [])}
-    baked_ok = vals.get("src_file") == r"F:\demo\data\销售明细.xlsx" and vals.get("split_column") == "部门"
+    # 期望值从**已解析的规格**里取，不写字面量：路径默认值现在写的是
+    # `${PROJECT_ROOT}/demo/...`，load_spec 后才变成本机绝对路径（2026-11-03 路径去机器化）。
+    # 断言的真实语义是「烘焙的就是流程参数默认值」，与默认值本身是什么无关。
+    want = {p["name"]: p["default"] for p in (spec.get("params") or [])}
+    baked_ok = vals.get("src_file") == str(want.get("src_file")) \
+        and vals.get("split_column") == "部门"
     ok &= report("S3 $p: 已烘焙成默认值（无 p_var 残留）", baked_ok, vals)
     ok &= report("S3 无任何 p_var / var 引用残留",
                  "p_var" not in json.dumps(mp, ensure_ascii=False))
