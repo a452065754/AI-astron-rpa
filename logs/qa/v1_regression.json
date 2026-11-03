@@ -177,6 +177,13 @@
   "scripts_field": []
  },
  {
+  "file": "OCR图片文字识别小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
   "file": "PDF合并小流程.json",
   "errors": [],
   "warnings": [],

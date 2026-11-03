@@ -1,0 +1,51 @@
+{
+  "name": "OCR图片文字识别",
+  "nl_examples": [
+    "把 demo/pdf_pages 里的扫描页全部识别成文字，结果存到 demo/_ocr_out",
+    "批量OCR识别图片文字并导出Excel",
+    "识别这些扫描件的文字内容"
+  ],
+  "keywords": [
+    "OCR",
+    "文字识别",
+    "图片转文字",
+    "扫描件"
+  ],
+  "params": [
+    {
+      "name": "src_dir",
+      "type": "Str",
+      "default": "${PROJECT_ROOT}/demo/pdf_pages",
+      "describe": "待识别图片所在目录（支持 png/jpg/bmp）"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "${PROJECT_ROOT}/demo/_ocr_out",
+      "describe": "识别结果Excel输出目录"
+    },
+    {
+      "name": "out_name",
+      "type": "Str",
+      "default": "版面识别结果",
+      "describe": "输出Excel文件名（不带后缀）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "OpenApi.common_ocr",
+      "alias": "批量识别图片文字",
+      "out": {
+        "common_ocr": "ocr_result"
+      },
+      "inputs": {
+        "is_multi": true,
+        "src_file": "",
+        "src_dir": "$p:src_dir",
+        "is_save": true,
+        "dst_file": "$p:out_dir",
+        "dst_file_name": "$p:out_name"
+      }
+    }
+  ]
+}
