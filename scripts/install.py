@@ -13,9 +13,21 @@
 | --- | --- | --- |
 | 1 | 检查 Python 版本 + 装 `requirements.txt`（主链路只要 requests） | `--skip-deps` |
 | 2 | 写 `rpa_config.json`（服务端地址 / Key / 机器人 id / 客户端 Python） | — |
-| 3 | 把技能包复制到 `~/.workbuddy-ai/skills/astron-rpa-flow/` | `--no-skill` |
-| 4 | 把 MCP 服务登记进 `~/.workbuddy-ai/mcp.json`（先备份） | `--no-register-mcp` |
+| 3 | 把技能包复制到**客户端真正读取的技能目录**（见下） | `--no-skill` |
+| 4 | 把 MCP 服务登记进**客户端真正读取的 mcp.json**（先备份） | `--no-register-mcp` |
 | 5 | 跑 `doctor.py` 自检并打印结论 | `--skip-doctor` |
+
+## 装到哪（2026-11-03 修正，原实现装错目录）
+
+不同客户端读的目录不一样，**装错地方 = 装完不生效**（技能不触发、MCP 工具列表里也没有）：
+
+| 客户端 | 技能目录 | MCP 配置 |
+| --- | --- | --- |
+| WorkBuddy 桌面客户端 | `~/.workbuddy/skills/` | `~/.workbuddy/mcp.json` |
+| CodeBuddy CLI（历史路径） | `~/.workbuddy-ai/skills/` | `~/.workbuddy-ai/mcp.json` |
+
+本脚本按「父目录存在」自动探测，**两处都存在的就两处都写**（幂等，不会互相覆盖）；
+要指定就 `--skill-dir` / `--mcp-file`。
 
 ## 用法
 
@@ -39,11 +51,35 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCRIPTS = os.path.join(ROOT, "scripts")
 CONFIG_PATH = os.path.join(ROOT, "rpa_config.json")
 SKILL_SRC = os.path.join(ROOT, "skill", "astron-rpa-flow")
-SKILL_DST = os.path.join(os.path.expanduser("~"), ".workbuddy-ai", "skills", "astron-rpa-flow")
-WB_MCP = os.path.join(os.path.expanduser("~"), ".workbuddy-ai", "mcp.json")
 MCP_SERVER = os.path.join(ROOT, "mcp", "server.py")
 
+HOME = os.path.expanduser("~")
+
+# 客户端技能目录 / MCP 配置的候选落点。**顺序即优先级**（第一个是主落点）。
+# 2026-11-03 实测教训：原来只写 ~/.workbuddy-ai/，而 WorkBuddy 桌面客户端读的是
+#   ~/.workbuddy/skills + ~/.workbuddy/mcp.json → 装完技能不触发、MCP 工具列表里也没有，
+#   但 doctor 全绿（因为它当时不查这两项）。所以改成「探测父目录 + 多落点都写」。
+SKILL_CANDIDATES = [
+    (os.path.join(HOME, ".workbuddy", "skills"), "WorkBuddy 客户端"),
+    (os.path.join(HOME, ".workbuddy-ai", "skills"), "CodeBuddy CLI（历史路径）"),
+]
+MCP_CANDIDATES = [
+    (os.path.join(HOME, ".workbuddy", "mcp.json"), "WorkBuddy 客户端"),
+    (os.path.join(HOME, ".workbuddy-ai", "mcp.json"), "CodeBuddy CLI（历史路径）"),
+]
+
 STEPS = []
+
+
+def pick_targets(candidates, override=""):
+    """挑出真实存在的落点：父目录在 → 就用它；给了 override → 只用它。
+
+    父目录都不在（客户端没装 / HOME 不同）→ 退回第一个主落点，由调用方创建。
+    """
+    if override:
+        return [(override, "手动指定")]
+    out = [(p, label) for p, label in candidates if os.path.isdir(os.path.dirname(p))]
+    return out or [candidates[0]]
 
 
 def step(name, state, detail=""):
@@ -134,25 +170,27 @@ def write_config(key="", host="", robot_id="", client_python="", port=0, scheme=
 
 
 # ---------------------------------------------------------------- 3. 技能包
-def install_skill(skip=False):
+def install_skill(skip=False, skill_dir=""):
     if skip:
         step("技能包", "skip", "--no-skill")
         return
     if not os.path.isdir(SKILL_SRC):
         step("技能包", "warn", "仓库里没有 skill/astron-rpa-flow/，跳过")
         return
-    os.makedirs(SKILL_DST, exist_ok=True)
-    for name in os.listdir(SKILL_SRC):
-        s = os.path.join(SKILL_SRC, name)
-        d = os.path.join(SKILL_DST, name)
-        if os.path.isdir(s):
-            shutil.copytree(s, d, dirs_exist_ok=True)
-        else:
-            shutil.copy2(s, d)
-    # 告诉技能「项目在哪」（技能被复制到别处后也能找到本仓库）
-    with open(os.path.join(SKILL_DST, "PROJECT_ROOT.txt"), "w", encoding="utf-8") as f:
-        f.write(ROOT)
-    step("技能包", "ok", SKILL_DST)
+    for base, label in pick_targets(SKILL_CANDIDATES, skill_dir):
+        dst = os.path.join(base, "astron-rpa-flow") if os.path.basename(base) != "astron-rpa-flow" else base
+        os.makedirs(dst, exist_ok=True)
+        for name in os.listdir(SKILL_SRC):
+            s = os.path.join(SKILL_SRC, name)
+            d = os.path.join(dst, name)
+            if os.path.isdir(s):
+                shutil.copytree(s, d, dirs_exist_ok=True)
+            else:
+                shutil.copy2(s, d)
+        # 告诉技能「项目在哪」（技能被复制到别处后也能找到本仓库）
+        with open(os.path.join(dst, "PROJECT_ROOT.txt"), "w", encoding="utf-8") as f:
+            f.write(ROOT)
+        step("技能包", "ok", "%s ← %s" % (dst, label))
 
 
 # ---------------------------------------------------------------- 4. MCP 登记
@@ -164,28 +202,33 @@ def mcp_entry():
     }
 
 
-def register_mcp(skip=False):
-    if skip:
-        step("MCP 登记", "skip", "--no-register-mcp")
-        return
-    os.makedirs(os.path.dirname(WB_MCP), exist_ok=True)
+def _register_one(path, label):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     data = {}
-    if os.path.exists(WB_MCP):
+    if os.path.exists(path):
         try:
-            with open(WB_MCP, "r", encoding="utf-8") as f:
+            with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f) or {}
         except Exception:
             # 坏了不覆盖，先备份
-            bak = WB_MCP + ".bak"
-            shutil.copy2(WB_MCP, bak)
-            step("MCP 登记", "warn", "原 mcp.json 无法解析，已备份到 %s，跳过登记" % bak)
+            bak = path + ".bak"
+            shutil.copy2(path, bak)
+            step("MCP 登记", "warn", "%s 无法解析，已备份到 %s，跳过" % (path, bak))
             return
     servers = data.setdefault("mcpServers", {})
     old = servers.get("astron-rpa")
     servers["astron-rpa"] = mcp_entry()
-    with open(WB_MCP, "w", encoding="utf-8") as f:
+    with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
-    step("MCP 登记", "ok", "%s（%s）" % (WB_MCP, "更新" if old else "新增"))
+    step("MCP 登记", "ok", "%s（%s · %s）" % (path, "更新" if old else "新增", label))
+
+
+def register_mcp(skip=False, mcp_file=""):
+    if skip:
+        step("MCP 登记", "skip", "--no-register-mcp")
+        return
+    for path, label in pick_targets(MCP_CANDIDATES, mcp_file):
+        _register_one(path, label)
 
 
 def print_mcp_config():
@@ -241,7 +284,9 @@ def main():
     ap.add_argument("--local-port", type=int, default=0, help="设计器本地网关端口（默认 13159）")
     ap.add_argument("--skip-deps", action="store_true")
     ap.add_argument("--no-skill", action="store_true")
+    ap.add_argument("--skill-dir", default="", help="技能装到哪（默认自动探测 ~/.workbuddy/skills 等）")
     ap.add_argument("--no-register-mcp", action="store_true")
+    ap.add_argument("--mcp-file", default="", help="MCP 配置写哪个文件（默认自动探测 ~/.workbuddy/mcp.json 等）")
     ap.add_argument("--skip-doctor", action="store_true")
     ap.add_argument("--print-mcp-config", action="store_true", help="只打印 MCP 配置片段后退出")
     ap.add_argument("--json", action="store_true", help="以 JSON 输出结果")
@@ -260,8 +305,8 @@ def main():
 
     ok_deps = install_deps(a.skip_deps)
     cfg = write_config(a.key, a.host, a.robot_id, a.client_python, a.local_port, a.scheme)
-    install_skill(a.no_skill)
-    register_mcp(a.no_register_mcp)
+    install_skill(a.no_skill, a.skill_dir)
+    register_mcp(a.no_register_mcp, a.mcp_file)
     doctor(a.skip_doctor)
 
     if a.json:

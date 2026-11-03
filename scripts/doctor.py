@@ -23,6 +23,8 @@ Python 子流程模块 id），任何一项不对都会表现成「流程跑不�
 | 目标机器人 + 主流程 | ❌ | 落库没地方写 |
 | openapi API Key | ⚠️ | invoke 阶段用不了 |
 | Python 依赖（requests / paramiko） | ⚠️ | 对应功能不可用（playwright 已不需要） |
+| 技能包（AI 侧接线） | ⚠️ | AI 不会自动触发这套能力（只能用命令行） |
+| MCP 登记（AI 侧接线） | ⚠️ | AI 看不到 `rpa_*` 工具，只能自己拼命令 |
 | SQL 通道（可选） | ℹ️ | 只影响 execute_log 读取与模块 SQL 补丁 |
 
 ## 用法
@@ -34,6 +36,7 @@ python scripts/doctor.py --robot-id 123     # 顺便校验某个机器人
 """
 import argparse
 import importlib
+import json
 import os
 import socket
 import sys
@@ -208,6 +211,88 @@ def main():
             add(OK if n == "1" else WARN, "SQL 通道", f"select 1 → {n}")
         except (SystemExit, Exception) as e:
             add(WARN, "SQL 通道", str(e)[:150], "检查 ssh 凭据/容器名；或干脆关掉 db.enabled")
+
+    # ---------- 9. AI 侧接线：技能包 + MCP 登记 ----------
+    #
+    # 2026-11-03 实测出的「假绿灯」：这门自检原来 14 项全绿，但 AI 那边什么都没接到 ——
+    # 技能装到了 ~/.workbuddy-ai/skills（CodeBuddy CLI 老路径），WorkBuddy 客户端读的却是
+    # ~/.workbuddy/skills；MCP 同理。结果：命令行能跑，AI 却既没有触发词、也没有 rpa_* 工具。
+    # 所以这两项必须进自检，否则「环境就绪」是句假话。
+    #
+    # 只读：不装、不改，只报现状 + 给修法（修法是 `python scripts/install.py`）。
+    home = os.path.expanduser("~")
+    skill_dirs = [
+        (os.path.join(home, ".workbuddy", "skills", "astron-rpa-flow"), "WorkBuddy 客户端", True),
+        (os.path.join(home, ".workbuddy-ai", "skills", "astron-rpa-flow"), "CodeBuddy CLI", False),
+    ]
+    found, broken = [], []
+    for d, label, is_primary in skill_dirs:
+        if not os.path.isdir(d):
+            continue
+        skill_md = os.path.join(d, "SKILL.md")
+        root_file = os.path.join(d, "PROJECT_ROOT.txt")
+        proj = ""
+        if os.path.exists(root_file):
+            try:
+                with open(root_file, encoding="utf-8") as f:
+                    proj = f.read().strip()
+            except Exception:
+                proj = ""
+        ok_root = bool(proj) and os.path.isfile(os.path.join(proj, "scripts", "ai_flow.py"))
+        if os.path.isfile(skill_md) and ok_root:
+            found.append((label, is_primary, d))
+        else:
+            broken.append((label, d, "缺 SKILL.md" if not os.path.isfile(skill_md)
+                           else "PROJECT_ROOT.txt 指向失效：%r" % (proj or "(空)")))
+
+    if broken:
+        add(WARN, "技能包", "装了但不可用：" + "；".join("%s %s" % (b[0], b[2]) for b in broken),
+            "重跑 python scripts/install.py（会重写 PROJECT_ROOT.txt 指向本仓库）")
+    elif not found:
+        add(WARN, "技能包", "未安装（AI 不会自动触发这套能力）",
+            "python scripts/install.py（自动装到客户端读取的技能目录）")
+    elif not any(p for _, p, _ in found):
+        # 只在 CodeBuddy CLI 的老目录里有 → WorkBuddy 客户端读不到，等于没装
+        add(WARN, "技能包", "只装到了 %s，客户端读的是 ~/.workbuddy/skills" % found[0][0],
+            "python scripts/install.py（会同时写客户端目录）")
+    else:
+        add(OK, "技能包", "；".join("%s → %s" % (lb, d) for lb, p, d in found))
+
+    mcp_files = [
+        (os.path.join(home, ".workbuddy", "mcp.json"), "WorkBuddy 客户端", True),
+        (os.path.join(home, ".workbuddy-ai", "mcp.json"), "CodeBuddy CLI", False),
+    ]
+    mcp_ok, mcp_bad = [], []
+    for p, label, is_primary in mcp_files:
+        if not os.path.isfile(p):
+            continue
+        try:
+            with open(p, encoding="utf-8") as f:
+                servers = (json.load(f) or {}).get("mcpServers") or {}
+        except Exception as e:
+            mcp_bad.append((label, "%s 解析失败：%s" % (p, e)))
+            continue
+        entry = servers.get("astron-rpa")
+        if not entry:
+            mcp_bad.append((label, "%s 里没有 astron-rpa 条目" % os.path.basename(p)))
+            continue
+        srv = (entry.get("args") or [""])[0]
+        if srv and not os.path.isfile(srv):
+            mcp_bad.append((label, "server.py 路径失效：%s" % srv))
+            continue
+        mcp_ok.append((label, is_primary, p))
+
+    if mcp_bad:
+        add(WARN, "MCP 登记", "；".join("%s %s" % (lb, msg) for lb, msg in mcp_bad),
+            "重跑 python scripts/install.py（会重写 server.py 绝对路径）")
+    elif not mcp_ok:
+        add(WARN, "MCP 登记", "未登记（AI 看不到 rpa_* 工具）",
+            "python scripts/install.py，然后在客户端「连接器」里信任该 MCP 服务")
+    elif not any(p for _, p, _ in mcp_ok):
+        add(WARN, "MCP 登记", "只登记在 %s，客户端读的是 ~/.workbuddy/mcp.json" % mcp_ok[0][0],
+            "python scripts/install.py（会同时写客户端配置）")
+    else:
+        add(OK, "MCP 登记", "；".join("%s → %s" % (lb, path) for lb, p, path in mcp_ok))
 
     # ---------- 输出 ----------
     print()

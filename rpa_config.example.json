@@ -25,8 +25,6 @@
   "defaults": {
     "robot_id": "<默认机器人 id>"
   },
-  "param_binding": "baked",
-  "_param_binding_说明": "Script.module 脚本节点参数的落库方式（可选，不写=baked）。baked=把 $p: 烘焙成默认值，设计器一定能打开，但业务人员在参数面板改的值不生效；bound=保留 rpa:special 引用 + need_parse，改参数真生效，但需要确认设计器能正常显示该节点（见 docs/平台缺陷清单.md A17）。优先级：命令行 --param-binding > 环境变量 RPA_PARAM_BINDING > 本字段。",
   "llm": {
     "_说明": "只有 nl2spec.py（自然语言直接生成流程规格）用得到；其余脚本不需要。任何 OpenAI 兼容的 /chat/completions 都行。也可以改用环境变量 NL2SPEC_API_KEY / NL2SPEC_BASE / NL2SPEC_MODEL，优先级高于本段。",
     "provider": "xfyun-maas",

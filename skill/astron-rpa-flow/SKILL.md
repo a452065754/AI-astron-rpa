@@ -12,12 +12,17 @@ agent_created: true
 ## 第 0 步：找到项目在哪（每次会话先做）
 
 ```bash
-# 技能安装时会写一个 PROJECT_ROOT.txt，里面是仓库绝对路径
-cat ~/.workbuddy-ai/skills/astron-rpa-flow/PROJECT_ROOT.txt
+# 技能安装时会写一个 PROJECT_ROOT.txt，里面是仓库绝对路径。
+# 两个 client 的技能目录不同，哪个存在读哪个（WorkBuddy 桌面客户端优先进第一个）：
+cat ~/.workbuddy/skills/astron-rpa-flow/PROJECT_ROOT.txt 2>/dev/null \
+  || cat ~/.workbuddy-ai/skills/astron-rpa-flow/PROJECT_ROOT.txt
 ```
 
 拿到路径后 `cd` 进去，**后面所有命令都在项目根目录执行**。
 找不到这个文件时：问用户仓库在哪，或搜索 `ai_flow.py`。
+**别自己猜路径** —— 换台机器装到别处就全错了。
+
+> 刚装完发现「技能在但用不上」？跑 `python scripts/doctor.py`，最后两行就是查技能包和 MCP 接线的。
 
 ## 第 1 步：判断现在处于哪个阶段
 
