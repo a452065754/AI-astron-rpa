@@ -286,17 +286,14 @@ def _lint_scripts(spec, scripts, err, warn):
 
                 # ---------- 规则 1.5：varValue 一律禁止 JSON 布尔/空值（**err**） ----------
                 #
-                # 为什么这是硬拦、而且**不分模式**（用户 2026-11-02 / QA N10 P1）：
-                #   1. `bound` 模式下 module_param 带 `need_parse="json_str"`，引擎把这段 JSON
-                #      **原样当 Python 源码**插进生成代码（`InputParam.show_value`，need_eval=True）。
+                # 为什么是硬拦（用户 2026-11-02 / QA N10 P1；2026-11-03 按新结构复核仍成立）：
+                #   1. 落库后每个参数是 `{"rpa":"special","value":[{"type":"other","value":X}]}`，
+                #      引擎的 `ComplexParamParser` 会把这段**当表达式求值**（need_eval 路径）。
                 #      JSON 的 `true/false/null` 在 Python 里是 `True/False/None`（大小写不符）
                 #      → 跑到那一步才 `NameError: name 'true' is not defined`，
                 #      报的错与真因毫无关系 —— 典型静默错。
-                #   2. 现在 `baked` 模式写 `true` 侥幸能跑（落库前 json.loads 得到 bool），
-                #      但一旦切 `bound` 就全线炸；而全局规则 6 是「Bool 参数写 JSON 布尔」，
-                #      模型照写就会把所有脚本节点都做成定时炸弹。
-                #      → 统一写字符串 "true"，两种模式都安全，模块侧本来就要求
-                #        `str(args.get("x")).lower() in ("true", "1", "yes")`。
+                #   2. 写字符串 "true" 则两条路都安全（引擎给字符串、模块侧本来就要求
+                #      `str(args.get("x")).lower() in ("true", "1", "yes")`）。
                 #   3. 数字（3 / 3.5）不会 NameError（Python 字面量合法），但同样违反「args 全是
                 #      字符串」的模块契约，所以只报 warn，不阻断存量流程。
                 for it in payload:

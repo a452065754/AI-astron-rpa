@@ -398,36 +398,87 @@ def _script_refs(spec):
     return refs
 
 
-def _param_binding_warn(spec):
-    """探测「会被烘焙掉的 `$p:` 引用」，返回受影响的 `[(节点序号, 参数名列表)]`。
+def _module_param_id_check(pc):
+    """检查落库节点树里 `Script.module` 的 `varId` 是否都有值，返回缺 id 的 `[(序号, 参数名)]`。
 
-    只在 `PARAM_BINDING_MODE == "baked"` 时才有意义：`baked` 会把 `module_param` 里的
-    `$p:xxx` 换成流程参数的**默认值字面量**，于是用户在参数表里改值 → 流程纹丝不动
-    （这就是 A17 那个 P0）。不报的话没人知道自己处在哪种模式，只有等用户来投诉。
-
-    判定：`atom == "Script.module"` 且 `inputs["module_param"]` 是 `$json:` 字符串，
-    解析后任一项的 `varValue` 以 `$p:` 开头。**不看 `content`** —— 历史流程的
-    `content` 是纯 moduleId 或 `$p:module_id`，它们同样会被烘焙。
+    为什么必须查（2026-11-03 定稿）：设计器打开脚本节点时按 `varId` 去 `c_param` 取参数
+    定义；`varId` 为空 = 那一行参数在设计器里认不到、改不了值。结构对不对用户是看不出来的
+    —— 只有「点开节点发现参数表是空的/报解析失败」才会暴露，所以要在落库前自己先看一眼。
     """
-    hits = []
-    for i, n in enumerate(spec.get("nodes") or [], 1):
-        if not isinstance(n, dict) or (n.get("atom") or "") != "Script.module":
+    missing = []
+    for i, n in enumerate(pc or [], 1):
+        if not isinstance(n, dict) or (n.get("key") or "") != "Script.module":
             continue
-        mp = (n.get("inputs") or {}).get("module_param")
-        if not isinstance(mp, str) or not mp.startswith("$json:"):
+        for it in (n.get("inputList") or []):
+            if not isinstance(it, dict) or it.get("key") != "module_param":
+                continue
+            for p in (it.get("value") or []):
+                if isinstance(p, dict) and not str(p.get("varId") or "").strip():
+                    missing.append((i, p.get("varName") or "?"))
+    return missing
+
+
+def _script_param_defs(spec, name):
+    """把脚本的参数声明转成**模块级参数定义**（`c_param`，`module_id=<moduleId>`）需要的形态。
+
+    返回 `[{"name","type","default","describe"}]`。
+
+    数据来源（优先级从高到低）：
+      1. `scripts.<脚本名>.params`：显式声明，能带中文说明 —— **推荐**，AI 生成规格时会写；
+      2. 引用该脚本的节点的 `module_param`：只有 varName 和默认值，说明从流程 `params`
+         里按同名参数借（`$p:x` 时能对上）。
+
+    为什么默认值要在这里定死：`c_param.var_value` 是设计器参数表格里**初始显示的值**，
+    跟节点 `module_param[].varValue` 是两份数据。两边取自同一个 `$p:` 默认值才不会
+    「表格里显示 A、实际跑的是 B」。
+
+    含循环变量（`$var:`）的参数无法有静态默认值 → 默认空串（运行时由引擎求值覆盖）。
+    """
+    flow_params = spec.get("params") or []
+    pdesc = {p.get("name"): p.get("describe") or "" for p in flow_params if p.get("name")}
+    pdef = {p.get("name"): p.get("default") for p in flow_params if p.get("name")}
+
+    declared = ((spec.get("scripts") or {}).get(name) or {}).get("params") or []
+    if declared:
+        out = []
+        for d in declared:
+            nm = (d.get("name") or "").strip() if isinstance(d, dict) else ""
+            if not nm:
+                continue
+            dv = d.get("default", pdef.get(nm, ""))
+            out.append({"name": nm, "type": d.get("type") or "Str",
+                        "default": "" if dv is None else dv,
+                        "describe": d.get("describe") or pdesc.get(nm, "")})
+        return out
+
+    for n in spec.get("nodes") or []:
+        inputs = n.get("inputs") or {}
+        if str(inputs.get("content") or "").strip() != fg.SCRIPT_REF_PREFIX + name:
             continue
-        try:
-            payload = json.loads(mp[len("$json:"):])
-        except Exception:
-            continue
-        if not isinstance(payload, list):
-            continue
-        names = [str(it.get("varName") or "?") for it in payload
-                 if isinstance(it, dict) and isinstance(it.get("varValue"), str)
-                 and it["varValue"].startswith("$p:")]
-        if names:
-            hits.append((i, names))
-    return hits
+        mp = inputs.get("module_param")
+        payload = mp
+        if isinstance(mp, str) and mp.startswith("$json:"):
+            try:
+                payload = json.loads(mp[6:])
+            except Exception:
+                payload = []
+        out = []
+        for it in (payload or []):
+            if not isinstance(it, dict) or not it.get("varName"):
+                continue
+            nm = it["varName"]
+            try:
+                dv = fg._bake_refs(it.get("varValue"), pdef)
+            except Exception:
+                dv = ""            # 含循环变量：运行时才知道值
+            if dv is None:
+                dv = ""
+            if not isinstance(dv, (str, int, float, bool)):
+                dv = json.dumps(dv, ensure_ascii=False)
+            out.append({"name": nm, "type": "Str", "default": dv,
+                        "describe": pdesc.get(nm, "")})
+        return out
+    return []
 
 
 def _ledger_load():
@@ -694,6 +745,7 @@ def resolve_scripts(ck, robot_id, spec, verbose=True, dry=False):
 
     # 2) 每个脚本只处理一次（多个节点可以共用同一个脚本）
     resolved, order = {}, []
+    param_ids = {}          # moduleId → {参数名: c_param.id}，供 build_process_content 填 varId
     for name in [x[2] for x in refs]:
         if name in resolved or name in order:
             continue
@@ -715,12 +767,27 @@ def resolve_scripts(ck, robot_id, spec, verbose=True, dry=False):
             continue
         mid, how = _ensure_module(ck, robot_id, spec.get("name") or "", name, item, code)
         resolved[name] = mid
+        # 同步**模块级参数定义**（c_param, module_id=<mid>）—— 这是设计器参数表格的数据源，
+        # 缺了它就「点开节点参数是空的 / 顶栏报解析失败」（2026-11-03 用户实测的那个 bug）。
+        pdefs = _script_param_defs(spec, name)
+        sync = pf.sync_module_params(ck, robot_id, mid, pdefs)
+        param_ids[mid] = sync["ids"]
         clause, cnt = _atom_demand_update(spec.get("name") or "", name, item)
         if verbose:
             print("[2.5/6] 上传 Python 子流程模块：%s → moduleId=%s（%d 字符）%s"
                   % (name, mid, len(code), how))
             if path:
                 print("        本地副本：%s" % os.path.relpath(path, ROOT))
+            if pdefs:
+                print("        模块参数 %d 个（设计器参数表格里可改）：%s"
+                      % (len(param_ids[mid]),
+                         "、".join("%s=%s" % (d["name"], d["default"]) for d in pdefs)))
+                if sync.get("extra_on_server"):
+                    print("        ⚠️ 平台上有脚本没用到的旧参数：%s（保留未删）"
+                          % "、".join(sync["extra_on_server"]))
+            else:
+                print("        ⚠️ 这个脚本没有声明任何参数 → 设计器里没有可改项"
+                      "（要可调就给 scripts.%s.params 或节点 module_param 加参数）" % name)
             note = "  ⚠️ ≥3 条流程都需要 → 建议沉淀成原子" if cnt >= 3 else ""
             print("        脚本是兜底手段：%s（%d 条不同流程都需要它，已记 docs/原子需求池.md）%s"
                   % (clause, cnt, note))
@@ -737,6 +804,7 @@ def resolve_scripts(ck, robot_id, spec, verbose=True, dry=False):
             if resolved[name] and resolved[name] not in mids:
                 mids.append(resolved[name])
         spec["_resolved_modules"] = mids
+        spec["_resolved_param_ids"] = param_ids     # {moduleId: {参数名: c_param.id}}
         return mids
     return []
 
@@ -909,12 +977,6 @@ def main():
     ap.add_argument("--repair-modules", action="store_true",
                     help="发布时用 SQL 补丁把模块复制到发布版本（只给历史手工插入的模块用，需 db.enabled）")
     ap.add_argument("--offline", action="store_true", help="用本地缓存原子字典（不连 .130）")
-    ap.add_argument("--param-binding", choices=["baked", "bound"], default="",
-                    help="Script.module 的 module_param 落库方式（不写 = 用 rpa_config 的 param_binding，"
-                         "缺省 baked）。"
-                         "baked=把 $p: 烘焙成默认值（设计器一定能打开，但改参数不生效）；"
-                         "bound=保留 rpa:special 引用 + need_parse（设计器改参数真生效，"
-                         "需确认设计器能显示该节点）。")
     ap.add_argument("--skip-batch-check", action="store_true",
                     help="话里是批量意图时也继续（默认拦下，因为单文件流程只会处理一个文件）")
     ap.add_argument("--skip-element-pick", action="store_true",
@@ -936,18 +998,6 @@ def main():
     print("=" * 64)
     print("AI 流程交付流水线")
     print("=" * 64)
-
-    # module_param 落库模式：命令行优先，否则用 flow_generator 的默认值。
-    # 必须在任何 build_process_content 之前设好（包括自愈后的重建）。
-    try:
-        fg.set_param_binding_mode(args.param_binding)
-    except ValueError as e:
-        print(f"❌ {e}")
-        return 2
-    print(f"module_param 绑定模式：{fg.param_binding_desc()}")
-    if not args.param_binding:
-        _cfgv = fg.config_param_binding()
-        print("   （来源：%s）" % (f"rpa_config param_binding={_cfgv}" if _cfgv else "内置默认（baked）"))
 
     # 换设备后 robotId 全变，但「机器人名」是稳定的。给了 --robot-name 就先按名字解析，
     # 解析结果覆盖 robot_id（找不到会新建），这样新机器上一条命令就能跑。
@@ -1066,7 +1116,8 @@ def main():
     # ---------- 3. 构建 + 校验 ----------
     print("[3/6] 构建节点树并校验...")
     try:
-        pc = fg.build_process_content(spec, atom_dict, elements=elements, robot_id=robot_id)
+        pc = fg.build_process_content(spec, atom_dict, elements=elements, robot_id=robot_id,
+                                      module_param_ids=spec.get("_resolved_param_ids"))
     except KeyError as e:
         # 典型：需要真实元素（元素按 robot 隔离），裸抛堆栈对用户毫无意义
         msg = e.args[0] if e.args else str(e)
@@ -1167,16 +1218,6 @@ def main():
 
     # ---------- 4. 落库到主流程 ----------
     print("[4/6] 写入机器人主流程...")
-    # 落库前必须让人知道「参数能不能改」——否则用户改了参数不生效会被当成新 bug 回来（A17）。
-    # 只提示、不阻断：修法在命令行开关里，不在流程数据里。
-    if fg.PARAM_BINDING_MODE == "baked":
-        _hits = _param_binding_warn(spec)
-        if _hits:
-            _tot = sum(len(h[1]) for h in _hits)
-            print(f"      ⚠️ 参数绑定模式 baked：模块参数在生成时固定，设计器改参数不生效"
-                  f"（要可改请用 --param-binding bound）")
-            print(f"         受影响节点：{len(_hits)} 个 / {_tot} 个 $p: 参数 —— "
-                  + "; ".join("节点 %d: %s" % (i, "/".join(ns)) for i, ns in _hits))
     ck = pf.load_session()
     robot_name = robot_name_of(ck, robot_id)
     user = pf.whoami(ck)
@@ -1288,7 +1329,8 @@ def main():
                 break
             heal_log.extend(a["desc"] for a in acts)
             # 参数变了 → 重建节点树并重新落库（否则引擎跑的还是旧参数）
-            pc = fg.build_process_content(spec, atom_dict, elements=elements, robot_id=robot_id)
+            pc = fg.build_process_content(spec, atom_dict, elements=elements, robot_id=robot_id,
+                                          module_param_ids=spec.get("_resolved_param_ids"))
             pf.save_process(ck, robot_id, pid, json.dumps(pc, ensure_ascii=False))
             if spec.get("params"):
                 pf.sync_params(ck, robot_id, pid, spec["params"])

@@ -348,6 +348,81 @@ def sync_params(cookie, robot_id, process_id, params):
             "total": len(by_name) + len(added)}
 
 
+def list_module_params(cookie, robot_id, module_id):
+    """列**模块级**参数定义（`c_param` 里 `module_id` 有值、`process_id` 为空的行）。
+
+    这是 `Script.module` 节点参数面板的数据源 —— 设计器打开节点时按 moduleId 去
+    `c_param` 查这个模块有哪些参数；查不到就显示「暂无数据」，节点参数也改不了。
+
+    ## 为什么不能按 moduleId 过滤响应（2026-11-03 实测踩到）
+
+    请求带 `moduleId` 时后端**已经按模块过滤了**，但响应体里**不回传 `moduleId` 字段**
+    （只有 `processId: null`）。所以只能靠「`processId` 为空」筛出模块级参数。
+    第一版按 `r.get("moduleId") == mod` 过滤 → 永远查不到 → 每次调用都重复 add 一条。
+    """
+    body = {"robotId": robot_id, "moduleId": module_id, "mode": "EDIT_PAGE"}
+    rows = ok(api("/api/robot/param/all", body, cookie), "查模块参数") or []
+    return [r for r in rows if isinstance(r, dict) and not r.get("processId")]
+
+
+def _param_literal(default):
+    """`c_param.var_value` 的形状：**数组形态**的字面量容器（与设计器存的完全一致）。
+
+    设计器存 `导入MES` 流程时写的就是 `[{"type":"other","value":"F:\\\\demo\\\\x.xlsx"}]`
+    —— 是 JSON 字符串（外层带引号），不是裸值。
+    """
+    return json.dumps([{"type": "other", "value": default}], ensure_ascii=False)
+
+
+def sync_module_params(cookie, robot_id, module_id, params, update_existing=True):
+    """把脚本声明的参数同步成**模块级**参数定义（`c_param`，`module_id=<moduleId>`）。
+
+    返回 `{参数名: c_param.id}` —— 这串 id 必须写进节点的 `module_param[].varId`，
+    否则设计器的参数表格仍然认不到（结构参见 `docs/流程规格DSL.md §11.5`）。
+
+    `params`: [{"name","type","default","describe"}]
+    `update_existing`: False = 只补缺、不改已存在的行。
+
+        为什么需要这个开关（2026-11-03 踩到）：`relink_modules.py` 要把历史流程重建成
+        新结构，但这些流程里有些是**用户手工搭的**，参数说明是他自己写的中文文案。
+        无条件 update 会把它抹成空串（我们的描述取自流程参数，很多是空的）。
+        生成器路径要 update（改了默认值必须同步），修复路径不要。
+
+    幂等：同名的已存在 → 拿它的 id，不重复 add。
+    """
+    existing = {p.get("varName"): p for p in list_module_params(cookie, robot_id, module_id)
+                if isinstance(p, dict)}
+    ids, added, updated = {}, [], []
+    for p in params or []:
+        name = p.get("name")
+        if not name:
+            continue
+        body = {
+            "varDirection": 0, "varName": name, "varType": p.get("type") or "Str",
+            "varValue": _param_literal(p.get("default")
+                                       if p.get("default") is not None else ""),
+            "varDescribe": p.get("describe") or "", "robotId": robot_id, "moduleId": module_id,
+        }
+        old = existing.get(name)
+        if old is None:
+            r = ok(api("/api/robot/param/add", body, cookie), "新增模块参数 %s" % name)
+            pid = r.get("data") if isinstance(r, dict) else r
+            ids[name] = str(pid or "")
+            added.append(name)
+        else:
+            ids[name] = str(old.get("id") or "")
+            if not update_existing:
+                continue
+            changed = (str(old.get("varValue") or "") != body["varValue"]
+                       or str(old.get("varDescribe") or "") != body["varDescribe"])
+            if changed:
+                body["id"] = old.get("id")
+                ok(api("/api/robot/param/update", body, cookie), "更新模块参数 %s" % name)
+                updated.append(name)
+    extra = [n for n in existing if n not in {p.get("name") for p in (params or [])}]
+    return {"ids": ids, "added": added, "updated": updated, "extra_on_server": extra}
+
+
 def delete_param(cookie, param_id):
     """删除单个流程参数（c_param）。
 

@@ -66,10 +66,6 @@ DEFAULTS = {
         "user": "root", "password": "", "database": "rpa",
     },
     "defaults": {"robot_id": ""},
-    # `Script.module` 的 module_param 落库方式：`baked`（默认，设计器一定打得开，但改参数不生效）
-    # 或 `bound`（保留 rpa:special 引用 + need_parse，设计器能打开时参数才可改）。
-    # 留空 = 用代码里的默认值 `baked`；写错值也不会炸（flow_generator 会退回 baked 并提示）。
-    "param_binding": "",
 }
 
 _ENV_MAP = {
@@ -390,16 +386,6 @@ def default_robot_id():
     return str(get("defaults.robot_id", "") or "")
 
 
-def param_binding():
-    """`module_param` 落库方式：`"baked"` / `"bound"`；未配置返回空串（= 用代码默认值）。
-
-    来源优先级：环境变量 `RPA_PARAM_BINDING` > `rpa_config.json` 的顶层 `param_binding`。
-    这个开关放在配置里的原因：用户可以自己切，不必等改代码/发版（A17 的临时解）。
-    """
-    v = os.environ.get("RPA_PARAM_BINDING", "") or get("param_binding", "")
-    return str(v or "").strip().lower()
-
-
 def db_conf():
     """SQL 通道配置；未启用返回 None（调用方必须能接受 None）。"""
     if not get("db.enabled", False):
@@ -429,7 +415,6 @@ def write_config(force=False):
                    "local_gateway_port": cfg["client"].get("local_gateway_port", 13159)},
         "db": dict(cfg["db"]),
         "defaults": {"robot_id": cfg["defaults"].get("robot_id", "")},
-        "param_binding": cfg.get("param_binding") or "baked",
     }
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False, indent=2)
@@ -454,7 +439,6 @@ def describe():
     add("db.enabled", cfg["db"].get("enabled"))
     add("db.ssh_host", cfg["db"].get("ssh_host"))
     add("defaults.robot_id", cfg["defaults"].get("robot_id"))
-    add("param_binding", cfg.get("param_binding") or "baked（默认）")
     return rows
 
 

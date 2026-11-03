@@ -313,6 +313,10 @@ python scripts/ai_flow.py --spec flows/<名>.json --robot-name <机器人名>
       "why": "命中判定 B-2：输出文件数取决于「部门」列的唯一值，原子无法动态生成文件名",
       "maintain_hint": "改拆哪一列 → 改参数 split_column；改输出目录 → 改参数 out_dir；改逻辑需找开发改 Python",
       "atom_suggestion": "Excel 按列唯一值拆分成多表",
+      "params": [
+        {"name": "src_file", "describe": "源Excel文件路径", "default": "D:////demo////订单.xlsx"},
+        {"name": "split_column", "describe": "按哪一列拆（写列名）", "default": "部门"}
+      ],
       "code": "def main(args):\n    import os\n    import openpyxl\n    src = (args.get(\"src_file\") or \"\").strip()\n    ...\n    return {\"ok\": True, \"processed\": n, \"skipped\": 0, \"outputs\": names[:5]}\n"
     }
   },
@@ -334,6 +338,7 @@ python scripts/ai_flow.py --spec flows/<名>.json --robot-name <机器人名>
 | `scripts.<名>.maintain_hint` | ✅ | 业务人员能改什么（改哪个参数）、什么必须找开发（缺了报 err） |
 | `scripts.<名>.atom_suggestion` | 建议 | 建议沉淀成什么原子（`ai_flow` 记进 `docs/原子需求池.md`） |
 | `scripts.<名>.name` | 可选 | 平台上的模块显示名（省了就用脚本名） |
+| `scripts.<名>.params` | 强烈建议 | 脚本参数的**中文说明**：`[{name, describe, default}]`。落进 `c_param.var_describe` → 业务人员在节点参数表格里看到的就是它。不写会退化：参数名能从 `module_param` 推，但说明是空的（表格里只有 `src_file` 这种英文名） |
 | `nodes[].inputs.content` | ✅ | 写 `"$script:脚本名"` —— **占位符**，不是模块 id |
 | `nodes[].inputs.module_param` | ✅ | `$json:` 字符串，`[{varName, varValue}, ...]`；无参数写 `"$json:[]"` |
 | `nodes[].out.program_script` | 建议 | 模块 `main()` 返回值的接收变量名（缺了 lint 告警） |
@@ -405,53 +410,64 @@ def main(args):
 | --- | --- | --- |
 | 字面量 | 直接给固定值 | `{"varName": "copy_header", "varValue": "true"}` |
 | `"$p:参数名"` | 引用**流程参数**（推荐） | `{"varName": "src_file", "varValue": "$p:src_file"}` |
-| `"$var:变量名"` | 引用**循环变量**（只能用在循环体内；这种写法设计器打不开，但引擎能跑） | `{"varName": "src_pdf", "varValue": "$var:item"}` |
+| `"$var:变量名"` | 引用**循环变量**（只能用在循环体内；落库保留 `rpa:special` 引用，设计器里显示为变量名、引擎运行时求值） | `{"varName": "src_pdf", "varValue": "$var:item"}` |
 
 `varName` 是**模块里 `args.get()` 用的名字**，两边必须一一对上（`spec_lint` 会逐个比对）。
 参数名用**业务语义英文**（`split_column` / `out_dir`），中文解释写进流程参数的 `describe`。
 
-#### 11.5.1 参数能不能在设计器里改：`--param-binding`
+#### 11.5.1 落库结构：平台认的「Py 原子」形态（2026-11-03 用户目视确认后定稿）
 
-同一个规格可以落成两种库形态，**由 `--param-binding` 决定**（默认 `baked`）：
+**业务人员改参数的地方是「脚本节点的参数表格」，不是流程参数面板。** 这句话决定了落库结构 ——
+设计器打开 `Script.module` 节点时会按 `moduleId` 去 `c_param` 取参数定义，取不到就显示「暂无数据」、
+顶栏报「请求参数解析失败」。所以落库必须是三层齐备：
 
-| 模式 | 落库形态 | 设计器 | 改流程参数后 |
-| --- | --- | --- | --- |
-| `baked`（默认） | `$p:` 烘焙成**默认值字面量**，`need_parse` 不写 | 一定打得开 | **不生效**（跑的还是生成时的值） |
-| `bound` | `{"rpa":"special","value":[{"type":"p_var","value":"参数名"}]}` + `need_parse="json_str"` | 待目视确认（A17） | **生效**（运行时求值） |
+```
+c_param（模块级参数定义）
+    module_id = <moduleId>   process_id = NULL   var_direction = 0
+    var_type  = Str          var_value  = '[{"type":"other","value":"默认值"}]'
+                    ↓ 每行的 id 就是下面 varId
 
-- `bound` 下 **`need_parse="json_str"` 必须一起写**，两个条件是一对：少了它引擎不会走
-  `complex_param_parser`，`rpa:special` 只是个普通对象。
-- 因此 `bound` 下 `module_param` 会被**当 Python 源码求值** → `varValue` 里**不许出现
-  JSON 布尔/空值**（`true` / `false` / `null` 在 Python 里未定义 → `NameError: name 'true' is not defined`）。
-  布尔一律写字符串 `"true"` / `"false"`，`spec_lint` 规则 1.5 会把它当 **err** 拦下。
-  这一点**两种模式都禁止**（`baked` 侥幸能跑，切 `bound` 就炸；模块侧本来就要求 `str`）。
-- 落库前 `ai_flow` 会打印当前模式；`baked` 且存在 `$p:` 引用时额外提示
-  `⚠️ 参数绑定模式 baked：模块参数在生成时固定，设计器改参数不生效（要可改请用 --param-binding bound）`。
-
-> 现状：默认仍是 `baked`（2026-10-30 为修「设计器请求参数解析失败」做的权衡）。
-> E1 双组已经证明引擎侧 `bound` 完全可用，缺的是设计器前端的目视结论 —— 见
-> `docs/平台缺陷清单.md` A17。**切默认值是一句话的事，但要等设计器结论。**
-
-**决策指引（不知道该选哪个就看这一行）**：默认 `baked`。若你确认设计器能正常打开脚本节点，
-改配置项 `PARAM_BINDING_MODE=bound`（或每次带 `--param-binding bound`），业务人员在参数面板
-改的值才会真正传给脚本。
-
-配置怎么改（**不用改代码**，用户自己就能切）：
-
-```jsonc
-// rpa_config.json
-{ "param_binding": "bound" }        // 也可用环境变量 RPA_PARAM_BINDING=bound
+节点 inputList
+    content      = "<moduleId>"                          ← 纯字符串，不是数组
+    module_param = [ {"varId": "<c_param.id>", "varName": "src_file",
+                      "varValue": {"rpa":"special","value":[{"type":"other","value":"…"}]}} ]
+                                                         ← 真数组，不是 JSON 字符串
 ```
 
-优先级：`--param-binding` 命令行 > 环境变量 `RPA_PARAM_BINDING` > `rpa_config.json` 的
-`param_binding` > 内置默认 `baked`。配置写错值（如 `"bound2"`）不会崩：退回 `baked` 并打印一行提示。
-运行 `ai_flow` / `nl2spec` 时会打印当前模式**和它的来源**，日志自证。
+这三条是**从用户手工搭的 `导入MES` 流程里取的标准答案**，逐字段对照过。少任何一块的现象：
+
+| 缺哪块 | 设计器里的表现 |
+| --- | --- |
+| `c_param` 没有 `module_id` 级行 | 参数表格「暂无数据」，参数改不了 |
+| `module_param` 是 JSON 字符串 | 顶栏「请求参数解析失败」 |
+| `content` 包成 `[{type,value}]` | 取不到模块，节点空 |
+| 参数项缺 `varId` | 那一行参数认不到（其它行可能正常） |
+
+**规格侧不用关心这些**：你只写 `content: "$script:名字"` 和 `module_param` 的语义
+（`$p:` / `$var:` / 字面量），`ai_flow.resolve_scripts()` 会建模块 + 建 `c_param` + 把 `varId`
+填进节点。`$p:` 会被**烘焙成参数默认值字面量** —— 因为改参数的正道是节点表格，
+留 `p_var` 引用反而让表格里显示变量名，对非专业用户更难懂。
+
+> 历史遗留结构与批量修复：2026-11-02 之前的流程是旧结构（`content` 数组 + `module_param`
+> 字符串）。跑 `python scripts/relink_modules.py --dry-run` 先盘点，去掉 `--dry-run` 就地修，
+> 幂等可重跑。加 `--run` 会顺手本地真跑验证。
+
+**`need_parse` 与 `bound` 模式已作废**：那套是「把 `module_param` 当整块 JSON 字符串 + 让引擎
+求值」的方案，在结构定稿后没有存在意义（数组形态天然不需要解析，参数也不靠流程参数面板改）。
+`--param-binding` 参数、`rpa_config.json` 的 `param_binding` 键都已删除。
+
+**仍然禁止 JSON 布尔/空值**（`spec_lint` 规则 1.5，**err** 级）：`varValue` 落库后是
+`{"rpa":"special","value":[{"type":"other","value":X}]}`，引擎走 `ComplexParamParser` 求值，
+`true` / `false` / `null` 在 Python 里未定义 → 跑到那一步才 `NameError: name 'true' is not defined`。
+布尔一律写字符串 `"true"` / `"false"`（模块侧本来就该 `str(args.get("x")).lower() in ("true","1","yes")`）。
 
 ### 11.6 可维护性补偿（脚本外面必须可维护）
 
 脚本业务人员看不懂，所以「外面」必须补齐。写脚本时**五条都要做到**（外加下面「脚本健壮性五条」，一共十条）：
-1. **所有可调项提升为流程参数**，不许写死在代码里：路径、列名、sheet 名、阈值、是否覆盖；
-2. 模块内参数名用业务语义英文，中文说明写进流程参数的 `describe`；
+1. **所有可调项提升为脚本参数**，不许写死在代码里：路径、列名、sheet 名、阈值、是否覆盖 ——
+   声明在 `scripts.<名>.params`（推荐，能带中文说明）或节点的 `module_param` 里；
+2. 参数名用业务语义英文；中文说明写进 `scripts.<名>.params[].describe`
+   （它会落到 `c_param.var_describe`，业务人员在节点参数表格里看到的就是它）；
 3. 节点 `alias` 必须是业务语言 + 标明是脚本，如「按部门拆分（自动脚本，改逻辑需开发）」；
 4. `main()` 返回人类可读摘要（`ok` / 处理数量 / 跳过数量 / 输出列表前 5 个）；
 5. 失败 `raise RuntimeError("中文原因")`。

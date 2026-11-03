@@ -52,85 +52,36 @@ DEMO_TXT = DEMO_DIR + r"\源文件.txt"
 # 这里只做「透传」，不做任何替换 —— 生成器必须能在没有服务端会话的情况下产出节点树
 # （离线校验、draft 阶段、spec_lint 都依赖这一点）。
 SCRIPT_REF_PREFIX = "$script:"
+SCRIPT_ATOM_KEY = "Script.module"
 
-# `module_param`（Script.module 的参数表）的两种落库模式（2026-11-02 新增）。
+# `Script.module` 节点的落库结构（2026-11-03 用户目视确认后定稿）。
 #
-#   baked（默认）：把规格里的 `$p:xxx` 引用**烘焙成参数默认值字面量**，且不带 `need_parse`。
-#                  ✅ 设计器前端一定打得开（就是一份普通 JSON 字符串）
-#                  ❌ 用户在流程参数面板改值后**不生效**（脚本仍按生成时的默认值跑）
-#                  这是 2026-10-30 为修「设计器请求参数解析失败」留下的权衡。
+# 曾经有过 `baked` / `bound` 两种模式（区别只在 module_param 写成死字面量还是保留
+# `rpa:special` 引用），**那个权衡已经作废** —— 因为它俩都错了：错在把 `module_param`
+# 整块当**JSON 字符串**塞、把 `content` 包成 `[{type,value}]` 数组。
 #
-#   bound         ：保留 `{"rpa":"special","value":[{"type":"p_var","value":"xxx"}]}` 引用，
-#                  并**必须同时**给 `need_parse="json_str"`。
-#                  ✅ 引擎会在运行时求值 → 参数面板/openapi 改值真的生效（2026-11-02 E1 实测：
-#                     改 out_dir 后产出落到新目录、改 src_file 后读到新文件）
-#                  ❌ 设计器前端能否显示 `varValue` 是对象 —— **还没被用户目视确认**（E2 待办）
+# 平台设计器真正认的结构（从用户手工搭的 `导入MES` 流程取到的标准答案）：
 #
-# 两个条件（rpa:special + need_parse）必须绑在一起：只改一半 = 拿到 dict 而不是字符串，
-# 脚本里 `args.get("x").strip()` 直接 AttributeError（A 组实验就是这么错的）。
-PARAM_BINDING_MODES = ("baked", "bound")
-PARAM_BINDING_DEFAULT = "baked"
-
-
-def default_param_binding_mode():
-    """从配置取默认模式：`rpa_config.json` 的顶层 `param_binding`，或环境变量 `RPA_PARAM_BINDING`。
-
-    为什么不写死在代码里（用户 2026-11-02）：E2（设计器能不能显示 `rpa:special`）只能目视确认，
-    确认之前默认必须保守；确认之后**用户自己改一行配置就能切**，不必等我们改代码/发版。
-    配错值（如 `"param_bind": "xxx"`）不让流程崩：退回 `baked` 并提示一次。
-    """
-    try:
-        v = (cfg.param_binding() or "").strip().lower()
-    except Exception:
-        return PARAM_BINDING_DEFAULT
-    if not v:
-        return PARAM_BINDING_DEFAULT
-    if v not in PARAM_BINDING_MODES:
-        print("⚠️ rpa_config 的 param_binding=%r 不认识（只能是 %s），已按 %s 处理"
-              % (v, "/".join(PARAM_BINDING_MODES), PARAM_BINDING_DEFAULT))
-        return PARAM_BINDING_DEFAULT
-    return v
-
-
-PARAM_BINDING_MODE = default_param_binding_mode()
-
-
-def set_param_binding_mode(mode):
-    """设置 module_param 落库模式（`baked` / `bound`），返回实际生效的值。
-
-    AI 侧入口：`ai_flow.py --param-binding` / `nl2spec.py --param-binding`。
-    为什么做成模块级开关而不是写死：E2 若确认「设计器不认 rpa:special」，要能一条命令切回
-    baked 而不必回滚代码；而且两种需求（设计器可读 / 参数可改）都真实存在。
-    传空串 = 不覆盖，沿用配置/默认值（命令行不带 `--param-binding` 时就是这条路）。
-    """
-    global PARAM_BINDING_MODE
-    m = (mode or "").strip().lower()
-    if not m:
-        return PARAM_BINDING_MODE
-    if m not in PARAM_BINDING_MODES:
-        raise ValueError("param-binding 只能是 %s，收到 %r" % ("/".join(PARAM_BINDING_MODES), mode))
-    PARAM_BINDING_MODE = m
-    return m
-
-
-def param_binding_desc(mode=""):
-    """给人看的一行说明（落库前打印，让日志自证用了哪种模式）。"""
-    m = (mode or PARAM_BINDING_MODE or PARAM_BINDING_DEFAULT).lower()
-    if m == "bound":
-        return "bound（参数可改：module_param 保留 rpa:special 引用 + need_parse=json_str）"
-    return "baked（参数生成时固定：$p: 烘焙成默认值，设计器一定打得开）"
-
-
-def config_param_binding():
-    """配置里显式写的模式（`rpa_config.json` / `RPA_PARAM_BINDING`），没写返回空串。
-
-    只用于给人看「当前模式从哪来」，不参与决策（决策在 `default_param_binding_mode()`）。
-    """
-    try:
-        v = (cfg.param_binding() or "").strip().lower()
-    except Exception:
-        return ""
-    return v if v in PARAM_BINDING_MODES else ""
+#   c_param（模块级参数定义）：module_id=<moduleId>, process_id=NULL, var_direction=0,
+#                             var_type=Str, var_value='[{"type":"other","value":"默认值"}]'
+#            ↓ 每行的 id 就是下面 varId
+#   节点 inputList：
+#     content      = "<moduleId>"                  ← **纯字符串**，不是数组
+#     module_param = [ {"varId": "<c_param.id>", "varName": "src_file",
+#                       "varValue": {"rpa":"special","value":[{"type":"other","value":"…"}]}} ]
+#                                                ← **真数组**，不是 JSON 字符串
+#
+# 缺任何一块的后果（都实测过）：
+#   - 缺 c_param 模块级参数 → 节点参数面板「暂无数据」；
+#   - module_param 是字符串  → 前端 parse 失败，顶栏报「请求参数解析失败」；
+#   - content 是数组        → 前端按字符串取模块 id 取不到。
+#
+# 这套结构同时解决了两件事：设计器**能显示**、参数**能改且真生效**（改 out_dir 后
+# 产出落到新目录，2026-11-03 实测）。所以不需要「流程参数绑定」那套迂回方案。
+#
+# varId 来自服务端，离线构建时拿不到 → `build_process_content()` 收 `module_param_ids`；
+# 没有映射时 varId 写空串（结构仍合法，只是设计器参数表格里那一行认不到，需要
+# `relink_modules.py` 补齐）。
 
 # 字典声明多个输出、但 Python 实现只 `return` 一个值的原子（坑 145）。
 # 对这类原子：只按 spec 显式声明的输出生成**一个**变量；不声明就不解包。
@@ -723,6 +674,13 @@ def _normalize_scripts(spec):
         for k in ("why", "maintain_hint", "atom_suggestion"):
             if item.get(k):
                 one[k] = str(item[k])
+        # 参数声明（决定设计器参数表格里有哪几行、中文说明写什么）。
+        # 不写也能跑 —— 会退化成从节点 module_param 推，但没有中文说明。
+        if item.get("params"):
+            one["params"] = [
+                {"name": d.get("name"), "type": d.get("type") or "Str",
+                 "default": d.get("default"), "describe": d.get("describe") or ""}
+                for d in item["params"] if isinstance(d, dict) and d.get("name")]
         out[nm] = one
     spec["scripts"] = out
     return spec
@@ -852,18 +810,21 @@ def _contains_var_ref(obj):
 
 
 def _bake_refs(obj, param_defaults):
-    """把 module_param 里的 `$p:x` 引用 / 内联 `rpa:special(p_var)` 结构解析成字面量
-    默认值（用于「设计器可解析」的 module_param）。
+    """把 `$p:x` 引用 / 内联 `rpa:special(p_var)` 结构解析成**参数默认值字面量**。
+
+    为什么烘焙而不是留引用（2026-11-03 定稿）：`Script.module` 的参数现在写进节点的
+    `module_param[].varValue`，业务人员改参数的正道是**在节点参数表格里直接改值**
+    （已实测生效）。留 `p_var` 引用的话界面显示的是变量名，改值要绕到流程参数面板去，
+    对非专业用户反而更难懂。烘焙成默认值后节点上是「可读可改的真实值」。
+
+    含真正的循环变量（`$var:` / `{"type":"var"}`）无法烘焙 —— 那个值只有运行时才知道，
+    由 `_json_refs` 保留引用（引擎会求值，见 `build_module_param_items`）。
 
     兼容两种规格写法：
       - 规范写法：`"varValue": "$p:src_pdf"`（字符串引用）
       - 历史内联写法：`"varValue": {"rpa":"special","value":[{"type":"p_var",
         "value":"src_pdf"}]}`
     多段拼接（如 `out_dir` + `"\\"` + `out_name` + `".docx"`）会被拼接成字符串。
-    设计器前端解析不了 `rpa:special`，烘焙成字面量后设计器即可正常打开；引擎把该 JSON
-    字符串传给模块，模块 `json.loads` 后拿到 dict（与 `main(args)` 契约一致）。
-    含真正循环变量 `$var:`（rpa `type=="var"`）的无法烘焙，应保持 `rpa:special`
-    （设计器无法显示，但引擎可跑，改用本地真跑验证）。
     """
     if isinstance(obj, dict):
         if obj.get("rpa") == "special":
@@ -900,20 +861,88 @@ def _bake_refs(obj, param_defaults):
     return obj
 
 
-def build_process_content(template, atom_dict, elements=None, robot_id=DEFAULT_ROBOT_ID, strict=True):
+def _as_param_scalar(v):
+    """参数值只能放标量；list/dict 这种复杂值转成 JSON 字符串（脚本侧自己 json.loads）。"""
+    if isinstance(v, (str, int, float, bool)) or v is None:
+        return v
+    return json.dumps(v, ensure_ascii=False)
+
+
+def build_module_param_items(payload, var_names=None, param_names=None,
+                             param_defaults=None, id_map=None):
+    """把规格里的 `module_param` 声明构造成**设计器认的真数组**（见文件头结构说明）。
+
+    输入（规格写法，随便哪种都行）：
+        [{"varName": "src_file", "varValue": "$p:src_file"},
+         {"varName": "sheet_name", "varValue": "0"},
+         {"varName": "current_file", "varValue": "$var:item"}]
+    输出（落库形态）：
+        [{"varId": "<c_param.id>", "varName": "src_file",
+          "varValue": {"rpa": "special", "value": [{"type": "other", "value": "F:\\…"}]}},
+         …]
+
+    两条分支：
+      - 含循环变量（`$var:` / `{"type":"var"}`）→ 保留 `rpa:special` 引用让引擎运行时求值；
+      - 其余 → `$p:` 烘焙成参数默认值，包成 `{"type":"other"}` 字面量。
+
+    为什么要外面再套一层 `{"rpa":"special","value":[{"type":"other",…}]}`
+    而不是直接写 `"F:\\x.xlsx"`：设计器存的样本就是这个形状（`导入MES` 流程实证），
+    引擎的 `ComplexParamParser` 也是按 `rpa:special` 识别的。少了这层，脚本拿到的是
+    dict 而不是字符串，`args.get("x").strip()` 直接 AttributeError。
+    """
+    var_names = var_names or set()
+    param_defaults = param_defaults or {}
+    id_map = id_map or {}
+    if isinstance(payload, dict):                 # 容忍单参数写成对象
+        payload = [payload]
+    if not isinstance(payload, list):
+        raise ValueError("Script.module 的 module_param 必须是数组"
+                         "（形如 [{\"varName\":…,\"varValue\":…}]），收到 %r" % type(payload).__name__)
+
+    items = []
+    for it in payload:
+        if not isinstance(it, dict):
+            raise ValueError("module_param 的每一项必须是对象，收到 %r" % (it,))
+        name = it.get("varName")
+        if not name:
+            raise ValueError("module_param 有项目缺 varName：%r" % (it,))
+        raw = it.get("varValue")
+        if _contains_var_ref(raw):
+            # 循环变量：必须运行时求值，保留引用（设计器可能只显示变量名，引擎可跑）
+            val = _json_refs(raw, var_names, param_names)
+            if not (isinstance(val, dict) and val.get("rpa") == "special"):
+                val = {"rpa": "special",
+                       "value": [{"type": "other", "value": _as_param_scalar(val)}]}
+        else:
+            baked = _bake_refs(raw, param_defaults)
+            val = {"rpa": "special",
+                   "value": [{"type": "other", "value": _as_param_scalar(baked)}]}
+        items.append({"varId": str(id_map.get(name) or ""),
+                      "varName": name, "varValue": val})
+    return items
+
+
+def build_process_content(template, atom_dict, elements=None, robot_id=DEFAULT_ROBOT_ID,
+                          strict=True, module_param_ids=None):
     """把模板/规格构建成落库用的扁平节点数组。
 
     elements: 传入 c_element 元素库（load_elements 结果）时，节点里声明的「元素槽位」
               （spec["elements"] = {参数key: web|uia|cv}）会自动填真实元素引用；
               否则元素槽位会报错（因为占位元素无法运行）。
     strict:   True = 只用目标 robot 名下的元素（推荐，跨 robot 引用运行时可能解析不到）。
+    module_param_ids: `Script.module` 节点的 `varId` 来源，
+              `{"<moduleId 或 $script:名字>": {"参数名": "<c_param.id>"}}`。
+              由 `ai_flow.resolve_scripts()` 建完模块/参数后传进来；离线构建（lint/draft）
+              传 None，varId 写空串 —— 结构合法，只是设计器参数表格认不到，需 relink 补齐。
 
     规格可选 `params` 段（流程参数，落 c_param）：
         "params": [{"name":"src_file","type":"Str","default":"D:\\x.xlsx","describe":"源文件"}]
-    节点里用 `$p:src_file` 引用 → `{"type":"p_var","value":"src_file"}`。
+    节点里用 `$p:src_file` 引用 → 普通原子走 `{"type":"p_var","value":"src_file"}`；
+    `Script.module` 的 `module_param` 里则**烘焙成默认值字面量**（见 `_bake_refs`）。
     """
     param_names = {p.get("name") for p in (template.get("params") or []) if p.get("name")}
     param_defaults = {p.get("name"): p.get("default") for p in (template.get("params") or []) if p.get("name")}
+    module_param_ids = module_param_ids or {}
     var_names = {}          # schema 输出 key 的变量名 → 用于 $ 解析（这里用变量名本身）
     var_defined = set()     # 所有已定义的变量名
     nodes = []
@@ -954,22 +983,47 @@ def build_process_content(template, atom_dict, elements=None, robot_id=DEFAULT_R
                     "type": "element", "value": sample["element_name"], "data": sample["element_id"]}]})
             elif pkey in spec["inputs"]:
                 raw_in = spec["inputs"][pkey]
+
+                # ---- Script.module 两个参数按平台标准结构单独处理（见文件头） ----
+                if atom_key == SCRIPT_ATOM_KEY and pkey == "content":
+                    # content 是**纯字符串**（moduleId 或 `$script:` 占位符），不能包成数组。
+                    v = raw_in
+                    if isinstance(v, str) and v.startswith("$p:"):
+                        nm = v[3:]
+                        if nm not in param_defaults:
+                            raise ValueError(f"Script.module.content 引用的 $p:{nm} 未在规格 params 中声明")
+                        dv = param_defaults.get(nm)
+                        v = "" if dv is None else str(dv)
+                    elif isinstance(v, list):
+                        # 兼容老规格把 content 写成 [{type,value}]
+                        v = (v[0] or {}).get("value") if v and isinstance(v[0], dict) else ""
+                    input_list.append({"key": "content", "value": v if isinstance(v, str) else str(v)})
+                    continue
+                if atom_key == SCRIPT_ATOM_KEY and pkey == "module_param":
+                    if isinstance(raw_in, str) and raw_in.startswith("$json:"):
+                        try:
+                            payload = json.loads(raw_in[6:])
+                        except Exception as e:
+                            raise ValueError(f"Script.module.module_param 的 $json: 不是合法 JSON：{e}")
+                    else:
+                        payload = raw_in
+                    mid = (spec["inputs"].get("content") or "")
+                    ids = module_param_ids.get(str(mid)) or module_param_ids.get("$script:" + str(mid)) or {}
+                    items = build_module_param_items(payload, var_defined, param_names,
+                                                     param_defaults, ids)
+                    # 真数组，且**不带 need_parse**：need_parse 是给「整块 JSON 字符串」用的，
+                    # 这里已经是结构化数组，加了反而会让引擎把每项再当源码求值一次。
+                    input_list.append({"key": "module_param", "value": items})
+                    continue
+
                 if isinstance(raw_in, str) and raw_in.startswith("$json:"):
-                    # 复杂参数：Script.module 的 module_param 唯一能用的形式。
-                    # 三种落法（见文件头 `PARAM_BINDING_MODE`）：
-                    #   1. 含 `$var:`（循环变量）→ 必须运行时求值，保持 rpa:special + need_parse
-                    #      （设计器无法显示，但引擎可跑；评审改用本地真跑验证）
-                    #   2. `PARAM_BINDING_MODE == "bound"` → 同样保持 rpa:special + need_parse，
-                    #      让 `$p:` 流程参数在运行时求值（改参数真的生效）
-                    #   3. 其余（默认 baked）→ 烘焙成默认值字面量，去掉 rpa:special / $json:
-                    #      包裹，设计器一定打得开；代价是改参数不生效
+                    # 其余原子的复杂参数：保持「JSON 字符串 + need_parse」的老形态。
                     try:
                         payload = json.loads(raw_in[6:])
                     except Exception as e:
                         raise ValueError(f"{atom_key}.{pkey} 的 $json: 不是合法 JSON：{e}")
-                    if _contains_var_ref(payload) or PARAM_BINDING_MODE == "bound":
-                        # bound 模式（或含循环变量，必须求值）：保留 rpa:special 引用，
-                        # 并**必须**同时给 need_parse —— 引擎靠它走 complex_param_parser 求值。
+                    if _contains_var_ref(payload):
+                        # 含循环变量：必须运行时求值 → 保留 rpa:special 引用 + need_parse
                         payload = _json_refs(payload, var_defined, param_names)
                         input_list.append({"key": pkey,
                                            "value": json.dumps(payload, ensure_ascii=False),
@@ -990,7 +1044,10 @@ def build_process_content(template, atom_dict, elements=None, robot_id=DEFAULT_R
                 input_list.append({"key": pkey, "value": mk_val("other", _default_for(p))})
 
         # 布尔/数字字面量统一转 python 类型（见 _coerce_literals，坑 69）
+        # module_param 排除在外：它是 [{"varId","varName","varValue"}] 结构，不是字面量列表。
         for it in input_list:
+            if it.get("key") == "module_param":
+                continue
             if isinstance(it.get("value"), list):
                 it["value"] = _coerce_literals(it["value"], schema_ins.get(it["key"]) or {})
 

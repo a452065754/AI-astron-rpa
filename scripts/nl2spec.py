@@ -467,13 +467,17 @@ SYSTEM_PROMPT = """你是 Astron RPA 的「流程规格（spec）生成器」。
  "out":{"program_script":"split_result"}}
 > `alias` 必须是**业务语言**，并标明这是脚本（业务人员一眼知道「这步不是普通节点」）。
 
-2) 顶层 `scripts`（`why` / `maintain_hint` 必填，`atom_suggestion` 建议写）：
+2) 顶层 `scripts`（`why` / `maintain_hint` 必填，`atom_suggestion` 建议写，`params` 强烈建议）：
 "scripts": {"excel_split": {
   "name": "Excel按列拆表",
   "why": "命中判定 B-2：输出文件数取决于「部门」列的唯一值，原子无法动态生成文件名",
   "maintain_hint": "改拆哪一列 → 改参数 split_column；改输出目录 → 改参数 out_dir；改逻辑需找开发改 Python",
   "atom_suggestion": "Excel 按列唯一值拆分成多表",
+  "params": [{"name": "src_file", "describe": "源Excel文件路径", "default": "D:////////demo////////订单.xlsx"},
+             {"name": "split_column", "describe": "按哪一列拆（写列名）", "default": "部门"}],
   "code": "def main(args):\\n    import os\\n    import openpyxl\\n    ...\\n    return {\\"ok\\": True}\\n"}}
+> `params` 决定**业务人员在设计器里看到的参数表格**：`describe` 是他看到的中文说明，
+> `default` 是他看到的初始值。不写这两个，表格里就只有 `src_file` 这种英文名，非专业用户不敢改。
 
 3) 代码契约（违反会被校验器打回）：
 - 入口必须是 `def main(args)`，`args` 是 dict；
@@ -483,14 +487,16 @@ SYSTEM_PROMPT = """你是 Astron RPA 的「流程规格（spec）生成器」。
   `PIL` / `numpy` / `astronverse` / `win32com` / `requests`（运行环境**离线**，别的库没有）；
 - 代码里 `args.get("名字")` / `args["名字"]` 用到的名字**必须**和 `module_param` 的
   `varName` 一一对上（校验器逐个对比：缺一个 → 运行时就拿到 None，静默出错）。
-- **`module_param` 的 `varValue` 只能是字符串或 `$p:` 引用**，不许写 JSON 的 `true` / `false` /
-  `null` / 数字 —— 引擎会把这整段 JSON 当 Python 源码求值，`true` 大小写不符会 `NameError`；
-  而且模块里的 `args` 约定**全是字符串**。布尔写 `"true"` / `"false"`，数字写 `"3"`。
+- **`module_param` 的 `varValue` 只能是字符串或 `$p:` / `$var:` 引用**，不许写 JSON 的 `true` /
+  `false` / `null` / 数字 —— 落库后引擎会对这段做表达式求值，`true` 大小写不符会
+  `NameError: name 'true' is not defined`；而且模块里的 `args` 约定**全是字符串**。
+  布尔写 `"true"` / `"false"`，数字写 `"3"`。
 
 4) **可维护性补偿**（脚本外面必须可维护，五条都要做到）：
-- **所有可调项提升为流程参数**，不许写死在代码里：路径、列名、sheet 名、阈值、是否覆盖；
-- 模块内参数名用业务语义英文（`split_column` / `out_dir` / `overwrite`），
-  中文解释写进对应流程参数的 `describe`；
+- **所有可调项提升为脚本参数**，不许写死在代码里：路径、列名、sheet 名、阈值、是否覆盖；
+- 参数名用业务语义英文（`split_column` / `out_dir` / `overwrite`），
+  **中文解释写进 `scripts.<名>.params[].describe`** —— 它会被落到模块参数定义里，
+  业务人员在脚本节点的参数表格里直接看到并修改（这是「能微调」唯一可用的入口）；
 - 节点 `alias` = 业务语言 + 标明脚本，如「按部门拆分（自动脚本，改逻辑需开发）」；
 - `main()` 必须 `return` 一份**人类可读摘要**（业务人员看返回值就知道做了什么），
   形如 `return {"ok": True, "processed": 12, "skipped": 0, "outputs": ["a.xlsx", "b.xlsx"]}`
@@ -1030,14 +1036,12 @@ VERIFY_FEEDBACK = """你上一次输出的规格**已经写进机器人并真跑
 只输出 JSON，不要解释。"""
 
 
-def _run_ai_flow(spec_path, robot_name, timeout=420, param_binding=""):
+def _run_ai_flow(spec_path, robot_name, timeout=420):
     """调 ai_flow 落库 + 真跑，返回 (是否成功, 完整日志)。"""
     import subprocess
     cmd = [sys.executable, os.path.join(HERE, "ai_flow.py"), "--spec", spec_path]
     if robot_name:
         cmd += ["--robot-name", robot_name]
-    if param_binding:
-        cmd += ["--param-binding", param_binding]
     try:
         p = subprocess.run(cmd, capture_output=True, text=True,
                            encoding="utf-8", errors="replace", timeout=timeout)
@@ -1065,14 +1069,14 @@ def _error_digest(log, limit=28):
 
 
 def verify_loop(nl, index, client, spec, out_path, robot_name, rounds=2, verbose=True,
-                strategy="auto", param_binding=""):
+                strategy="auto"):
     """生成 → 真跑 → 失败回灌 → 再真跑。返回 (spec, log, 用了几轮, 是否最终成功)。"""
     log = ""
     for i in range(rounds + 1):
         save_spec(spec, out_path)
         if verbose:
             print("  · 真跑第 %d 次（%s）..." % (i + 1, robot_name or "默认机器人"), flush=True)
-        ok, log = _run_ai_flow(out_path, robot_name, param_binding=param_binding)
+        ok, log = _run_ai_flow(out_path, robot_name)
         if ok:
             if verbose:
                 print("    ✅ 真跑 SUCCESS")
@@ -1419,10 +1423,15 @@ def _selftest_scripts(atoms, verbose=True):
     ok = ok and keep
 
     # 生成节点树：content 必须原样透传（真 moduleId 要等 ai_flow 建完模块才填）
+    # 注意 content 落库形态是**纯字符串**（2026-11-03 定稿，见 flow_generator 文件头）；
+    # 老版本是 `[{"type":"other","value":…}]` 数组，这里两种都认，省得改一处忘一处。
     try:
         pc = fg.build_process_content(loaded, atoms)
-        content = [it for it in pc[0]["inputList"] if it["key"] == "content"][0]
-        passthru = content["value"][0].get("value") == "$script:excel_split"
+        content = [it for it in pc[0]["inputList"] if it["key"] == "content"][0]["value"]
+        if isinstance(content, list):
+            passthru = bool(content) and content[0].get("value") == "$script:excel_split"
+        else:
+            passthru = content == "$script:excel_split"
     except Exception as ex:  # noqa: BLE001
         print("      ❌ build_process_content 抛错：%r" % ex)
         passthru = False
@@ -1562,11 +1571,6 @@ def main():
                          "atom=只许原子（用来验证某需求能否纯原子实现，做不到会明确报告）；"
                          "script=脚本优先（仅调试）")
     ap.add_argument("--no-few-shot", action="store_true", help="不给相似历史规格当范例")
-    ap.add_argument("--param-binding", choices=["baked", "bound"], default="",
-                    help="脚本节点的 module_param 落库方式（透传给 ai_flow；不写 = 用 rpa_config "
-                         "的 param_binding，缺省 baked）："
-                         "baked=烘焙成默认值（设计器一定能打开，但改流程参数不生效）；"
-                         "bound=保留 rpa:special 引用（设计器改参数真生效，需确认设计器能显示该节点）")
     ap.add_argument("--no-assess", action="store_true",
                     help="跳过生成前的「可实现性评估」（默认会先判一次原子够不够用；"
                          "atom 模式下这是给结论的依据，auto 模式下能省一轮试错）")
@@ -1627,17 +1631,6 @@ def main():
     print("模型：%s @ %s" % (cfg["model"],
                              "回放（不联网）" if transport else (cfg["base"] or "(stub)")))
     print("策略：%s" % STRATEGY_DESC.get(args.strategy, args.strategy))
-    # 让本进程的生成/校验也知道用哪种 module_param 模式（落库在 ai_flow 子进程里做，
-    # 但 `--dry` 时本进程也会 build_process_content，两边必须一致）
-    try:
-        fg.set_param_binding_mode(args.param_binding)
-    except ValueError as e:
-        print("❌ %s" % e)
-        return 2
-    print("脚本参数绑定：%s" % fg.param_binding_desc())
-    if not args.param_binding:
-        _cfgv = fg.config_param_binding()
-        print("   （来源：%s）" % (f"rpa_config param_binding={_cfgv}" if _cfgv else "内置默认（baked）"))
     print("-" * 64)
 
     few_shot = None if args.no_few_shot else _pick_few_shot(nl)
@@ -1721,8 +1714,7 @@ def main():
             return 2
         spec, log, used, ok = verify_loop(nl, index, client, spec, out,
                                           args.robot_name, rounds=args.verify_rounds,
-                                          strategy=args.strategy,
-                                          param_binding=args.param_binding)
+                                          strategy=args.strategy)
         save_spec(spec, out)
         print("-" * 64)
         if ok:
@@ -1758,7 +1750,7 @@ def main():
         print("\n" + "-" * 64)
         print("落库 + 本地真跑（ai_flow.py）")
         print("-" * 64)
-        ok, log = _run_ai_flow(out, args.robot_name, param_binding=args.param_binding)
+        ok, log = _run_ai_flow(out, args.robot_name)
         print(log.strip().splitlines()[-1] if log.strip() else "")
         if not ok:
             print("⚠️ 真跑没过（规格本身已通过 lint，问题多在：参数语义 / 路径存在性 / 机器人 / 元素）")

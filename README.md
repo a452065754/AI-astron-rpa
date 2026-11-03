@@ -136,23 +136,24 @@ python scripts/nl2spec.py "把 F:\in\销售明细.xlsx 按部门拆成多个 xls
 产出 4 个部门文件 × 11 行 = **44 行**（40 数据 + 4 表头），单号与源表逐行一致、无重复；
 业务人员看参数表是中文说明（`src_file 源Excel文件路径` …）。
 
-**一句诚实话（别被上面的漂亮数字盖住）**：脚本节点默认用 `baked` 模式落库——`$p:` 会被
-**烘焙成生成时的默认值**，所以**业务人员在参数面板改路径/列名，脚本这边不生效**（换来的是
-「设计器一定能打开」）。这是我们 2026-10-30 修「设计器请求参数解析失败」时做的保守取舍。
-要让参数真的可改：
+**参数怎么改（2026-11-03 定稿，用户目视确认过）**：打开流程 → 点脚本节点 →**参数表格里直接改值**。
+表格里的中文说明和初始值来自规格的 `scripts.<名>.params`。改完保存再跑，参数真生效
+（实测把 `out_file` 改成别的文件名 → 产出真的落到新文件）。
 
-```bash
-# ① 只这一次：命令行
-python scripts/ai_flow.py --spec flows/gen_按部门拆分Excel.json --param-binding bound
+落库结构必须三层齐备，少一块设计器就报「请求参数解析失败」/ 参数表格「暂无数据」：
 
-# ② 以后都这样：配置一次（不用改代码）
-#    rpa_config.json 加 {"param_binding": "bound"}，或环境变量 RPA_PARAM_BINDING=bound
+```
+c_param（module_id 级参数定义）+ content=<moduleId> 纯字符串 + module_param=<真数组，每项带 varId>
 ```
 
-`bound` 会保留 `rpa:special` 引用 + `need_parse`，引擎侧已实测参数真的生效（改输出目录 → 产出
-落到新目录；改源文件 → 读到新数据）。唯一**没确认**的是设计器前端能不能正常显示这种写法
-（平台是本地 Electron 客户端，无法自动验证，只能目视），记录在 `docs/平台缺陷清单.md` **A17**。
-所以默认保守、开关做到一行配置 —— 你确认设计器没问题，自己切就行。
+这是从用户手工搭的 `导入MES` 流程里逐字段对照出来的标准答案。早期 0.9.x 把它写成
+「content 数组 + module_param JSON 字符串」是错的，那套 `baked`/`bound` 权衡已整套删除。
+老流程用一条命令就地重建（幂等）：
+
+```bash
+python scripts/relink_modules.py --dry-run   # 先看哪些要修
+python scripts/relink_modules.py             # 就地修（content/参数定义/varId 一次补齐）
+```
 
 ### 手工方式
 
