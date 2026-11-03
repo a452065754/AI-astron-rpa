@@ -1,0 +1,93 @@
+{
+  "name": "AI提炼日报要点",
+  "nl_examples": [
+    "用大模型把日报正文提炼成三条要点并存成文件",
+    "读日报正文，让 AI 总结要点",
+    "AI 摘要小流程"
+  ],
+  "keywords": [
+    "AI",
+    "大模型",
+    "摘要",
+    "提炼",
+    "ChatAI"
+  ],
+  "params": [
+    {
+      "name": "src_file",
+      "type": "Str",
+      "default": "${PROJECT_ROOT}/demo/日报正文.txt",
+      "describe": "待提炼的正文文件（utf-8）"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "${PROJECT_ROOT}/demo/_ai_out",
+      "describe": "要点输出目录"
+    },
+    {
+      "name": "out_name",
+      "type": "Str",
+      "default": "日报要点",
+      "describe": "输出文件名（不带后缀）"
+    },
+    {
+      "name": "model",
+      "type": "Str",
+      "default": "custom",
+      "describe": "模型选择：custom = 用 custom_model 指定的模型 id；也可填平台内置值（如 maas/deepseek-v3.2）"
+    },
+    {
+      "name": "custom_model",
+      "type": "Str",
+      "default": "xopqwen36v35b",
+      "describe": "自定义模型 id（须是本平台 ai-service 背后那把 key 有权访问的模型）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "File.file_read",
+      "alias": "读取待提炼正文",
+      "out": {
+        "read_file_content": "body"
+      },
+      "inputs": {
+        "file_path": "$p:src_file",
+        "read_type": "all",
+        "encode_type": "utf-8"
+      }
+    },
+    {
+      "atom": "ChatAI.single_turn_chat",
+      "alias": "单轮问答：提炼三条要点",
+      "out": {
+        "single_chat_res": "points"
+      },
+      "inputs": {
+        "query": [
+          "请把下面这份日报提炼成 3 条要点，每条不超过 30 字，直接输出编号列表，不要额外解释：\n\n",
+          "$body"
+        ],
+        "model": "$p:model",
+        "custom_model": "$p:custom_model"
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "要点写入文件",
+      "out": {},
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "\\",
+          "$p:out_name",
+          ".txt"
+        ],
+        "file_option": "create",
+        "msg": "$points",
+        "write_type": "overwrite",
+        "encode_type": "utf-8"
+      }
+    }
+  ]
+}

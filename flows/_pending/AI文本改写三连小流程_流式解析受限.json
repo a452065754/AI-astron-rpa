@@ -1,0 +1,104 @@
+{
+  "name": "AI文本改写三连",
+  "nl_examples": [
+    "把一个主题让 AI 扩写成段落、再压缩、再扩写，结果存文件",
+    "用 AI 做扩写和缩写对照",
+    "文档智能扩写缩写小流程"
+  ],
+  "keywords": [
+    "AI",
+    "扩写",
+    "缩写",
+    "改写",
+    "DocumentAI"
+  ],
+  "params": [
+    {
+      "name": "theme",
+      "type": "Str",
+      "default": "用 RPA 自动生成并发送库存日报",
+      "describe": "待改写的一句话主题"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "${PROJECT_ROOT}/demo/_ai_out",
+      "describe": "输出目录"
+    },
+    {
+      "name": "out_name",
+      "type": "Str",
+      "default": "改写三连",
+      "describe": "输出文件名（不带后缀）"
+    },
+    {
+      "name": "model",
+      "type": "Str",
+      "default": "xopqwen36v35b",
+      "describe": "模型 id（须是平台 ai-service 背后那把 key 有权访问的模型；DocumentAI 的 model 是普通字符串，没有 custom 选项）"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "DocumentAI.theme_expand",
+      "alias": "主题扩写成段落",
+      "out": {
+        "theme_expand_res": "expanded"
+      },
+      "inputs": {
+        "theme_text": "$p:theme",
+        "model": "$p:model"
+      }
+    },
+    {
+      "atom": "DocumentAI.sentence_reduce",
+      "alias": "段落压缩成一句",
+      "out": {
+        "sentence_reduce_res": "reduced"
+      },
+      "inputs": {
+        "sentence_text": "$expanded",
+        "model": "$p:model"
+      }
+    },
+    {
+      "atom": "DocumentAI.sentence_expand",
+      "alias": "压缩句再扩写",
+      "out": {
+        "sentence_expand_res": "reexpanded"
+      },
+      "inputs": {
+        "paragraph_text": "$reduced",
+        "model": "$p:model"
+      }
+    },
+    {
+      "atom": "File.file_write",
+      "alias": "三段结果写入对照文件",
+      "out": {
+        "write_file_path": "written"
+      },
+      "inputs": {
+        "file_path": [
+          "$p:out_dir",
+          "\\",
+          "$p:out_name",
+          ".txt"
+        ],
+        "file_option": "create",
+        "msg": [
+          "原始主题：",
+          "$p:theme",
+          "\n\n【1. 主题扩写】\n",
+          "$expanded",
+          "\n\n【2. 压缩成一句】\n",
+          "$reduced",
+          "\n\n【3. 压缩句再扩写】\n",
+          "$reexpanded"
+        ],
+        "write_type": "overwrite",
+        "encode_type": "utf-8"
+      }
+    }
+  ]
+}
