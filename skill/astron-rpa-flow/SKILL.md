@@ -54,6 +54,10 @@ python scripts/install.py --key <API_KEY> --host 192.168.76.130:32742 --robot-id
 > **Key 只在用户主动发来时使用，不要编造、不要写进聊天记录之外的地方。**
 > 配置写进 `rpa_config.json`（已在 `.gitignore`，不会入库）。
 
+> ⚠️ **`git pull` 不会同步技能副本。** 技能目录里的是 `skill/astron-rpa-flow/` 的**拷贝**，
+> 仓库更新后必须重跑一次 `python scripts/install.py`，否则 AI 读到的是旧手册
+> （2026-11-03 实际踩到：仓库里已是 282 行，客户端那份还停在 3 天前的 265 行）。
+
 ### 2.1 换设备了怎么办（**用户说「我换设备了」就走这里**）
 
 robotId / elementId 换机器后**全部作废**，但规格、脚本、文档全部可迁移。按顺序：
@@ -73,7 +77,7 @@ python scripts/doctor.py
 mkdir -p "$APPDATA/astron-rpa/astron"
 
 # ④ 盘点平台上有什么（2026-11-03 实测：91 个机器人 / 本项目 76 条已落库；
-#    规格共 89 条，未落库 14 条见 docs/待办清单.md §3.1）
+#    规格共 92 条，未落库 16 条见 docs/待办清单.md §3.1）
 python scripts/publish_flow.py --list
 
 # ⑤ 网页流程还要看桥接

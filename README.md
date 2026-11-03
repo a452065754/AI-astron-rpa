@@ -310,7 +310,7 @@ python scripts/element_pick.py --check <elementId>
 ## 文档
 
 - [**部署使用文档**](docs/部署使用文档.md) —— **换到另一台电脑怎么装、怎么配、怎么跑（先看这篇）**
-- [**技能包与 MCP**](docs/MCP与技能包.md) —— 一句话安装、AI 自动生成流程、8 个 MCP 工具
+- [**技能包与 MCP**](docs/MCP与技能包.md) —— 一句话安装、AI 自动生成流程、10 个 MCP 工具
 - [交接清单](docs/交接清单.md) —— 制品地图、环境信息、已知现象、红线
 - [开发进度](docs/开发进度.md) —— 逐条踩坑记录与验证结论
 - [架构设计](docs/架构设计-RPA引擎.md) —— RPA 引擎结构
@@ -318,11 +318,23 @@ python scripts/element_pick.py --check <elementId>
 
 ## 这个项目是什么
 
-**外挂程序（旁路工具链）**，不是技能包、也不是 MCP：
+**本体是外挂程序（旁路工具链），外面包了两层可选入口：技能包 + MCP。**
 
 - 一套独立 Python 命令行工具，通过 HTTP 接口操作**已有的** Astron RPA 平台，**不改服务端**。
-- 不是 MCP server（未实现该协议）；不是 skill（但可另行封装成 skill 或 MCP 工具）。
+- **技能包**：`skill/astron-rpa-flow/` 是给 AI 加载的操作手册，拷进 `~/.workbuddy/skills/` 即生效。
+- **MCP**：`mcp/server.py` 零依赖实现 JSON-RPC 2.0 over stdio，暴露 10 个工具。
 - 必须与 Astron RPA 设计器装在同一台 Windows 机器上（写流程要登录态、真跑要本地执行引擎）。
+
+### 装到新电脑（三步）
+
+```bash
+git clone https://github.com/a452065754/AI-astron-rpa.git && cd AI-astron-rpa
+python scripts/install.py          # 依赖 + 配置 + 技能包 + MCP 登记 + 自检
+python scripts/install.py --key <平台生成的Key> --host <网关:端口>   # 拿到 Key 后补一次
+```
+
+前提：Python 3.10+、设计器已装并**登录过一次**。完整步骤（含换机要额外补的两个不入库文件）见
+[部署使用文档 §2](docs/部署使用文档.md)。
 
 详见 [部署使用文档 §0](docs/部署使用文档.md)。
 
