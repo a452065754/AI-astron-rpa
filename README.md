@@ -13,7 +13,7 @@
 
 | 指标 | 值 |
 | --- | --- |
-| 流程规格 | **89 条**（`flows/*.json`）＝ **能力验证集**（非业务交付物，见上）；已落库 **75 条**，未落库 **14 条**（9 条需元素/真实窗口 + 5 条 `gen_*`/`n2s_*` 验证样本，见 `docs/待办清单.md` §3.1）。⚠️ **72/89 条默认参数写死本机绝对路径**，换机器要改（§待办 P0#6） |
+| 流程规格 | **89 条**（`flows/*.json`）＝ **能力验证集**（非业务交付物，见上）；已落库 **75 条**，未落库 **14 条**（9 条需元素/真实窗口 + 5 条 `gen_*`/`n2s_*` 验证样本，见 `docs/待办清单.md` §3.1）。✅ **默认参数已去机器化**：路径写 `${PROJECT_ROOT}/demo/...`，发布时自动换成本机仓库根，clone 到任何目录都成立 |
 | 原子覆盖率 | **271 / 346 = 78.3%**（已剔除 11 个作废 key）；**26 个域满覆盖** |
 | 已全覆盖的域 | **26 个**：Excel 35/35 · BrowserElement 22/22 · BrowserSoftware 20/20 · Docx 19/19 · Code 18/18 · ListProcess 15/15 · File 13/13 · Network 12/12 · StringProcess 10/10 · Folder 9/9 · PDF 8/8 · Gui 8/8 · DictProcess 6/6 · Encrypt 6/6 · TimeProcess 6/6 · MathProcess 5/5 · CV 5/5 · Window 4/4 · WinEle 6/6 · **Dialog 6/6** · DataConvertProcess 3/3 · DataProcess 1/1 · Report 1/1 · Script 3/3 · Software 3/3 |
 | 机器自检 | **89/89 lint 通过**（0 错 2 警）· 历史 84 条均本地真跑 `SUCCESS` 并核对副作用 |
@@ -50,7 +50,7 @@
 ```bash
 git clone https://github.com/a452065754/AI-astron-rpa.git
 cd AI-astron-rpa
-python scripts/install.py                        # 装依赖 + 技能包 + MCP + 自检
+python scripts/install.py                        # 装依赖 + 技能包 + MCP + demo 目录 + 自检
 python scripts/install.py --key <API_KEY> --host <host:port>   # 拿到 Key 后补配置
 python scripts/doctor.py                         # 确认「AI 侧接线」两项也绿
 ```
@@ -230,9 +230,10 @@ python scripts/element_pick.py --check <elementId>
 ```
 星辰开源/
 ├── scripts/
-│   ├── install.py            # 一键安装（依赖 / 配置 / 技能包 / MCP / 自检）
+│   ├── install.py            # 一键安装（依赖 / 配置 / 技能包 / MCP / demo 目录 / 自检）
 │   ├── doctor.py             # 这台机器能不能跑（含技能包 / MCP 接线两项）
 │   ├── release_check.py      # 这个仓库能不能发（未推送 / 未提交 / 门禁 / 样例带 Key）
+│   ├── port_paths.py         # 流程默认路径去机器化（改 ${PROJECT_ROOT}，幂等，可 --check）
 │   ├── atom_catalog.py       # 原子目录（357 个，按域分组，带必填参数与枚举）
 │   ├── spec_lint.py          # 规格校验（报错带「第几个节点 + 怎么改」）
 │   ├── coverage_report.py    # 原子覆盖报告（357 个原子用了多少、还差哪些）

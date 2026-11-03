@@ -136,13 +136,16 @@ CodeBuddy CLI 是 `~/.workbuddy-ai/mcp.json`；合并写入，不覆盖其他服
 {
   "mcpServers": {
     "astron-rpa": {
-      "command": "C:\\Python314\\python.exe",
-      "args": ["F:\\AI-Workbench\\10-Projects\\星辰开源\\mcp\\server.py"],
-      "env": { "RPA_PYTHON": "C:\\Python314\\python.exe" }
+      "command": "<本机 Python 绝对路径>",
+      "args": ["<仓库绝对路径>/mcp/server.py"],
+      "env": { "RPA_PYTHON": "<本机 Python 绝对路径>" }
     }
   }
 }
 ```
+
+> 上面这两个路径由 `install.py` 按本机实际情况写入，不用手抄 —— 手抄最容易把
+> 别人的机器路径抄进来。想先看会写什么：`python scripts/install.py --print-mcp-config`。
 
 给别的客户端（如 Claude Desktop 的 `claude_desktop_config.json`）用，直接：
 

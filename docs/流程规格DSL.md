@@ -47,7 +47,7 @@
 ## 2. `params`：流程参数
 
 ```json
-{"name": "in_dir", "type": "Str", "default": "D:\\data\\in", "describe": "输入目录"}
+{"name": "src_file", "type": "Str", "default": "${PROJECT_ROOT}/demo/订单.xlsx", "describe": "源 Excel 路径"}
 ```
 
 | 字段 | 说明 |
@@ -58,6 +58,40 @@
 | `describe` | 中文说明，会显示在设计器参数面板 |
 
 > **绝对禁止**：`"default": ""`。设计器打开会判"参数缺失"，点运行报 `[WinError 3] ...: ''`。
+
+### 2.1 路径默认值一律写 `${PROJECT_ROOT}`（2026-11-03 起）
+
+**规则**：`default` 里凡是仓库内的路径，必须写成
+`${PROJECT_ROOT}/demo/xxx`，**不许写盘符**（`F:\...`、`D:\...`）。
+
+**为什么不能改成相对路径**（这是最容易走错的一步）：
+
+| 直觉方案 | 实际结果 |
+| --- | --- |
+| 写 `demo/订单.xlsx`，指望引擎按 cwd 解析 | ❌ 引擎执行前会 `os.chdir(project_dir)`（`astronverse/executor/debug/bdb.py::cmd_start`），`project_dir` 是 `%APPDATA%\astron\<project_id>` —— **编译缓存目录**（`Config.gen_core_path`）。相对路径会解析到缓存里，必然找不到文件 |
+
+所以默认值只能是绝对路径；为了不让它绑死某一台机器，就**在源头写占位符**：
+
+```
+规格文件里：  ${PROJECT_ROOT}/demo/订单.xlsx        ← 仓库可迁移
+     ↓  flow_generator.load_spec()（发布时）
+落到平台：    F:\AI-Workbench\10-Projects\星辰开源\demo\订单.xlsx   ← 引擎要的绝对路径
+```
+
+换台机器 clone 到 `E:\work\AI-astron-rpa`，发布出来的就是
+`E:\work\AI-astron-rpa\demo\订单.xlsx`，**不需要改任何流程文件**。
+
+**边界（很重要）**：
+
+- 只在 `params[].default` 和 `scripts.<名>.params[].default` 上做替换。
+  **`nodes[].inputs` 里不许用** —— 那里 `$` 开头表示「引用上游变量名」，
+  `${PROJECT_ROOT}` 会被当成变量名 `{PROJECT_ROOT}` 去找。
+- **系统目录豁免**：`C:\Windows\System32\mstsc.exe` 这类任何机器都同一位置，不拦。
+- **仓库外固定位置**（`D:\ERP导出`、共享盘）：共享盘写 UNC（`\\nas\share\x.xlsx`）
+  直接放行；确实要用本机盘符的，在规格顶层加 `"allow_abs_path": true`，
+  并在评审单里写清为什么。
+- 校验：`spec_lint` 规则 1.8（**err**）；历史规格迁移：`python scripts/port_paths.py --write`；
+  回归门禁：`logs/qa/v14_port_paths.py`（15 条断言，含「换仓库根路径跟着变」）。
 
 ---
 
@@ -336,7 +370,7 @@ python scripts/ai_flow.py --spec flows/<名>.json --robot-name <机器人名>
 {
   "name": "Excel按列拆表小流程",
   "params": [
-    {"name": "src_file", "type": "Str", "default": "D:\\demo\\订单.xlsx", "describe": "源表"},
+    {"name": "src_file", "type": "Str", "default": "${PROJECT_ROOT}/demo/订单.xlsx", "describe": "源表"},
     {"name": "split_column", "type": "Str", "default": "部门", "describe": "按哪一列拆"}
   ],
   "scripts": {
@@ -346,7 +380,7 @@ python scripts/ai_flow.py --spec flows/<名>.json --robot-name <机器人名>
       "maintain_hint": "改拆哪一列 → 改参数 split_column；改输出目录 → 改参数 out_dir；改逻辑需找开发改 Python",
       "atom_suggestion": "Excel 按列唯一值拆分成多表",
       "params": [
-        {"name": "src_file", "describe": "源Excel文件路径", "default": "D:////demo////订单.xlsx"},
+        {"name": "src_file", "describe": "源Excel文件路径", "default": "${PROJECT_ROOT}/demo/订单.xlsx"},
         {"name": "split_column", "describe": "按哪一列拆（写列名）", "default": "部门"}
       ],
       "code": "def main(args):\n    import os\n    import openpyxl\n    src = (args.get(\"src_file\") or \"\").strip()\n    ...\n    return {\"ok\": True, \"processed\": n, \"skipped\": 0, \"outputs\": names[:5]}\n"

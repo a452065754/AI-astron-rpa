@@ -148,6 +148,17 @@ IE 系 36 个整块缺失（`astronverse.iebrowser` 没装）、`DataTable.sort_
 
 引用规则：`$p:参数名` = 流程参数、`$变量名` = 上游节点产出、`$json:[...]` = 复杂参数（可内含 `$var:`/`$p:`）。
 
+**路径默认值必须写 `${PROJECT_ROOT}`**（2026-11-03 起，`spec_lint` 规则 1.8 会拦）：
+
+```json
+{"name": "src_file", "type": "Str", "default": "${PROJECT_ROOT}/demo/订单.xlsx", "describe": "源表"}
+```
+
+发布时 `load_spec()` 把它换成本机仓库根，所以 clone 到任何目录都成立。
+**不要**改成相对路径（`demo/订单.xlsx`）—— 引擎执行前会 `os.chdir(%APPDATA%\astron\<project_id>)`
+这个编译缓存目录，相对路径必然找不到文件。仓库外固定位置写 UNC，或在规格顶层加
+`"allow_abs_path": true`。
+
 #### 网页流程：元素不用人点，你自己去拾（**别让用户手动点**）
 
 用户问「拾取元素这个要我来做吗」时，答案是**不用**。`scripts/element_pick.py` 会打开浏览器、
