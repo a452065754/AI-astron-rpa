@@ -1061,7 +1061,7 @@ def main():
             return 2
 
     # ---------- 2. 真实 schema + 元素库 ----------
-    print("[2/6] 加载原子字典与元素库（.130 实时）...")
+    print(f"[2/6] 加载原子字典与元素库（{'离线缓存' if args.offline else '服务端实时'}）...")
     atom_dict = fg.load_atom_dict(offline=args.offline)
 
     # 规格声明了 element_requirements 就先补齐元素（缺什么拾什么，幂等）。

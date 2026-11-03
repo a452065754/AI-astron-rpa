@@ -1,6 +1,8 @@
 # ============ 本地配置（含 API Key / 服务器密码，绝不入库）============
 rpa_config.json
 rpa_config.local.json
+# 换服/换机时的配置备份（同样含明文凭据，2026-11-03 切正式服时新增）
+rpa_config.json.bak-*
 *.secret.json
 docs/_local_secrets.md
 docs/backup/*.sql

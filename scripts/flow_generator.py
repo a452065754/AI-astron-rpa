@@ -1951,7 +1951,7 @@ def main():
             ap.error(f"未知模板 {purpose}，可选：{list(TEMPLATES)}")
         tpl = TEMPLATES[purpose]
 
-    print(f"[1/4] 加载原子字典（{'离线缓存' if args.offline else '.130 实时'}）...")
+    print(f"[1/4] 加载原子字典（{'离线缓存' if args.offline else '服务端实时'}）...")
     atom_dict = load_atom_dict(offline=args.offline)
     print(f"      原子总数：{len(atom_dict)}")
 
