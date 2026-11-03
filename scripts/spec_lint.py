@@ -331,6 +331,77 @@ def _lint_scripts(spec, scripts, err, warn):
                              "否则 args.get() 拿到的是 %s，.strip()/.lower() 会 AttributeError"
                              % (vv, to, vn, to))
 
+        # ---------- 规则 1.6：sheet 名不许写死（**warn**） ----------
+        #
+        # AI 生成规格时**看不到源文件里 sheet 叫什么**，写 "Sheet1" / "Sheet" 十有八九猜错，
+        # 表现是第一次真跑就 `RuntimeError: 工作表 'Sheet1' 不存在，可用工作表: ['明细']`
+        # （2026-11-03 实测踩到）。正确做法是默认留空 ""（脚本按「第一张表」处理）。
+        # 只报 warn 不报 err：确实有流程就是固定要读某张表，写死也合理。
+        for it in payload:
+            if not isinstance(it, dict):
+                continue
+            vn = str(it.get("varName") or "")
+            if "sheet" not in vn.lower():
+                continue
+            vv = it.get("varValue")
+            src = "module_param"
+            if isinstance(vv, str) and vv.startswith("$p:"):
+                # 常见写法：module_param 引用流程参数，真实默认值在 spec["params"] 里
+                pname = vv[3:]
+                hit = [p for p in (spec.get("params") or [])
+                       if isinstance(p, dict) and p.get("name") == pname]
+                if not hit:
+                    continue
+                vv = hit[0].get("default")
+                src = "流程参数 %s 的 default" % pname
+            elif not isinstance(vv, str):
+                continue
+            if vv is None:
+                continue
+            s = str(vv).strip()
+            if s == "" or s.isdigit():
+                continue                      # 空 = 第一张表；数字 = 索引，都安全
+            warn("%s：%s 的默认值写死了具体 sheet 名 %r（来自 %s）" % (where, vn, vv, src),
+                 '建议默认留空 ""（= 第一张表），让业务人员按需填真名；'
+                 "写死具体名时源文件一换就跑不起来（实测：写 Sheet1、源表叫「明细」→ 直接报错）")
+
+        # ---------- 规则 1.7：被脚本引用的 `$p:x` 默认值必须是**字符串**（**err**） ----------
+        #
+        # 脚本契约是「args 里全是字符串」。而流程参数常被声明成 `type=Bool, default=false`
+        # （给原子用是对的），一旦脚本 `module_param` 里写 `"$p:overwrite"`，烘焙时就会把
+        # 布尔落进 `{"type":"other","value":false}` → 引擎按表达式求值 → `NameError: name
+        # 'false' is not defined`（2026-11-03 实测踩到，`_bake_refs` 拿的是流程参数的默认值）。
+        #
+        # 修法两条路：① 把流程参数的 default 改成字符串 `"false"`（推荐，脚本参数本就该是字符串）；
+        # ② 在 `scripts.<名>.params` 里单独声明同名参数（脚本侧默认值优先，生成器已按此实现）。
+        for it in payload:
+            if not isinstance(it, dict):
+                continue
+            vv = it.get("varValue")
+            if not (isinstance(vv, str) and vv.startswith("$p:")):
+                continue
+            pname = vv[3:]
+            # 脚本侧单独声明了同名参数 → 生成器优先用它的默认值（脚本契约），不算问题
+            _sn = (content[len(fg.SCRIPT_REF_PREFIX):].strip()
+                   if isinstance(content, str) and content.startswith(fg.SCRIPT_REF_PREFIX) else "")
+            _sps = {d.get("name"): d for d in
+                    (((spec.get("scripts") or {}).get(_sn) or {}).get("params") or [])
+                    if isinstance(d, dict)}
+            if pname in _sps and _sps[pname].get("default") is not None:
+                continue
+            hit = [p for p in (spec.get("params") or [])
+                   if isinstance(p, dict) and p.get("name") == pname]
+            if not hit:
+                continue
+            dv = hit[0].get("default")
+            if dv is None or isinstance(dv, str):
+                continue
+            err("%s：%s 引用的流程参数 %s 默认值是 %s（不是字符串）"
+                % (where, it.get("varName"), pname, json.dumps(dv, ensure_ascii=False)),
+                '脚本的 args 约定全是字符串 —— 把流程参数 %s 的 default 改成字符串 "%s"，'
+                '或在 scripts.<名>.params 里单独声明它（脚本侧默认值优先）'
+                % (pname, str(dv).lower() if isinstance(dv, bool) else dv))
+
         # ---------- 规则 7：out.program_script（对所有 Script.module 生效） ----------
         if "program_script" not in (node.get("out") or {}):
             warn("%s：out 里没有 program_script" % where,

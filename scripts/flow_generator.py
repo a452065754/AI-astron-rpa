@@ -942,6 +942,17 @@ def build_process_content(template, atom_dict, elements=None, robot_id=DEFAULT_R
     """
     param_names = {p.get("name") for p in (template.get("params") or []) if p.get("name")}
     param_defaults = {p.get("name"): p.get("default") for p in (template.get("params") or []) if p.get("name")}
+    # 脚本参数的默认值**优先于**流程参数的默认值（2026-11-03 踩到）：
+    # 同一个参数可能在流程级声明成 `type=Bool, default=false`（给原子用没问题），
+    # 但脚本侧契约是「args 里全是字符串」，`scripts.<名>.params` 里写的是 `"false"`。
+    # `$p:overwrite` 烘焙时若取流程参数的 `false`，落库就成了 JSON 布尔 → 引擎求值会
+    # `NameError: name 'false' is not defined`。所以脚本声明的默认值优先。
+    for _sname, _item in (template.get("scripts") or {}).items():
+        if not isinstance(_item, dict):
+            continue
+        for _d in (_item.get("params") or []):
+            if isinstance(_d, dict) and _d.get("name") and _d.get("default") is not None:
+                param_defaults[_d["name"]] = _d["default"]
     module_param_ids = module_param_ids or {}
     var_names = {}          # schema 输出 key 的变量名 → 用于 $ 解析（这里用变量名本身）
     var_defined = set()     # 所有已定义的变量名

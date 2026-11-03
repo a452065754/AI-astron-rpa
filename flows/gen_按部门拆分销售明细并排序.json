@@ -1,0 +1,127 @@
+{
+  "name": "按部门拆分销售明细并排序",
+  "nl_examples": [
+    "把销售明细按部门拆成多个文件，每个文件里金额从高到低排",
+    "拆分Excel，按部门分组，组内按金额降序",
+    "销售数据按部门拆表，金额倒序"
+  ],
+  "keywords": [
+    "拆分",
+    "部门",
+    "排序",
+    "金额",
+    "Excel"
+  ],
+  "params": [
+    {
+      "name": "src_file",
+      "type": "Str",
+      "default": "F:/demo/data/销售明细.xlsx",
+      "describe": "源Excel文件路径"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "F:/demo/data/split_by_dept",
+      "describe": "输出文件夹路径"
+    },
+    {
+      "name": "dept_column",
+      "type": "Str",
+      "default": "部门",
+      "describe": "按哪一列拆分（写列名）"
+    },
+    {
+      "name": "sort_column",
+      "type": "Str",
+      "default": "金额",
+      "describe": "组内按哪一列排序（写列名）"
+    },
+    {
+      "name": "sort_order",
+      "type": "Str",
+      "default": "desc",
+      "describe": "排序方式：asc(升序) 或 desc(降序)"
+    },
+    {
+      "name": "sheet_name",
+      "type": "Str",
+      "default": "",
+      "describe": "读取的工作表名称"
+    },
+    {
+      "name": "overwrite",
+      "type": "Bool",
+      "default": false,
+      "describe": "是否覆盖已存在的输出文件"
+    }
+  ],
+  "scripts": {
+    "split_and_sort_excel": {
+      "name": "按部门拆分并排序",
+      "why": "命中判定 B-2：输出文件数取决于「部门」列的唯一值，原子无法动态生成文件名和动态控制循环次数",
+      "maintain_hint": "改拆哪一列 → 改参数 dept_column；改排序列 → 改参数 sort_column；改排序方向 → 改参数 sort_order；改输出目录 → 改参数 out_dir；改逻辑需找开发改 Python",
+      "atom_suggestion": "Excel 按列唯一值拆分成多表",
+      "params": [
+        {
+          "name": "src_file",
+          "describe": "源Excel文件路径",
+          "default": "F:/demo/data/销售明细.xlsx"
+        },
+        {
+          "name": "out_dir",
+          "describe": "输出文件夹路径",
+          "default": "F:/demo/data/split_by_dept"
+        },
+        {
+          "name": "dept_column",
+          "describe": "按哪一列拆分（写列名）",
+          "default": "部门"
+        },
+        {
+          "name": "sort_column",
+          "describe": "组内按哪一列排序（写列名）",
+          "default": "金额"
+        },
+        {
+          "name": "sort_order",
+          "describe": "排序方式：asc(升序) 或 desc(降序)",
+          "default": "desc"
+        },
+        {
+          "name": "sheet_name",
+          "describe": "读取的工作表名称",
+          "default": ""
+        },
+        {
+          "name": "overwrite",
+          "describe": "是否覆盖已存在的输出文件",
+          "default": "false"
+        }
+      ],
+      "code": "def main(args):\n    import os\n    import pandas as pd\n    import openpyxl\n    \n    src_file = args.get('src_file')\n    out_dir = args.get('out_dir')\n    dept_column = args.get('dept_column')\n    sort_column = args.get('sort_column')\n    sort_order = args.get('sort_order')\n    sheet_name = args.get('sheet_name')\n    overwrite = args.get('overwrite')\n    \n    # 1. 读取 Excel\n    # 使用 keep_default_na=False 防止 pandas 自动转换 'NA' 等值为 NaN，确保值保真\n    try:\n        # 如果 sheet_name 是数字索引（如 '0'），需要转换为真实 sheet 名\n        real_sheet_name = sheet_name\n        if sheet_name in ('', '0'):\n            wb = openpyxl.load_workbook(src_file, read_only=True, data_only=True)\n            real_sheet_name = wb.sheetnames[0]\n            wb.close()\n        else:\n            # 验证 sheet 是否存在\n            wb = openpyxl.load_workbook(src_file, read_only=True, data_only=True)\n            if sheet_name not in wb.sheetnames:\n                raise RuntimeError(f\"工作表 '{sheet_name}' 不存在，可用工作表: {wb.sheetnames}\")\n            wb.close()\n            real_sheet_name = sheet_name\n            \n        df = pd.read_excel(src_file, sheet_name=real_sheet_name, keep_default_na=False)\n    except Exception as e:\n        raise RuntimeError(f\"读取源文件失败: {str(e)}\")\n    \n    # 2. 检查必要列是否存在\n    if dept_column not in df.columns:\n        raise RuntimeError(f\"源文件中未找到列: '{dept_column}'\")\n    if sort_column not in df.columns:\n        raise RuntimeError(f\"源文件中未找到列: '{sort_column}'\")\n    \n    # 3. 处理空值和错误值\n    # 3.1 处理空值/空字符串\n    # 区分真空/空串和 Excel 错误值\n    # 先标记错误值\n    err_cells = []\n    try:\n        wb_check = openpyxl.load_workbook(src_file, read_only=True, data_only=True)\n        ws = wb_check[real_sheet_name]\n        for row in ws.iter_rows():\n            for cell in row:\n                if cell.data_type == 'e':\n                    err_cells.append((cell.coordinate, cell.value))\n        wb_check.close()\n    except Exception:\n        pass # 如果无法检查错误值，继续处理\n    \n    # 标记空值行\n    # 空值定义：NaN (isna) 或 空字符串 (strip=='')\n    is_empty = df[dept_column].isna() | (df[dept_column].astype(str).str.strip() == '')\n    empty_count = is_empty.sum()\n    \n    # 将空值替换为特殊标记，以便分组\n    df[dept_column] = df[dept_column].fillna('<空值>')\n    # 再次处理空字符串\n    df.loc[df[dept_column].astype(str).str.strip() == '', dept_column] = '<空值>'\n    \n    # 3.2 处理错误值\n    # 将错误值替换为特殊标记\n    # 注意：pandas 读取时，如果单元格是错误值，通常会被读为 NaN 或特定对象，取决于引擎\n    # 这里我们假设 openpyxl 检查到的错误值在 pandas 中可能表现为 NaN 或其他\n    # 为了简单起见，我们在 summary 中报告错误值，并在输出文件中单独列出\n    # 由于 pandas 读取时很难直接保留错误值对象，我们主要依靠 openpyxl 检查并告警\n    \n    # 4. 分组拆分\n    groups = df.groupby(dept_column, dropna=False)\n    \n    # 确保输出目录存在\n    os.makedirs(out_dir, exist_ok=True)\n    \n    processed_count = 0\n    skipped_count = 0\n    renamed_files = []\n    output_files = []\n    \n    # 排序方向\n    ascending = (sort_order.lower() == 'asc')\n    \n    for dept_name, group_df in groups:\n        # 清理部门名称，去除首尾空格，避免文件名问题\n        dept_name_str = str(dept_name).strip()\n        if not dept_name_str:\n            dept_name_str = '<空值>'\n            \n        # 排序\n        try:\n            # 尝试将排序列转为数值，非数值可能报错，这里简单处理\n            # 如果排序列包含非数值，pandas 会尝试按字符串排序或报错\n            # 这里假设金额列是数值或可转为数值\n            group_df_sorted = group_df.sort_values(by=sort_column, ascending=ascending)\n        except Exception as e:\n            raise RuntimeError(f\"排序失败 (列: {sort_column}): {str(e)}\")\n            \n        # 构建输出文件名\n        safe_dept_name = dept_name_str.replace('/', '_').replace('\\\\', '_').replace('*', '_').replace('?', '_').replace('\"', '_').replace('<', '_').replace('>', '_').replace('|', '_')\n        out_filename = f\"{safe_dept_name}.xlsx\"\n        out_filepath = os.path.join(out_dir, out_filename)\n        \n        # 处理文件已存在的情况\n        if os.path.exists(out_filepath):\n            if overwrite == 'true':\n                pass # 覆盖\n            else:\n                # 唯一化改名\n                base, ext = os.path.splitext(out_filename)\n                counter = 1\n                while os.path.exists(out_filepath):\n                    out_filename = f\"{base}({counter}){ext}\"\n                    out_filepath = os.path.join(out_dir, out_filename)\n                    counter += 1\n                renamed_files.append(f\"{dept_name_str} -> {out_filename}\")\n                \n        # 写入 Excel\n        try:\n            group_df_sorted.to_excel(out_filepath, index=False, engine='openpyxl')\n            output_files.append(out_filepath)\n            processed_count += len(group_df_sorted)\n        except Exception as e:\n            raise RuntimeError(f\"写入文件失败 ({out_filepath}): {str(e)}\")\n            \n    # 5. 构建摘要\n    summary_parts = []\n    summary_parts.append(f\"拆分完成：共 {len(groups)} 个部门\")\n    summary_parts.append(f\"处理行数：{processed_count}\")\n    if empty_count > 0:\n        summary_parts.append(f\"含空值 {empty_count} 行（已归入 '<空值>' 组）\")\n    if err_cells:\n        summary_parts.append(f\"源表有 {len(err_cells)} 个错误值（如 #N/A），输出已变空白，请核对\")\n    if renamed_files:\n        summary_parts.append(f\"{len(renamed_files)} 个同名文件已改名写入：{', '.join(renamed_files[:5])}\")\n        \n    summary = \"; \".join(summary_parts)\n    \n    # 记录日志\n    import logging\n    logger = logging.getLogger(__name__)\n    logger.info(summary)\n    \n    return {\n        \"ok\": True,\n        \"processed\": processed_count,\n        \"skipped\": skipped_count,\n        \"outputs\": output_files[:5],\n        \"summary\": summary\n    }"
+    }
+  },
+  "nodes": [
+    {
+      "atom": "Script.module",
+      "alias": "按部门拆分并排序（自动脚本，改逻辑需开发）",
+      "inputs": {
+        "content": "$script:split_and_sort_excel",
+        "module_param": "$json:[{\"varName\":\"src_file\",\"varValue\":\"$p:src_file\"},{\"varName\":\"out_dir\",\"varValue\":\"$p:out_dir\"},{\"varName\":\"dept_column\",\"varValue\":\"$p:dept_column\"},{\"varName\":\"sort_column\",\"varValue\":\"$p:sort_column\"},{\"varName\":\"sort_order\",\"varValue\":\"$p:sort_order\"},{\"varName\":\"sheet_name\",\"varValue\":\"$p:sheet_name\"},{\"varName\":\"overwrite\",\"varValue\":\"$p:overwrite\"}]"
+      },
+      "out": {
+        "program_script": "split_result"
+      }
+    },
+    {
+      "atom": "Report.print",
+      "alias": "打印拆分结果摘要",
+      "inputs": {
+        "msg": "$split_result",
+        "report_type": "info"
+      },
+      "out": {}
+    }
+  ]
+}

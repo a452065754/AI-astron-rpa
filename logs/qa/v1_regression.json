@@ -302,6 +302,21 @@
   ]
  },
  {
+  "file": "gen_按部门拆分销售明细并排序.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [
+   [
+    1,
+    "按部门拆分并排序（自动脚本，改逻辑需开发）",
+    "$script:（新内嵌脚本）"
+   ]
+  ],
+  "scripts_field": [
+   "split_and_sort_excel"
+  ]
+ },
+ {
   "file": "n2s_word2pdf.json",
   "errors": [],
   "warnings": [],
