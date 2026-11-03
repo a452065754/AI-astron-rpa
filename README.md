@@ -52,7 +52,13 @@ git clone https://github.com/a452065754/AI-astron-rpa.git
 cd AI-astron-rpa
 python scripts/install.py                        # 装依赖 + 技能包 + MCP + 自检
 python scripts/install.py --key <API_KEY> --host <host:port>   # 拿到 Key 后补配置
+python scripts/doctor.py                         # 确认「AI 侧接线」两项也绿
 ```
+
+> `install.py` 会按客户端自动选落点：WorkBuddy 桌面客户端 = `~/.workbuddy/skills/` +
+> `~/.workbuddy/mcp.json`，CodeBuddy CLI = `~/.workbuddy-ai/` 那一套。**装错目录 = 装完不生效**
+> （技能不触发、MCP 工具看不到），`doctor.py` 最后两项就是查这个的。
+> 想确认整个仓库能不能交给别人用：`python scripts/release_check.py`。
 
 装完就能直接说人话了：
 
@@ -225,6 +231,8 @@ python scripts/element_pick.py --check <elementId>
 星辰开源/
 ├── scripts/
 │   ├── install.py            # 一键安装（依赖 / 配置 / 技能包 / MCP / 自检）
+│   ├── doctor.py             # 这台机器能不能跑（含技能包 / MCP 接线两项）
+│   ├── release_check.py      # 这个仓库能不能发（未推送 / 未提交 / 门禁 / 样例带 Key）
 │   ├── atom_catalog.py       # 原子目录（357 个，按域分组，带必填参数与枚举）
 │   ├── spec_lint.py          # 规格校验（报错带「第几个节点 + 怎么改」）
 │   ├── coverage_report.py    # 原子覆盖报告（357 个原子用了多少、还差哪些）
