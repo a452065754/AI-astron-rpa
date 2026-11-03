@@ -72,7 +72,8 @@ python scripts/doctor.py
 # ③ 换机必做（坑 118，不做 DataTable 全系原子必崩）
 mkdir -p "$APPDATA/astron-rpa/astron"
 
-# ④ 盘点平台上有什么（看清哪些是本项目的 51 条）
+# ④ 盘点平台上有什么（2026-11-03 实测：91 个机器人 / 本项目 76 条已落库；
+#    规格共 89 条，未落库 14 条见 docs/待办清单.md §3.1）
 python scripts/publish_flow.py --list
 
 # ⑤ 网页流程还要看桥接

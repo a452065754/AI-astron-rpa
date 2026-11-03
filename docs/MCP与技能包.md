@@ -72,16 +72,28 @@ python scripts/install.py --key xxxx --host 192.168.76.130:32742 --robot-id <rob
 
 ## 2. 技能包
 
-### 装在哪
+### 装在哪（2026-11-03 修正）
+
+**不同客户端读不同目录，装错 = 装完不生效**：
+
+| 客户端 | 技能目录 | MCP 配置 |
+| --- | --- | --- |
+| WorkBuddy 桌面客户端 | `~/.workbuddy/skills/` | `~/.workbuddy/mcp.json` |
+| CodeBuddy CLI | `~/.workbuddy-ai/skills/` | `~/.workbuddy-ai/mcp.json` |
 
 ```
-~/.workbuddy-ai/skills/astron-rpa-flow/
+~/.workbuddy/skills/astron-rpa-flow/
 ├── SKILL.md            # 技能本体（AI 读这个）
 └── PROJECT_ROOT.txt    # 仓库绝对路径（AI 靠它定位项目）
 ```
 
-`install.py` 自动复制。也可以手动拷：`cp -r skill/astron-rpa-flow ~/.workbuddy-ai/skills/`，
-但记得自己写 `PROJECT_ROOT.txt`。
+`install.py` 会自动探测：**父目录存在就写**，两套都在就两套都写（幂等）；也可用
+`--skill-dir` / `--mcp-file` 指定。手动拷的话：`cp -r skill/astron-rpa-flow ~/.workbuddy/skills/`，
+但记得自己写 `PROJECT_ROOT.txt`（内容是仓库绝对路径）。
+
+> 装完用 `python scripts/doctor.py` 验：最后两项「技能包」「MCP 登记」会检查
+> 装没装、`PROJECT_ROOT.txt` 指向的仓库里还有没有 `scripts/ai_flow.py`、`mcp.json` 里
+> `astron-rpa` 条目的 `server.py` 路径是否真实存在。
 
 ### 什么时候会被触发
 
@@ -117,7 +129,8 @@ python mcp/server.py     # stdio，每行一条 JSON-RPC 消息
 
 ### 客户端配置
 
-`install.py` 会自动写进 `~/.workbuddy-ai/mcp.json`（合并，不覆盖其他服务）：
+`install.py` 会自动写进客户端读的那份 `mcp.json`（WorkBuddy 桌面端是 `~/.workbuddy/mcp.json`，
+CodeBuddy CLI 是 `~/.workbuddy-ai/mcp.json`；合并写入，不覆盖其他服务）：
 
 ```json
 {
@@ -215,8 +228,8 @@ python scripts/ai_flow.py --spec flows/新流程.json
 
 | 现象 | 原因 | 处理 |
 | --- | --- | --- |
-| AI 不加载技能 | 没装 / 没刷新 | 看 `~/.workbuddy-ai/skills/astron-rpa-flow/SKILL.md` 在不在；重启客户端 |
-| MCP 客户端里看不到 `astron-rpa` | 配置没生效 / 需重启 | 检查 `mcp.json`；重启客户端；确认 `command` 的 Python 存在 |
+| AI 不加载技能 | 没装 / **装错目录** / 没刷新 | `python scripts/doctor.py` 看「技能包」那项；客户端目录是 `~/.workbuddy/skills/` 不是 `~/.workbuddy-ai/`；装对了还要重启客户端 |
+| MCP 客户端里看不到 `astron-rpa` | 配置没生效 / 写错文件 / 需重启 / 未点信任 | `doctor.py` 看「MCP 登记」；确认写的是 `~/.workbuddy/mcp.json`；重启后到「连接器」里点一次**信任** |
 | MCP 工具调用报 `requests` 缺失 | 启动用的 Python 没装依赖 | 改 `command` 或设 `RPA_PYTHON` 指向装好依赖的解释器 |
 | MCP 客户端解析失败 | stdout 被日志污染 | 本项目日志只写 stderr；若二次开发，务必遵守 |
 | `rpa_setup` 后自检仍 ❌ | 设计器没装/没登录 | 见 [部署使用文档 §6](部署使用文档.md) |
