@@ -1,0 +1,100 @@
+{
+  "name": "发送带附件日报邮件",
+  "nl_examples": [
+    "把销售明细当附件，配日报正文发到 ops@local.test",
+    "每天把报表邮件发出去",
+    "读取日报模板，作为正文发送带附件的邮件"
+  ],
+  "keywords": [
+    "邮件",
+    "发信",
+    "附件",
+    "日报",
+    "SMTP"
+  ],
+  "params": [
+    {
+      "name": "smtp_host",
+      "type": "Str",
+      "default": "127.0.0.1",
+      "describe": "SMTP 服务器地址。默认指向本机测试收信器（scripts/local_smtp_sink.py --port 2525）；接真实邮箱时改成 smtp.qq.com / smtp.163.com 等"
+    },
+    {
+      "name": "smtp_port",
+      "type": "Int",
+      "default": 2525,
+      "describe": "SMTP 端口。25/2525 明文，465 走 SSL（对应 use_ssl 关/开）"
+    },
+    {
+      "name": "sender_mail",
+      "type": "Str",
+      "default": "rpa@local.test",
+      "describe": "发件人邮箱"
+    },
+    {
+      "name": "sender_pwd",
+      "type": "Str",
+      "default": "local-test-only",
+      "describe": "发件人密码/授权码。测试收信器不校验；真实邮箱必须换授权码"
+    },
+    {
+      "name": "receiver",
+      "type": "Str",
+      "default": "ops@local.test",
+      "describe": "收件人邮箱，多个用分号隔开"
+    },
+    {
+      "name": "subject",
+      "type": "Str",
+      "default": "MES 库存日报（自动发送）",
+      "describe": "邮件主题"
+    },
+    {
+      "name": "body_file",
+      "type": "Str",
+      "default": "${PROJECT_ROOT}/demo/日报正文.txt",
+      "describe": "邮件正文模板文件（utf-8 纯文本）"
+    },
+    {
+      "name": "attachment",
+      "type": "Str",
+      "default": "${PROJECT_ROOT}/demo/销售明细.xlsx",
+      "describe": "附件文件路径，留空则不带附件"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "File.file_read",
+      "alias": "读取日报正文模板",
+      "out": {
+        "read_file_content": "mail_body"
+      },
+      "inputs": {
+        "file_path": "$p:body_file",
+        "read_type": "all",
+        "encode_type": "utf-8"
+      }
+    },
+    {
+      "atom": "Email.send_email",
+      "alias": "发送带附件邮件",
+      "out": {},
+      "inputs": {
+        "receiver": "$p:receiver",
+        "cc": "",
+        "bcc": "",
+        "subject": "$p:subject",
+        "is_html": false,
+        "content": "$mail_body",
+        "attachment_path": "$p:attachment",
+        "mail_server": "other",
+        "other_mail_server": "$p:smtp_host",
+        "mail_port": "$p:smtp_port",
+        "use_ssl": false,
+        "sender_mail": "$p:sender_mail",
+        "send_name": "RPA 自动化运行中心",
+        "password": "$p:sender_pwd"
+      }
+    }
+  ]
+}

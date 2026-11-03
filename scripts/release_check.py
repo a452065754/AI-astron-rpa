@@ -216,7 +216,8 @@ def check_flows():
 def check_gates():
     gates = [("V1 全量回归", "logs/qa/v1_regression.py"),
              ("V13 D1 收窄", "logs/qa/v13_b1_counter.py"),
-             ("V14 路径去机器化", "logs/qa/v14_port_paths.py")]
+             ("V14 路径去机器化", "logs/qa/v14_port_paths.py"),
+             ("V15 json_str 参数", "logs/qa/v15_json_str_param.py")]
     for label, rel in gates:
         path = os.path.join(ROOT, rel)
         if not os.path.isfile(path):

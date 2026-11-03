@@ -113,3 +113,6 @@ demo/_similar_out/*.png
 Thumbs.db
 .idea/
 .vscode/
+
+# 邮件测试收信目录：每次真跑都会累积 .eml，不入库（用 scripts/local_smtp_sink.py 现场复现）
+demo/_mail_inbox/

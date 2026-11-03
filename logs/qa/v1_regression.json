@@ -1,5 +1,12 @@
 [
  {
+  "file": "Email发送带附件日报小流程.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [],
+  "scripts_field": []
+ },
+ {
   "file": "Excel写公式加格式小流程.json",
   "errors": [],
   "warnings": [],

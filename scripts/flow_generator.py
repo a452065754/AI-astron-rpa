@@ -1081,15 +1081,22 @@ def build_process_content(template, atom_dict, elements=None, robot_id=DEFAULT_R
                         input_list.append({"key": pkey,
                                            "value": json.dumps(baked, ensure_ascii=False)})
                 else:
-                    input_list.append({"key": pkey,
-                                       "value": resolve_input(raw_in, var_defined, param_names)})
+                    if p.get("need_parse") == "json_str":
+                        # json_str 参数必须落成 JSON 字符串（见 _json_str_or_value）。
+                        # 规格里写了裸数组/对象就直接序列化，别让引擎在编译阶段抛 TypeError。
+                        val = raw_in if isinstance(raw_in, str) else json.dumps(
+                            raw_in, ensure_ascii=False)
+                        input_list.append({"key": pkey, "value": val})
+                    else:
+                        input_list.append({"key": pkey,
+                                           "value": resolve_input(raw_in, var_defined, param_names)})
             elif p.get("required"):
                 dv = _default_for(p)
-                input_list.append({"key": pkey, "value": mk_val("other", dv)})
+                input_list.append({"key": pkey, "value": _json_str_or_value(p, dv)})
                 warnings.append(f"{atom_key}.{pkey}(required) 模板未给，用默认值 {dv!r}")
             else:
                 # 可选参数也填 schema 真实默认值（不能填 ""：Bool/枚举会被运行时错误强转）
-                input_list.append({"key": pkey, "value": mk_val("other", _default_for(p))})
+                input_list.append({"key": pkey, "value": _json_str_or_value(p, _default_for(p))})
 
         # 布尔/数字字面量统一转 python 类型（见 _coerce_literals，坑 69）
         # module_param 排除在外：它是 [{"varId","varName","varValue"}] 结构，不是字面量列表。
@@ -1178,6 +1185,27 @@ def _default_for(p):
     if "range" in name:
         return "A1:Z1000"
     return ""
+
+
+def _json_str_or_value(p, dv):
+    """按参数形态给出「引擎能接受」的默认值。
+
+    绝大多数参数要的是 `[{"type","value"}]` 包装（`mk_val`）。
+    但声明了 `need_parse="json_str"` 的参数例外：引擎 `flow/params.py::parse_param`
+    对这类参数直接 `json.loads(value)`，所以 value 必须是**JSON 字符串**，
+    给数组会抛 `TypeError: the JSON object must be str, bytes or bytearray, not list`
+    ——错误发生在编译代码阶段，堆栈指向引擎内部（params.py:138 / ast.py:106），
+    现场看不出跟"漏填了一个可选参数"有关（2026-11-03 实测踩过）。
+
+    典型参数：`Email.send_email.replace_table`、`Dialog.custom_box.design_interface`、
+    `BrowserScript.js_run.params`、`Agent.call_astron_agent.astron_workflow`。
+    规格里显式写时用 `$json:` 前缀即可。
+    """
+    if p.get("need_parse") == "json_str":
+        if isinstance(dv, str):
+            return dv
+        return json.dumps(dv, ensure_ascii=False)
+    return mk_val("other", dv)
 
 
 def is_element_pick(p):
