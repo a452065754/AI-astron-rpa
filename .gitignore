@@ -45,6 +45,12 @@ logs/replay_out.json
 # 内嵌脚本的本地落盘副本（由 resolve_scripts 从规格 scripts.code 生成，改它不生效）
 scripts/mod_gen_*.py
 
+# MES 需求调研的探针产物（**ck.txt 是 Netscape cookie 文件，含业务系统会话，绝不能入库**；
+# getgd_*.txt 单份 12MB 是接口原始返回，跑一次就能重取）
+logs/_probe/
+# MES 流程的运行记录（每次真跑追加，属运行时产物）
+logs/mes_chbq/
+
 # 复现包的中间产物（每次跑都重新生成，可随时整个删掉）
 docs/repro/_tmp/
 

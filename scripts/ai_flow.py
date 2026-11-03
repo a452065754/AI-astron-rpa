@@ -1242,10 +1242,20 @@ def main():
         raise
     except Exception as e:
         print(f"      ⚠️ 旧内容归档失败（不阻塞）：{e}")
-    pf.save_process(ck, robot_id, pid, json.dumps(pc, ensure_ascii=False))
-    back = pf.read_process(ck, robot_id, pid)
-    print(f"      用户 {user} · 主流程 {pid} · 写入 {len(json.dumps(pc, ensure_ascii=False))} 字节"
-          f" · 回读一致={bool(back) and len(back) > 0}")
+    payload = json.dumps(pc, ensure_ascii=False)
+    pf.save_process(ck, robot_id, pid, payload)
+    back = (pf.read_process(ck, robot_id, pid) or "")
+    # 原先是 `bool(back) and len(back) > 0` —— 只要非空就算「一致」，等于没校验。
+    # 2026-11-03 踩过：写入 18 节点，回读其实是 12 节点旧版，被报成「一致」，
+    # 白跑两轮真跑都没发现。改成真比对内容。
+    same = back.strip() == payload.strip()
+    print(f"      用户 {user} · 主流程 {pid} · 写入 {len(payload)} 字节"
+          f" · 回读 {len(back)} 字节 · 一致={same}")
+    if not same:
+        print("      ⚠️ 回读内容与写入不一致 —— 服务端存的是另一个版本。")
+        print("         常见原因：设计器正打开着该流程，客户端内存里是旧内容，"
+              "运行/保存时会把它回存到服务端。")
+        print("         处理：在设计器里关掉该流程标签，重新打开一次，然后再运行。")
 
     # 流程参数（c_param）：不落这个，p_var 引用在运行时就是未定义变量
     if spec.get("params"):

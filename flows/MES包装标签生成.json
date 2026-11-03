@@ -1,0 +1,457 @@
+{
+  "name": "MES包装标签生成",
+  "nl_examples": [
+    "打开MES登录，进包装标签打印，是否生成计划选否，纳期大于等于今天，批量生成直到没有数据",
+    "把MES里还没生成计划、纳期在今天之后的包装标签批量生成掉",
+    "MES包装标签打印 批量生成条码 直到没有数据"
+  ],
+  "keywords": [
+    "包装标签",
+    "包装标签打印",
+    "批量生成条码",
+    "是否生成计划",
+    "MES标签",
+    "CHBQ"
+  ],
+  "params": [
+    {
+      "name": "login_url",
+      "type": "Str",
+      "default": "http://mes.xfds.local/prj-xyds/login.action",
+      "describe": "MES 登录地址"
+    },
+    {
+      "name": "biz_url",
+      "type": "Str",
+      "default": "http://192.168.0.26:81/BG/CHBQ.aspx",
+      "describe": "包装标签打印页（主页菜单「包装标签打印」指向这里）"
+    },
+    {
+      "name": "base_url",
+      "type": "Str",
+      "default": "http://192.168.0.26:81",
+      "describe": "标签服务根地址（与 biz_url 同源）"
+    },
+    {
+      "name": "username",
+      "type": "Str",
+      "default": "",
+      "describe": "MES 账号"
+    },
+    {
+      "name": "password",
+      "type": "Str",
+      "default": "",
+      "describe": "MES 密码"
+    },
+    {
+      "name": "sfsc",
+      "type": "Str",
+      "default": "1",
+      "describe": "是否生成计划：1=否（默认，只处理未生成的），0=是，-1=不限"
+    },
+    {
+      "name": "arrival_from",
+      "type": "Str",
+      "default": "",
+      "describe": "纳期起（yyyy-MM-dd）；留空 = 今天（只处理纳期 >= 今天的工单）；填 all = 不限下限（清历史积压用）"
+    },
+    {
+      "name": "arrival_to",
+      "type": "Str",
+      "default": "",
+      "describe": "纳期止（yyyy-MM-dd）；留空 = 不限上限"
+    },
+    {
+      "name": "batch_size",
+      "type": "Str",
+      "default": "200",
+      "describe": "每批提交条数（上限 400）。接口走 GET，条数过多 URL 超长会被拒（实测 16KB 可、20KB 报 431）"
+    },
+    {
+      "name": "wait_seconds",
+      "type": "Str",
+      "default": "60",
+      "describe": "每批提交后等待服务端生成完成的秒数"
+    },
+    {
+      "name": "max_rounds",
+      "type": "Str",
+      "default": "50",
+      "describe": "最多跑多少轮，防止异常时死循环"
+    },
+    {
+      "name": "dry_run",
+      "type": "Str",
+      "default": "true",
+      "describe": "true=演练（只查询统计、不提交生成）；确认无误后改 false"
+    },
+    {
+      "name": "out_dir",
+      "type": "Str",
+      "default": "${PROJECT_ROOT}/logs/mes_chbq",
+      "describe": "运行记录输出目录"
+    },
+    {
+      "name": "keep_open",
+      "type": "Str",
+      "default": "false",
+      "describe": "true=跑完保留浏览器页面不关（方便肉眼确认）；false=按原需求关闭页面"
+    }
+  ],
+  "element_requirements": [
+    {
+      "name": "MES_账号输入框",
+      "kind": "web",
+      "pick": {
+        "url": "http://mes.xfds.local/prj-xyds/login.action",
+        "css": "#j_username"
+      },
+      "note": "登录页账号框"
+    },
+    {
+      "name": "MES_密码输入框",
+      "kind": "web",
+      "pick": {
+        "url": "http://mes.xfds.local/prj-xyds/login.action",
+        "css": "#j_password"
+      },
+      "note": "登录页密码框"
+    },
+    {
+      "name": "MES_登录按钮",
+      "kind": "web",
+      "pick": {
+        "url": "http://mes.xfds.local/prj-xyds/login.action",
+        "css": "#frmLogin button[type=submit]"
+      },
+      "note": "登录页「登录」按钮；不能换成 #passwordeye 那个眼睛图标"
+    }
+  ],
+  "scripts": {
+    "mes_chbq": {
+      "name": "MES包装标签分批生成",
+      "why": "B-1（跨迭代累计状态）：循环体每轮要先「按纳期查清单 → 数条数 → 决定这批提交哪几条 → 等生成完 → 重新查」串起来，且中途要把已提交的 GID 从清单里摘掉；用原子拼要 6 类原子嵌套三层、节点数线性膨胀，业务人员改不动。另一个硬原因：页面「全选」会把 29071 条全勾上，前端拼出的 URL 约 1.1MB，服务端实测 20KB 就返回 431，必须由代码按 URL 长度分批。",
+      "maintain_hint": "改纳期/是否生成计划/每批条数/等待秒数/轮次上限 → 全在流程参数里改，不用碰代码；换服务器 → 改 base_url / biz_url；改分批策略或接口参数才需要找开发改 Python。",
+      "atom_suggestion": "按 URL 长度自动分批提交同一接口（建议做成「分批提交」通用原子）",
+      "params": [
+        {
+          "name": "base_url",
+          "type": "Str",
+          "default": "http://192.168.0.26:81",
+          "describe": "标签服务根地址"
+        },
+        {
+          "name": "sfsc",
+          "type": "Str",
+          "default": "1",
+          "describe": "是否生成计划 1=否"
+        },
+        {
+          "name": "arrival_from",
+          "type": "Str",
+          "default": "",
+          "describe": "纳期起，空=今天"
+        },
+        {
+          "name": "arrival_to",
+          "type": "Str",
+          "default": "",
+          "describe": "纳期止，空=不限"
+        },
+        {
+          "name": "batch_size",
+          "type": "Str",
+          "default": "200",
+          "describe": "每批条数"
+        },
+        {
+          "name": "wait_seconds",
+          "type": "Str",
+          "default": "60",
+          "describe": "每批后等待秒数"
+        },
+        {
+          "name": "max_rounds",
+          "type": "Str",
+          "default": "50",
+          "describe": "最多轮次"
+        },
+        {
+          "name": "dry_run",
+          "type": "Str",
+          "default": "true",
+          "describe": "演练模式"
+        },
+        {
+          "name": "out_dir",
+          "type": "Str",
+          "default": "${PROJECT_ROOT}/logs/mes_chbq",
+          "describe": "运行记录目录"
+        }
+      ],
+      "code": "# -*- coding: utf-8 -*-\n\"\"\"MES 包装标签打印 —— 未生成计划工单的批量生成（分批直连版）。\n\n## 为什么不点页面上的「全选 → 批量生成」\n\n实测（2026-11-03，`MES_ACCOUNT` 账号）：\n\n| 事实 | 数值 |\n| --- | --- |\n| `CHBQ.ashx?type=getgd&sfsc=1` 返回待生成 | 29071 条 / 10.99 MB |\n| 页面 datagrid | 客户端分页，**一页只渲染 200 行**，共 146 页 |\n| 表头「全选」 | 勾的是全部 29071 条（不是当前页） |\n| 「批量生成」提交方式 | `GET ...?type=SCtm_Batch&ids='g1','g2',...` |\n| URL 长度实测 | 16 KB 可以，20 KB 返回 HTTP 431 |\n\n⇒ 全选 29071 条时前端会拼出约 1.1 MB 的 URL，服务端直接拒收。所以这里按批切分，\n每批控制在 URL 安全长度内（默认 200 条 ≈ 9 KB 编码后）。\n\n## 为什么要「走接口」而不是操作网格\n\n「是否生成计划」是 easyui-combobox、纳期是 easyui-datebox，原始控件都被 EasyUI\n换成隐藏 input，元素级操作既不稳也读不到真实值。这里直接调用页面自己用的那两个\n接口，参数语义与 `searchdata()` / `batch_GEN()` 完全一致（对照 CHBQ.aspx 内联 JS）。\n\n## 安全底线\n\n1. `dry_run=true` **只查不提交**，第一次务必先演练。\n2. 单批条数上限 400，超过会被强制截断（防 URL 超长被拒）。\n3. `max_rounds` 兜底，异常时不会死循环。\n4. 只处理 `sfsc` 命中且纳期 >= 起始日期的工单，绝不\"全库扫\"。\n\"\"\"\nfrom __future__ import annotations\n\nimport json\nimport os\nimport time\nimport urllib.parse\nimport urllib.request\n\ntry:\n    from astronverse.workflowlib import logger\nexcept Exception:  # 本地裸跑（没有 astronverse）时退回标准库\n    import logging\n\n    logger = logging.getLogger(\"mes_chbq\")\n\nUA = \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AstronRPA/mes-chbq\"\n\n# 服务端 URL 实测上限 16KB 可过、20KB 报 431；留足余量\nMAX_QUERY_STRING = 12000\nMAX_BATCH = 400\n\n\ndef _truthy(v, default=False):\n    if v is None or v == \"\":\n        return default\n    return str(v).strip().lower() in (\"1\", \"true\", \"yes\", \"y\", \"是\")\n\n\ndef _today():\n    return time.strftime(\"%Y-%m-%d\")\n\n\ndef _http(url, timeout=180):\n    req = urllib.request.Request(url, headers={\"User-Agent\": UA})\n    with urllib.request.urlopen(req, timeout=timeout) as r:\n        return r.status, r.read().decode(\"utf-8-sig\", errors=\"replace\")\n\n\ndef _log(out_dir, line):\n    \"\"\"每个动作同时：写运行记录 + 打到流程日志，出问题好回溯。\"\"\"\n    try:\n        os.makedirs(out_dir, exist_ok=True)\n        with open(os.path.join(out_dir, \"运行记录.txt\"), \"a\", encoding=\"utf-8\") as f:\n            f.write(line + \"\\n\")\n    except Exception as e:  # 日志写不进去不该中断业务\n        logger.warning(\"写运行记录失败：{}\".format(e))\n    logger.info(line)\n\n\ndef _fetch_pending(base, sfsc, date_from, date_to):\n    \"\"\"取待生成工单 GID 列表。参数与页面 searchdata() 拼的完全一致。\"\"\"\n    qs = \"?r={}&type=getgd&sfsc={}\".format(time.time(), urllib.parse.quote(str(sfsc)))\n    if date_from:\n        qs += \"&KSSJ=\" + urllib.parse.quote(str(date_from))\n    if date_to:\n        qs += \"&JSSJ=\" + urllib.parse.quote(str(date_to))\n    status, text = _http(base + \"/webajax/bg/CHBQ.ashx\" + qs)\n    if status != 200:\n        raise RuntimeError(\"查询待生成工单失败：HTTP {}\".format(status))\n    try:\n        rows = json.loads(text)\n    except Exception:\n        raise RuntimeError(\"查询返回不是 JSON，前 200 字符：{}\".format(text[:200]))\n    ids = []\n    for r in rows or []:\n        if isinstance(r, dict) and r.get(\"GID\"):\n            ids.append(str(r[\"GID\"]))\n    return ids\n\n\ndef _chunks(ids, size):\n    for i in range(0, len(ids), size):\n        yield ids[i:i + size]\n\n\ndef _submit(base, chunk):\n    \"\"\"按页面 batch_GEN() 的格式提交：ids='g1','g2',...（单引号+逗号，整体 URL 编码）。\"\"\"\n    quoted = \",\".join(\"'{}'\".format(x) for x in chunk)\n    url = \"{}/webajax/bg/CHBQ.ashx?type=SCtm_Batch&ids={}\".format(\n        base, urllib.parse.quote(quoted, safe=\"\")\n    )\n    if len(url) > MAX_QUERY_STRING + 200:\n        raise RuntimeError(\"单批 URL 过长（{} 字符），请把 batch_size 调小\".format(len(url)))\n    status, text = _http(url)\n    plain = \" \".join(str(text).replace(\"<br>\", \" \").replace(\"<br/>\", \" \").split())\n    return status, plain[:400]\n\n\ndef main(args) -> dict:\n    base = (args.get(\"base_url\") or \"http://192.168.0.26:81\").strip().rstrip(\"/\")\n    sfsc = str(args.get(\"sfsc\") or \"1\").strip()\n    date_from = (args.get(\"arrival_from\") or \"\").strip() or _today()   # 纳期 >= 当前日期\n    date_to = (args.get(\"arrival_to\") or \"\").strip()\n    batch_size = int(str(args.get(\"batch_size\") or \"200\").strip() or 200)\n    batch_size = max(1, min(batch_size, MAX_BATCH))\n    wait_seconds = float(str(args.get(\"wait_seconds\") or \"60\").strip() or 60)\n    wait_seconds = max(0.0, min(wait_seconds, 3600.0))\n    max_rounds = int(str(args.get(\"max_rounds\") or \"50\").strip() or 50)\n    dry_run = _truthy(args.get(\"dry_run\"), True)\n    out_dir = (args.get(\"out_dir\") or \"\").strip()\n\n    if out_dir:\n        os.makedirs(out_dir, exist_ok=True)\n\n    head = \"===== {} | 是否生成计划={} | 纳期 {}~{} | 每批 {} | 等待 {}s | {} =====\".format(\n        time.strftime(\"%Y-%m-%d %H:%M:%S\"), sfsc, date_from, date_to or \"不限\",\n        batch_size, int(wait_seconds), \"演练（不提交）\" if dry_run else \"正式生成\"\n    )\n    if out_dir:\n        _log(out_dir, head)\n    else:\n        logger.info(head)\n\n    total_seen = 0          # 累计看到的待生成条数\n    total_submitted = 0     # 累计提交条数\n    rounds = 0\n    remain = 0\n    failed_batches = 0\n\n    while rounds < max_rounds:\n        ids = _fetch_pending(base, sfsc, date_from, date_to)\n        remain = len(ids)\n        if remain == 0:\n            _log(out_dir, \"第 {} 轮复查：已无待生成工单\".format(rounds)) if out_dir else logger.info(\"已无待生成工单\")\n            break\n\n        total_seen += remain\n        chunk = ids[:batch_size]\n\n        if dry_run:\n            msg = \"【演练】本轮待生成 {} 条，本批将提交 {} 条，未真正提交\".format(remain, len(chunk))\n            _log(out_dir, msg) if out_dir else logger.info(msg)\n            rounds += 1\n            break\n\n        status, text = _submit(base, chunk)\n        total_submitted += len(chunk)\n        rounds += 1\n        line = \"第 {} 轮 | 待生成 {} 条 | 提交 {} 条 | HTTP {} | {}\".format(\n            rounds, remain, len(chunk), status, text\n        )\n        _log(out_dir, line) if out_dir else logger.info(line)\n\n        if status != 200:\n            failed_batches += 1\n            if failed_batches >= 3:\n                raise RuntimeError(\"连续 3 批提交失败，停止（最后返回：{}）\".format(text))\n\n        if remain <= len(chunk):\n            # 本批就把剩下的都提交了，下一轮复查应为 0\n            pass\n        if wait_seconds:\n            time.sleep(wait_seconds)\n\n    ids_left = _fetch_pending(base, sfsc, date_from, date_to)\n\n    summary = {\n        \"轮次\": rounds,\n        \"各轮待生成合计\": total_seen,\n        \"累计提交\": total_submitted,\n        \"复查剩余\": len(ids_left),\n        \"演练模式\": dry_run,\n        \"纳期起\": date_from,\n        \"纳期止\": date_to or \"不限\",\n        \"是否生成计划\": sfsc,\n    }\n    tail = \"===== 结束：共 {} 轮，提交 {} 条，复查剩余 {} 条，失败批次 {} =====\".format(\n        rounds, total_submitted, len(ids_left), failed_batches\n    )\n    _log(out_dir, tail) if out_dir else logger.info(tail)\n    return summary\n"
+    },
+    "wait_gap": {
+      "name": "固定等待（秒）",
+      "why": "B-1~B-4 都不命中 —— 原子能力缺口：357 个原子里没有延时/等待原子，wait_element / wait_web_load 都是「达到条件就返回」，做不到「固定等 N 秒」。本流程点完「查询」后必须给页面一点时间把 datagrid 渲染出来再读数，否则读到的是上一帧。建议后续把「固定延时」做成真原子（已记 docs/原子需求池.md）。",
+      "maintain_hint": "等多久由调用处传入（当前 10 秒），改流程节点参数即可，不用碰代码。",
+      "params": [
+        {
+          "name": "seconds",
+          "type": "Str",
+          "default": "10",
+          "describe": "等待秒数"
+        }
+      ],
+      "code": "def main(args):\n    \"\"\"固定等待（秒）。用于等页面把表格渲染出来。\"\"\"\n    import time\n    try:\n        sec = float(args.get('seconds') or 0)\n    except Exception:\n        sec = 0.0\n    sec = max(0.0, min(sec, 600.0))\n    time.sleep(sec)\n    return {\"slept\": sec}\n"
+    }
+  },
+  "nodes": [
+    {
+      "atom": "BrowserSoftware.browser_open",
+      "alias": "打开 MES 登录页",
+      "out": {
+        "web_open": "web"
+      },
+      "inputs": {
+        "url": "$p:login_url",
+        "browser_type": "chrome",
+        "timeout": 30,
+        "timeout_handle_type": "execError",
+        "wait_load_success": true,
+        "open_with_incognito": false
+      }
+    },
+    {
+      "atom": "BrowserElement.input",
+      "alias": "输入账号",
+      "out": {
+        "form_input": "filled_user"
+      },
+      "inputs": {
+        "browser_obj": "$web",
+        "fill_type": "text",
+        "fill_input": "$p:username",
+        "fill_input_credential": "",
+        "element_timeout": 15,
+        "input_type": "overwrite",
+        "simulate_flag": false,
+        "scroll_into_center": true
+      },
+      "elements": {
+        "element_data": {
+          "kind": "web",
+          "name": "MES_账号输入框"
+        }
+      }
+    },
+    {
+      "atom": "BrowserElement.input",
+      "alias": "输入密码",
+      "out": {
+        "form_input": "filled_pwd"
+      },
+      "inputs": {
+        "browser_obj": "$web",
+        "fill_type": "text",
+        "fill_input": "$p:password",
+        "fill_input_credential": "",
+        "element_timeout": 15,
+        "input_type": "overwrite",
+        "simulate_flag": false,
+        "scroll_into_center": true
+      },
+      "elements": {
+        "element_data": {
+          "kind": "web",
+          "name": "MES_密码输入框"
+        }
+      }
+    },
+    {
+      "atom": "BrowserElement.click",
+      "alias": "点击登录",
+      "out": {},
+      "inputs": {
+        "browser_obj": "$web",
+        "element_timeout": 15,
+        "button_type": "click",
+        "assistive_key": "None",
+        "simulate_flag": true,
+        "scroll_into_center": true
+      },
+      "elements": {
+        "element_data": {
+          "kind": "web",
+          "name": "MES_登录按钮"
+        }
+      }
+    },
+    {
+      "atom": "BrowserSoftware.wait_web_load",
+      "alias": "等待登录跳转完成",
+      "out": {},
+      "inputs": {
+        "browser_obj": "$web",
+        "timeout": 60
+      }
+    },
+    {
+      "atom": "BrowserSoftware.web_open",
+      "alias": "新标签打开包装标签打印页",
+      "out": {
+        "web_new_page": "biz"
+      },
+      "inputs": {
+        "browser_obj": "$web",
+        "new_tab_url": "$p:biz_url",
+        "wait_page": true
+      }
+    },
+    {
+      "atom": "BrowserSoftware.wait_web_load",
+      "alias": "等待标签打印页加载",
+      "out": {},
+      "inputs": {
+        "browser_obj": "$biz",
+        "timeout": 60
+      }
+    },
+    {
+      "atom": "BrowserScript.js_run",
+      "alias": "页面：是否生成计划选「否」、纳期填今天",
+      "out": {
+        "program_script": "ui_set"
+      },
+      "inputs": {
+        "browser_obj": "$biz",
+        "content": "function setField(id, val, show){\n  var el = document.getElementById(id);\n  if (!el) { return 'missing:' + id; }\n  el.value = val;\n  var box = el.nextElementSibling;\n  var txt = null;\n  if (box && box.querySelector) { txt = box.querySelector('input.textbox-text'); }\n  if (!txt && el.parentNode) { txt = el.parentNode.querySelector('input.textbox-text'); }\n  if (txt && show !== null && show !== undefined) { txt.value = show; }\n  return 'ok';\n}\nfunction today(){\n  var d = new Date();\n  var m = d.getMonth() + 1;\n  var dd = d.getDate();\n  return d.getFullYear() + '-' + (m < 10 ? '0' : '') + m + '-' + (dd < 10 ? '0' : '') + dd;\n}\nfunction findQuery(){\n  var a = document.querySelector('#TB a[onclick=\"searchdata()\"]');\n  if (a) { return a; }\n  var as = document.querySelectorAll('a');\n  for (var i = 0; i < as.length; i++) {\n    if ((as[i].textContent || '').trim() === '查询') { return as[i]; }\n  }\n  return null;\n}\nfunction main(){\n  var el = document.getElementById('txtsfsc');\n  if (!el) { return 'PAGE_NOT_READY'; }\n  var from = FROM || today();\n  var r1 = setField('txtsfsc', SFSC, '否');\n  var r2 = setField('txtKSSJ', from, from);\n  var r3 = setField('txtJSSJ', TO || '', TO || '');\n  var shown = '';\n  var box = el.nextElementSibling;\n  var t = (box && box.querySelector) ? box.querySelector('input.textbox-text') : null;\n  if (!t && el.parentNode) { t = el.parentNode.querySelector('input.textbox-text'); }\n  if (t) { shown = t.value; }\n  return 'SET [sfsc]' + r1 + ' [纳期起]' + r2 + ' [纳期止]' + r3 +\n         ' 页面显示「是否生成计划」=' + (shown || '(空)') + ' 纳期起=' + from;\n}",
+        "input_type": "content",
+        "file_path": "",
+        "params": "$json:[{\"varName\": \"SFSC\", \"varValue\": \"$p:sfsc\"}, {\"varName\": \"FROM\", \"varValue\": \"$p:arrival_from\"}, {\"varName\": \"TO\", \"varValue\": \"$p:arrival_to\"}]",
+        "iframe_url": ""
+      }
+    },
+    {
+      "atom": "BrowserScript.js_run",
+      "alias": "页面：点「查询」刷出待生成清单",
+      "out": {
+        "program_script": "ui_query"
+      },
+      "inputs": {
+        "browser_obj": "$biz",
+        "content": "function setField(id, val, show){\n  var el = document.getElementById(id);\n  if (!el) { return 'missing:' + id; }\n  el.value = val;\n  var box = el.nextElementSibling;\n  var txt = null;\n  if (box && box.querySelector) { txt = box.querySelector('input.textbox-text'); }\n  if (!txt && el.parentNode) { txt = el.parentNode.querySelector('input.textbox-text'); }\n  if (txt && show !== null && show !== undefined) { txt.value = show; }\n  return 'ok';\n}\nfunction today(){\n  var d = new Date();\n  var m = d.getMonth() + 1;\n  var dd = d.getDate();\n  return d.getFullYear() + '-' + (m < 10 ? '0' : '') + m + '-' + (dd < 10 ? '0' : '') + dd;\n}\nfunction findQuery(){\n  var a = document.querySelector('#TB a[onclick=\"searchdata()\"]');\n  if (a) { return a; }\n  var as = document.querySelectorAll('a');\n  for (var i = 0; i < as.length; i++) {\n    if ((as[i].textContent || '').trim() === '查询') { return as[i]; }\n  }\n  return null;\n}\n\nfunction main(){\n  var a = findQuery();\n  if (!a) { return 'NO_QUERY_BTN'; }\n  a.click();\n  return 'QUERY_CLICKED';\n}",
+        "input_type": "content",
+        "file_path": "",
+        "params": "$json:[{\"varName\": \"X\", \"varValue\": \"1\"}]",
+        "iframe_url": ""
+      }
+    },
+    {
+      "atom": "Script.module",
+      "alias": "按纳期分批查询并批量生成（循环到没有数据）",
+      "out": {
+        "program_script": "summary"
+      },
+      "inputs": {
+        "content": "$script:mes_chbq",
+        "module_param": "$json:[{\"varName\": \"base_url\", \"varValue\": \"$p:base_url\"}, {\"varName\": \"sfsc\", \"varValue\": \"$p:sfsc\"}, {\"varName\": \"arrival_from\", \"varValue\": \"$p:arrival_from\"}, {\"varName\": \"arrival_to\", \"varValue\": \"$p:arrival_to\"}, {\"varName\": \"batch_size\", \"varValue\": \"$p:batch_size\"}, {\"varName\": \"wait_seconds\", \"varValue\": \"$p:wait_seconds\"}, {\"varName\": \"max_rounds\", \"varValue\": \"$p:max_rounds\"}, {\"varName\": \"dry_run\", \"varValue\": \"$p:dry_run\"}, {\"varName\": \"out_dir\", \"varValue\": \"$p:out_dir\"}]"
+      }
+    },
+    {
+      "atom": "BrowserScript.js_run",
+      "alias": "页面：再点「查询」刷新列表",
+      "out": {
+        "program_script": "ui_query2"
+      },
+      "inputs": {
+        "browser_obj": "$biz",
+        "content": "function setField(id, val, show){\n  var el = document.getElementById(id);\n  if (!el) { return 'missing:' + id; }\n  el.value = val;\n  var box = el.nextElementSibling;\n  var txt = null;\n  if (box && box.querySelector) { txt = box.querySelector('input.textbox-text'); }\n  if (!txt && el.parentNode) { txt = el.parentNode.querySelector('input.textbox-text'); }\n  if (txt && show !== null && show !== undefined) { txt.value = show; }\n  return 'ok';\n}\nfunction today(){\n  var d = new Date();\n  var m = d.getMonth() + 1;\n  var dd = d.getDate();\n  return d.getFullYear() + '-' + (m < 10 ? '0' : '') + m + '-' + (dd < 10 ? '0' : '') + dd;\n}\nfunction findQuery(){\n  var a = document.querySelector('#TB a[onclick=\"searchdata()\"]');\n  if (a) { return a; }\n  var as = document.querySelectorAll('a');\n  for (var i = 0; i < as.length; i++) {\n    if ((as[i].textContent || '').trim() === '查询') { return as[i]; }\n  }\n  return null;\n}\n\nfunction main(){\n  var a = findQuery();\n  if (!a) { return 'NO_QUERY_BTN'; }\n  a.click();\n  return 'QUERY_CLICKED';\n}",
+        "input_type": "content",
+        "file_path": "",
+        "params": "$json:[{\"varName\": \"X\", \"varValue\": \"1\"}]",
+        "iframe_url": ""
+      }
+    },
+    {
+      "atom": "Script.module",
+      "alias": "等列表渲染完（画面停住片刻）",
+      "out": {
+        "program_script": "render_wait"
+      },
+      "inputs": {
+        "content": "$script:wait_gap",
+        "module_param": "$json:[{\"varName\": \"seconds\", \"varValue\": \"10\"}]"
+      }
+    },
+    {
+      "atom": "BrowserScript.js_run",
+      "alias": "页面：读出剩余条数",
+      "out": {
+        "program_script": "ui_read"
+      },
+      "inputs": {
+        "browser_obj": "$biz",
+        "content": "function setField(id, val, show){\n  var el = document.getElementById(id);\n  if (!el) { return 'missing:' + id; }\n  el.value = val;\n  var box = el.nextElementSibling;\n  var txt = null;\n  if (box && box.querySelector) { txt = box.querySelector('input.textbox-text'); }\n  if (!txt && el.parentNode) { txt = el.parentNode.querySelector('input.textbox-text'); }\n  if (txt && show !== null && show !== undefined) { txt.value = show; }\n  return 'ok';\n}\nfunction today(){\n  var d = new Date();\n  var m = d.getMonth() + 1;\n  var dd = d.getDate();\n  return d.getFullYear() + '-' + (m < 10 ? '0' : '') + m + '-' + (dd < 10 ? '0' : '') + dd;\n}\nfunction findQuery(){\n  var a = document.querySelector('#TB a[onclick=\"searchdata()\"]');\n  if (a) { return a; }\n  var as = document.querySelectorAll('a');\n  for (var i = 0; i < as.length; i++) {\n    if ((as[i].textContent || '').trim() === '查询') { return as[i]; }\n  }\n  return null;\n}\n\nfunction main(){\n  var a = findQuery();\n  if (a) { a.click(); }\n  var body = document.querySelector('div.datagrid-view2 div.datagrid-body');\n  var trs = body ? body.querySelectorAll('tr.datagrid-row').length : -1;\n  var info = document.querySelector('.pagination-info');\n  var empty = document.querySelector('.datagrid-body .datagrid-empty, .datagrid-empty');\n  var mask = document.querySelectorAll('.datagrid-mask').length;\n  return '页面当前显示 ' + (trs < 0 ? '未渲染' : trs + ' 行') +\n         (info ? '（' + info.textContent.trim() + '）' : '') +\n         (mask ? '，仍在加载' : '') + (empty ? '，列表为空' : '');\n}",
+        "input_type": "content",
+        "file_path": "",
+        "params": "$json:[{\"varName\": \"X\", \"varValue\": \"1\"}]",
+        "iframe_url": ""
+      }
+    },
+    {
+      "atom": "Report.print",
+      "alias": "打印本次运行汇总",
+      "out": {},
+      "inputs": {
+        "report_type": "info",
+        "msg": [
+          "MES 包装标签生成完成。\\n",
+          "页面动作：",
+          "$ui_set",
+          " / 查询=",
+          "$ui_query",
+          "\\n",
+          "汇总：",
+          "$summary",
+          "\\n",
+          "复查：",
+          "$ui_read"
+        ]
+      }
+    },
+    {
+      "atom": "Code.If",
+      "alias": "不是保留页面模式",
+      "out": {},
+      "inputs": {
+        "args1": "$p:keep_open",
+        "condition": "==",
+        "args2": "false"
+      }
+    },
+    {
+      "atom": "BrowserSoftware.browser_close",
+      "alias": "关闭标签打印页",
+      "out": {},
+      "inputs": {
+        "browser_obj": "$biz"
+      }
+    },
+    {
+      "atom": "BrowserSoftware.browser_close",
+      "alias": "关闭浏览器",
+      "out": {},
+      "inputs": {
+        "browser_obj": "$web"
+      }
+    },
+    {
+      "atom": "Code.IfEnd",
+      "alias": "关闭判断结束",
+      "out": {},
+      "inputs": {}
+    }
+  ]
+}
