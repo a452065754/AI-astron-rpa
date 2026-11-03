@@ -89,7 +89,8 @@ demo/_cv_out/site/
 demo/_gui_out/site/
 
 # 相似元素/OCR 试验的生成物（图片可再生；.txt 取证要入库）
-demo/_ocr_out/*.png
+# OCR 流程的产出（每次运行都会重新生成 xlsx，不入库；write_to_excel 会自建目录）
+demo/_ocr_out/
 
 # ============ 2026-11-03 仓库瘦身：以下均为可再生产物 ============
 # PDF 拆页的图片中间物（`PDF页数与图片提取` 每次运行重建；**.txt 取证仍入库**）
