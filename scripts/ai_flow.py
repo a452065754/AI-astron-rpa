@@ -189,7 +189,12 @@ def node_table(process_content, atom_dict):
                 except Exception:
                     key_params.append(f"{k}={str(raw)[:50]}")
                 continue
-            vals = it.get("value") or []
+            v0 = it.get("value")
+            if isinstance(v0, dict):
+                # rpa:special 等引用结构（如 js_run 的 input_type），统一当单段处理
+                vals = [v0]
+            else:
+                vals = v0 or []
             if not (vals and isinstance(vals[0], dict)):
                 continue
             if len(vals) > 1:
@@ -202,6 +207,15 @@ def node_table(process_content, atom_dict):
                 key_params.append(f"{k}={expr if len(expr) <= 70 else expr[:67] + '...'}")
                 continue
             v = vals[0]
+            if v.get("rpa") == "special":
+                # 变量引用：把内部真实值还原出来（如 input_type 的 content）
+                inner = v.get("value")
+                if isinstance(inner, list) and inner and isinstance(inner[0], dict):
+                    s = str(inner[0].get("value"))
+                else:
+                    s = str(inner)
+                key_params.append(f"{k}={s}")
+                continue
             if v.get("type") == "var":
                 key_params.append(f"{k}=${v.get('value')}")
             elif v.get("type") == "p_var":

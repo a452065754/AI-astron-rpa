@@ -846,6 +846,21 @@ def _contains_var_ref(obj):
     return False
 
 
+def _contains_param_ref(obj):
+    """递归检查 payload 里是否含 `$p:` 流程参数引用。
+
+    与 `_contains_var_ref`（只看循环变量）分开：两者的处理时机不同 ——
+    循环变量运行时才存在，流程参数在参数面板里随时可改，但**都不能烘焙**。
+    """
+    if isinstance(obj, dict):
+        return any(_contains_param_ref(v) for v in obj.values())
+    if isinstance(obj, list):
+        return any(_contains_param_ref(v) for v in obj)
+    if isinstance(obj, str):
+        return obj.startswith("$p:")
+    return False
+
+
 def _bake_refs(obj, param_defaults):
     """把 `$p:x` 引用 / 内联 `rpa:special(p_var)` 结构解析成**参数默认值字面量**。
 
@@ -1064,6 +1079,19 @@ def build_process_content(template, atom_dict, elements=None, robot_id=DEFAULT_R
                     input_list.append({"key": "module_param", "value": items})
                     continue
 
+                # ---- BrowserScript.js_run 的 input_type：设计器用「input_type == 'content'」
+                # 决定 content 是否显示。若落成 [{"type":"other","value":"content"}] 数组，
+                # 设计器条件永远不成立 → content 被判定隐藏、保存时整段丢弃 → 运行报
+                # 「脚本数据为空」。包成 rpa:special 引用后，设计器能求值出 "content"，
+                # 条件成立，content 才保留。2026-11-04 实测 + 服务端对比确认。
+                if atom_key.startswith("BrowserScript.") and pkey == "input_type" \
+                        and isinstance(raw_in, str):
+                    input_list.append({
+                        "key": "input_type",
+                        "value": {"rpa": "special",
+                                  "value": [{"type": "other", "value": raw_in}]}})
+                    continue
+
                 if isinstance(raw_in, str) and raw_in.startswith("$json:"):
                     # 其余原子的复杂参数：保持「JSON 字符串 + need_parse」的老形态。
                     try:
@@ -1077,6 +1105,10 @@ def build_process_content(template, atom_dict, elements=None, robot_id=DEFAULT_R
                                            "value": json.dumps(payload, ensure_ascii=False),
                                            "need_parse": "json_str"})
                     else:
+                        # 纯流程参数 / 字面量：烘焙成默认值字面量，落成纯 JSON 字符串
+                        # （不带 need_parse、不带嵌套 rpa:special）。2026-11-04 实测：
+                        # 设计器保存时只有「纯字面量 JSON」能原样保留；嵌套 rpa:special
+                        # 会被剥掉 value 数组导致引擎解析失败、连带清空 content。
                         baked = _bake_refs(payload, param_defaults)
                         input_list.append({"key": pkey,
                                            "value": json.dumps(baked, ensure_ascii=False)})
