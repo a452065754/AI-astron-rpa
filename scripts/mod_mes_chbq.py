@@ -141,28 +141,49 @@ def _flow_params():
     return g if isinstance(g, dict) else {}
 
 
+def _get(ns, key, default):
+    """取参数值，只在「缺失 / None / 空白字符串」时才回退默认值。
+
+    为什么不能写 `ns.get(key) or default`（2026-11-04 血的教训）：
+    引擎把流程参数生成为 main() 局部变量并原样传进来，`sfsc` 传的是**整数 0** 或字符串 "0"。
+    而 `0 or "1"` 在 Python 里求值结果是 **"1"** —— 于是「改成 0」被静默改回 1，
+    整条链路看起来完全没反应，且不报任何错。凡是数值 0 有语义的参数都不能用 or。
+    """
+    v = ns.get(key)
+    if v is None:
+        return default
+    if isinstance(v, str) and not v.strip():
+        return default
+    return v
+
+
 def main(args) -> dict:
-    # 流程参数面板（gv）优先于节点内置默认（args），让用户在参数面板改的值真正生效。
+    # 参数的真正来源：引擎把流程参数生成为 main() 帧的局部变量，节点 10 的 module_param
+    # 用 {"rpa":"special","value":[{"type":"p_var","value":"sfsc"}]} 引用它们，运行时求值
+    # 后作为 args 传进来。所以 args 里已经是「流程参数面板的当前值」。
+    # 下面这段 _flow_params() 是兜底：万一 gv 被注入（部分版本会），也覆盖进来（gv 空则无影响）。
     ns = dict(args or {})
     for k, v in _flow_params().items():
         if v not in (None, ""):
             ns[k] = v
 
-    base = (ns.get("base_url") or "http://192.168.0.26:81").strip().rstrip("/")
-    sfsc = str(ns.get("sfsc") or "1").strip()
-    raw_from = (ns.get("arrival_from") or "").strip()
+    base = str(_get(ns, "base_url", "http://192.168.0.26:81")).strip().rstrip("/")
+    # 兜底默认值必须与「流程参数 sfsc 的 default」一致（当前 0=都生成）。否则一旦引用链
+    # 被设计器剥掉、args 里缺 sfsc，就会静默回落到 1，表现成「改了 0 没反应」。
+    sfsc = str(_get(ns, "sfsc", "0")).strip()
+    raw_from = str(_get(ns, "arrival_from", "")).strip()
     if raw_from.lower() in _UNLIMITED:
         date_from = ""                                    # 不传 KSSJ = 不限下限
     else:
         date_from = raw_from or _today()                  # 留空沿用页面默认：纳期 >= 今天
-    date_to = (ns.get("arrival_to") or "").strip()
-    batch_size = int(str(ns.get("batch_size") or "200").strip() or 200)
+    date_to = str(_get(ns, "arrival_to", "")).strip()
+    batch_size = int(str(_get(ns, "batch_size", "200")).strip() or 200)
     batch_size = max(1, min(batch_size, MAX_BATCH))
-    wait_seconds = float(str(ns.get("wait_seconds") or "60").strip() or 60)
+    wait_seconds = float(str(_get(ns, "wait_seconds", "60")).strip() or 60)
     wait_seconds = max(0.0, min(wait_seconds, 3600.0))
-    max_rounds = int(str(ns.get("max_rounds") or "50").strip() or 50)
+    max_rounds = int(str(_get(ns, "max_rounds", "50")).strip() or 50)
     dry_run = _truthy(ns.get("dry_run"), True)
-    out_dir = (ns.get("out_dir") or "").strip()
+    out_dir = str(_get(ns, "out_dir", "")).strip()
 
     if out_dir:
         os.makedirs(out_dir, exist_ok=True)

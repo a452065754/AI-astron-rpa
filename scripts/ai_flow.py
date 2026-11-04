@@ -193,8 +193,12 @@ def node_table(process_content, atom_dict):
             if isinstance(v0, dict):
                 # rpa:special 等引用结构（如 js_run 的 input_type），统一当单段处理
                 vals = [v0]
+            elif isinstance(v0, list):
+                vals = v0
             else:
-                vals = v0 or []
+                # 裸标量（被 dynamics 引用的参数落库为裸值，见 flow_generator.
+                # _collect_dynamics_refs）：包成单段 other 结构走统一显示逻辑
+                vals = [{"type": "other", "value": v0}] if v0 not in (None, "") else []
             if not (vals and isinstance(vals[0], dict)):
                 continue
             if len(vals) > 1:

@@ -861,6 +861,30 @@ def _contains_param_ref(obj):
     return False
 
 
+def _collect_dynamics_refs(input_list):
+    """收集「被其它参数的 dynamics 显示条件引用」的参数名。
+
+    原子 schema 里常见这种定义（例：BrowserElement.input）：
+        fill_input.dynamics = [{"key": "$this.fill_input.show",
+                                "expression": "return $this.fill_type.value == 'text'"}]
+    设计器前端（selfExecuting.ts）求值时 `$this.<key>.value` 取的是 value 字段【原样】：
+        value = [{"type":"other","value":"text"}]  → 数组 != 'text' → show=False ❌
+        value = "text"                             → 成立         → show=True  ✅
+    show=False 的参数会被引擎 params.py:parse_input 直接跳过（隐藏字段的运行时语义），
+    且设计器**每次保存都会重算 dynamics 并回写 show** —— 所以这类参数必须落库为
+    裸标量，否则用户在设计器里保存一次，被引用参数的 show 就被算成 False，其
+    「下游显示参数」（fill_input / js_run 的 content 等）运行时直接消失。
+    2026-11-04：js_run 的 input_type 是第一例（「脚本数据为空」），fill_type 是第二例
+    （设计器面板「输入内容」整行消失），此处统一泛化处理。
+    """
+    refs = set()
+    for p in input_list:
+        for dyn in (p.get("dynamics") or []):
+            expr = dyn.get("expression") or ""
+            refs.update(re.findall(r"\$this\.([A-Za-z_]\w*)\.value", expr))
+    return refs
+
+
 def _bake_refs(obj, param_defaults):
     """把 `$p:x` 引用 / 内联 `rpa:special(p_var)` 结构解析成**参数默认值字面量**。
 
@@ -959,8 +983,15 @@ def build_module_param_items(payload, var_names=None, param_names=None,
         if not name:
             raise ValueError("module_param 有项目缺 varName：%r" % (it,))
         raw = it.get("varValue")
-        if _contains_var_ref(raw):
-            # 循环变量：必须运行时求值，保留引用（设计器可能只显示变量名，引擎可跑）
+        # 含循环变量 **或** 流程参数引用，都必须保留 rpa:special 让引擎运行时求值。
+        #
+        # 流程参数为什么不能烘焙（2026-11-04 实测 main.py 定案）：
+        # 引擎把每个流程参数生成为 main() 的**局部变量**（`sfsc = args.get("sfsc", '0')`），
+        # 而 p_var 引用会被 ComplexParamParser 编译成裸表达式 `sfsc`，在 main 帧求值，
+        # 正好取到参数面板的当前值。烘焙成字面量后，改参数就完全没反应
+        # —— 这是「sfsc 改成 0 不生效」的根因（模块和 JS 都只拿到落库时的 1）。
+        if _contains_var_ref(raw) or _contains_param_ref(raw):
+            # 循环变量 / 流程参数：必须运行时求值，保留引用（设计器可能只显示变量名，引擎可跑）
             val = _json_refs(raw, var_names, param_names)
             if not (isinstance(val, dict) and val.get("rpa") == "special"):
                 val = {"rpa": "special",
@@ -1024,6 +1055,9 @@ def build_process_content(template, atom_dict, elements=None, robot_id=DEFAULT_R
         atom = atom_dict[atom_key]
         schema_ins = {p.get("key"): p for p in (atom.get("inputList") or []) if isinstance(p, dict)}
         schema_outs = [p.get("key") for p in (atom.get("outputList") or []) if isinstance(p, dict)]
+        # 被 dynamics 显示条件引用的参数（如 fill_type / input_type）必须落裸标量，
+        # 否则设计器求值 `$this.<key>.value == 'xxx'` 拿到数组 → 下游参数被隐藏/丢弃。
+        dyn_ref_names = _collect_dynamics_refs(atom.get("inputList") or [])
 
         node_id = f"bh{ts}{i}"
 
@@ -1079,18 +1113,34 @@ def build_process_content(template, atom_dict, elements=None, robot_id=DEFAULT_R
                     input_list.append({"key": "module_param", "value": items})
                     continue
 
-                # ---- BrowserScript.js_run 的 input_type：设计器用「input_type == 'content'」
-                # 决定 content 是否显示。若落成 [{"type":"other","value":"content"}] 数组，
-                # 设计器条件永远不成立 → content 被判定隐藏、保存时整段丢弃 → 运行报
-                # 「脚本数据为空」。包成 rpa:special 引用后，设计器能求值出 "content"，
-                # 条件成立，content 才保留。2026-11-04 实测 + 服务端对比确认。
-                if atom_key.startswith("BrowserScript.") and pkey == "input_type" \
-                        and isinstance(raw_in, str):
-                    input_list.append({
-                        "key": "input_type",
-                        "value": {"rpa": "special",
-                                  "value": [{"type": "other", "value": raw_in}]}})
-                    continue
+                # ---- 被 dynamics 显示条件引用的参数：落库为【裸标量】（泛化规则）。
+                #
+                # 依据（astron-rpa 前端源码 frontend/packages/web-app/src/views/
+                # Arrange/utils/selfExecuting.ts）：
+                #   const $this = $formMap            // formMap[key] = 整个 item 对象
+                #   $this.<key>.value                 // 取 item.value 的【原样】
+                #   expression: "$this.input_type.value == 'content'"
+                # 设计器把 value 字段直接拿来比较：
+                #   value = [{"type":"str","value":"content"}]  → 数组 == 'content' → false ❌
+                #   value = "content"                            → 成立            → true  ✅
+                # show=False 时引擎 params.py:parse_input 里 `if not i.get("show", True): continue`
+                # 会直接跳过下游参数（content / fill_input），运行时收到空值。
+                # 实例：js_run input_type 数组形态 →「脚本数据为空」；
+                #       BrowserElement.input fill_type 数组形态 → 设计器「输入内容」整行消失。
+                #
+                # 关键点：设计器每次**保存**都会重算 dynamics 并回写 show。所以这类参数
+                # 只要不是裸标量，用户在设计器里改任何参数保存一次就坏。
+                #
+                # 引擎侧裸标量与数组解析结果完全一致（已实测 parse_param），对运行零影响。
+                # 仅处理纯字面量；$p:/$json: 等引用形态走后面的正常路径（它们本来就不该
+                # 被 dynamics 引用，若命中会另行告警）。
+                if pkey in dyn_ref_names:
+                    if isinstance(raw_in, str) and raw_in.startswith(("$", "[")):
+                        warnings.append(f"{atom_key}.{pkey} 被 dynamics 引用但值为引用形态"
+                                        f"（{raw_in[:30]}），设计器显示可能异常，建议改为字面量")
+                    else:
+                        input_list.append({"key": pkey, "value": raw_in})
+                        continue
 
                 if isinstance(raw_in, str) and raw_in.startswith("$json:"):
                     # 其余原子的复杂参数：保持「JSON 字符串 + need_parse」的老形态。
@@ -1098,17 +1148,24 @@ def build_process_content(template, atom_dict, elements=None, robot_id=DEFAULT_R
                         payload = json.loads(raw_in[6:])
                     except Exception as e:
                         raise ValueError(f"{atom_key}.{pkey} 的 $json: 不是合法 JSON：{e}")
-                    if _contains_var_ref(payload):
-                        # 含循环变量：必须运行时求值 → 保留 rpa:special 引用 + need_parse
+                    # 含循环变量：必须运行时求值 → 保留 rpa:special 引用 + need_parse。
+                    # BrowserScript.params 含**流程参数**引用（$p:xxx）时同样不能烘焙：
+                    # ComplexParamParser._recursive_convert_params 会把 rpa:special(p_var)
+                    # 编译成表达式 `gv["xxx"]`，运行时在 main 帧求值（见 workflowlib/
+                    # params.py:_get_auto_context）。烘焙成默认值的话，用户在流程参数面板
+                    # 把 sfsc 改成 0，JS 里拿到的仍是落库时的 1 —— 「改了不生效」的根因之二。
+                    keep_ref = _contains_var_ref(payload) or (
+                        atom_key.startswith("BrowserScript.") and pkey == "params"
+                        and _contains_param_ref(payload))
+                    if keep_ref:
                         payload = _json_refs(payload, var_defined, param_names)
                         input_list.append({"key": pkey,
                                            "value": json.dumps(payload, ensure_ascii=False),
                                            "need_parse": "json_str"})
                     else:
-                        # 纯流程参数 / 字面量：烘焙成默认值字面量，落成纯 JSON 字符串
-                        # （不带 need_parse、不带嵌套 rpa:special）。2026-11-04 实测：
-                        # 设计器保存时只有「纯字面量 JSON」能原样保留；嵌套 rpa:special
-                        # 会被剥掉 value 数组导致引擎解析失败、连带清空 content。
+                        # 纯字面量：烘焙成纯 JSON 字符串（不带 need_parse、不带嵌套
+                        # rpa:special）。2026-11-04 实测：设计器保存时只有「纯字面量 JSON」
+                        # 能原样保留。
                         baked = _bake_refs(payload, param_defaults)
                         input_list.append({"key": pkey,
                                            "value": json.dumps(baked, ensure_ascii=False)})
@@ -1137,6 +1194,16 @@ def build_process_content(template, atom_dict, elements=None, robot_id=DEFAULT_R
                 continue
             if isinstance(it.get("value"), list):
                 it["value"] = _coerce_literals(it["value"], schema_ins.get(it["key"]) or {})
+
+        # BrowserScript.js_run 显式固定「脚本内容」的显示开关：content 必须显示（show=True），
+        # file_path 必须隐藏（show=False）。主修复在上方（input_type 落裸字符串，让设计器的
+        # dynamics 求值成立）；这里再写死一遍，保证首次落库时就不依赖设计器重算结果。
+        if atom_key.startswith("BrowserScript."):
+            for it in input_list:
+                if it.get("key") == "content":
+                    it["show"] = True
+                elif it.get("key") == "file_path":
+                    it["show"] = False
 
         # 输出：按 schema output 的 key 分配变量名（模板指定则用模板名）
         #
@@ -1289,7 +1356,9 @@ def validate(process_content, atom_dict, elements=None, robot_id=None, params=No
         if not _is_reader(key):
             for it in node.get("inputList") or []:
                 if it.get("key") in ("file_path", "path") or str(it.get("key", "")).endswith("file_path"):
-                    for v in it.get("value") or []:
+                    _rv = it.get("value")
+                    _lv = _rv if isinstance(_rv, list) else [_rv]
+                    for v in _lv:
                         if isinstance(v, dict) and isinstance(v.get("value"), str):
                             produced.add(v["value"].replace("/", "\\").lower())
     for node in process_content:
@@ -1309,11 +1378,38 @@ def validate(process_content, atom_dict, elements=None, robot_id=None, params=No
             errors.append(f"节点 {nid}({key}) 缺少输入参数 {missing}")
         for extra in (provided - schema_ins):
             warnings.append(f"节点 {nid}({key}) 含 schema 外的输入参数 {extra}")
+        # 本原子上「被 dynamics 显示条件引用」的参数：全库 357 个原子中 143 个（40%）
+        # 存在这种结构（如 fill_type/input_type/simulate_flag/get_type...）。它们的
+        # 落库形态直接决定下游参数在设计器里是否可见、运行时是否被引擎跳过。
+        dyn_refs = _collect_dynamics_refs(atom.get("inputList") or [])
         for it in node.get("inputList") or []:
             p = schema.get(it.get("key")) or {}
             opts = [o.get("value") if isinstance(o, dict) else o for o in (p.get("options") or [])]
-            for v in it.get("value") or []:
+            # value 支持两种形态：数组 [{type,value}]（常规）与裸标量（被 dynamics 引用的
+            # 参数，见 _collect_dynamics_refs）。裸标量必须包成单元素列表再统一核对。
+            _raw_v = it.get("value")
+            _vals = _raw_v if isinstance(_raw_v, list) else [_raw_v]
+            # ---- 形态约束 R1：dynamics 引用参数必须落裸标量 ----
+            # 设计器求值 `$this.<key>.value` 取 value 原样：数组形态恒不等于字符串条件
+            # → 下游参数 show=False → 设计器隐藏、保存回写、引擎跳过（「脚本数据为空」
+            # 「输入内容整行消失」两个实锤案例）。此处校验兜底，防止生成器回退。
+            if it.get("key") in dyn_refs:
+                if isinstance(_raw_v, list):
+                    errors.append(
+                        f"节点 {nid}({key}).{it.get('key')} 被 dynamics 显示条件引用，"
+                        f"必须落库为裸标量（当前是数组 {_raw_v!r}，设计器会把下游参数算成隐藏）")
+                elif isinstance(_raw_v, str) and _raw_v.startswith("$"):
+                    warnings.append(
+                        f"节点 {nid}({key}).{it.get('key')} 被 dynamics 引用但值是引用形态"
+                        f"（{_raw_v}），设计器显示可能异常，建议改字面量")
+            for v in _vals:
                 if not isinstance(v, dict):
+                    # ---- 形态约束 R2：裸标量枚举值同样要校验合法性 ----
+                    if opts and isinstance(v, (str, int)) and v not in ("",):
+                        if v not in opts:
+                            errors.append(
+                                f"节点 {nid}({key}).{it.get('key')} 取值 {v!r} 不是合法枚举，"
+                                f"可选：{opts}")
                     continue
                 if v.get("type") == "other" and opts and v.get("value") not in ("", None):
                     if v.get("value") not in opts:
@@ -1355,7 +1451,9 @@ def validate(process_content, atom_dict, elements=None, robot_id=None, params=No
         used_by = {}
         for node in process_content:
             for it in node.get("inputList") or []:
-                for v in it.get("value") or []:
+                _raw_v = it.get("value")
+                _vals = _raw_v if isinstance(_raw_v, list) else [_raw_v]
+                for v in _vals:
                     if isinstance(v, dict) and v.get("type") == "p_var":
                         used_by.setdefault(v.get("value"), set()).add(node.get("key"))
         for pname, p in params.items():
