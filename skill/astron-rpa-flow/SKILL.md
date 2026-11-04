@@ -218,9 +218,17 @@ python scripts/spec_lint.py flows/<流程名>.json
    `spec_lint` 已内置死原子黑名单，写错会直接拦。
 2. **循环变量传进子流程要写 `"$var:item"`**，纯字符串永远是字面量。
 3. **`Script.module` 的 `module_id` 做成流程参数**（不要写死在节点里），换环境才不用改流程。
-4. **`keywords` 决定自然语言能否命中**：放用户真会说的词，不要放「批量/文件夹」这类会误伤的歧义词。
-5. **`out` 的 key 必须是该原子的真实输出项**（用 `atom_catalog --atom` 查），写错就拿不到值。
-6. `--stage draft` 还会再跑一遍「构建 + 校验」，两道都过才落库。
+4. **改了 `scripts/mod_xxx.py` 必须同步进规格**（否则白干）。脚本有两份：规格里的
+   `scripts.<名>.code` 是**落库/运行真正执行的**，`scripts/mod_<名>.py` 只是本地改代码用的副本。
+   两份不同步时本地跑新代码、落库跑旧代码，**不报错、只是改了没用**。
+   ```bash
+   python scripts/sync_script.py --all                                   # 查有没有漂移
+   python scripts/sync_script.py --spec flows/x.json --name 脚本名 --write  # 写回
+   ```
+   `spec_lint` 已内置这条检查（会 warn 并给出命令）。
+5. **`keywords` 决定自然语言能否命中**：放用户真会说的词，不要放「批量/文件夹」这类会误伤的歧义词。
+6. **`out` 的 key 必须是该原子的真实输出项**（用 `atom_catalog --atom` 查），写错就拿不到值。
+7. `--stage draft` 还会再跑一遍「构建 + 校验」，两道都过才落库。
 
 ### 3.3 需要新的 Python 子流程时
 
@@ -233,6 +241,12 @@ python scripts/make_module.py --py scripts/mod_xxx.py --new-robot "<流程名>" 
 
 模块**按机器人隔离**：跨机器人引用别人的 `module_id` 会得到 `None`，报「无法导入模块 .None」。
 换环境 / 换机器人**必须重建**。
+
+**改完 `mod_xxx.py` 一定要同步进规格**（否则落库的还是旧代码，见上面第 4 条）：
+
+```bash
+python scripts/sync_script.py --spec flows/<流程名>.json --name <模块名> --write
+```
 
 ## 第 4 步：跑完整链路并交付
 

@@ -37,6 +37,8 @@ logs/module_ledger.json
 logs/script_modules.json
 # logs/ 下的临时试验脚本/落盘日志一律不入库（跑完随手可删）
 logs/_tmp_*
+# 改流程前的 process_content 备份（调试时随手 cp 出来的，随时可删）
+logs/_backup_*.json
 # nl2spec/ai_flow 的「录制包」与自测产物（每次跑都重新生成，可随时删）
 logs/n2s_*/
 logs/nl2spec_selftest*.json

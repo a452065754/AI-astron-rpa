@@ -124,22 +124,45 @@ def _submit(base, chunk):
     return status, plain[:400]
 
 
+def _flow_params():
+    """拿流程参数面板（设计器 / API 传入）的实时值。
+
+    引擎把流程参数写进全局 `gv` 字典（见 astronverse executor/flow/flow.py:190），
+    每个 Script.module 又 `from .package import ... gv`（module.tpl:3），所以模块里
+    能直接读到 gv。引擎读模块参数时只读节点内置的 `varValue`（script.py:188），
+    **不会**用流程参数覆盖它 —— 所以仅靠「节点参数表」改值不会生效，必须在这里显式读 gv。
+
+    本地裸跑（没有 astronverse、没有 gv）时退化为空 dict，全部走节点默认。
+    """
+    try:
+        g = gv
+    except NameError:
+        return {}
+    return g if isinstance(g, dict) else {}
+
+
 def main(args) -> dict:
-    base = (args.get("base_url") or "http://192.168.0.26:81").strip().rstrip("/")
-    sfsc = str(args.get("sfsc") or "1").strip()
-    raw_from = (args.get("arrival_from") or "").strip()
+    # 流程参数面板（gv）优先于节点内置默认（args），让用户在参数面板改的值真正生效。
+    ns = dict(args or {})
+    for k, v in _flow_params().items():
+        if v not in (None, ""):
+            ns[k] = v
+
+    base = (ns.get("base_url") or "http://192.168.0.26:81").strip().rstrip("/")
+    sfsc = str(ns.get("sfsc") or "1").strip()
+    raw_from = (ns.get("arrival_from") or "").strip()
     if raw_from.lower() in _UNLIMITED:
         date_from = ""                                    # 不传 KSSJ = 不限下限
     else:
         date_from = raw_from or _today()                  # 留空沿用页面默认：纳期 >= 今天
-    date_to = (args.get("arrival_to") or "").strip()
-    batch_size = int(str(args.get("batch_size") or "200").strip() or 200)
+    date_to = (ns.get("arrival_to") or "").strip()
+    batch_size = int(str(ns.get("batch_size") or "200").strip() or 200)
     batch_size = max(1, min(batch_size, MAX_BATCH))
-    wait_seconds = float(str(args.get("wait_seconds") or "60").strip() or 60)
+    wait_seconds = float(str(ns.get("wait_seconds") or "60").strip() or 60)
     wait_seconds = max(0.0, min(wait_seconds, 3600.0))
-    max_rounds = int(str(args.get("max_rounds") or "50").strip() or 50)
-    dry_run = _truthy(args.get("dry_run"), True)
-    out_dir = (args.get("out_dir") or "").strip()
+    max_rounds = int(str(ns.get("max_rounds") or "50").strip() or 50)
+    dry_run = _truthy(ns.get("dry_run"), True)
+    out_dir = (ns.get("out_dir") or "").strip()
 
     if out_dir:
         os.makedirs(out_dir, exist_ok=True)

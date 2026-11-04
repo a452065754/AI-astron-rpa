@@ -533,6 +533,44 @@ def _lint_scripts(spec, scripts, err, warn):
         warn("scripts.%s 定义了但没有任何节点引用它" % nm,
              '要执行就加一个节点 "content": "$script:%s"；不用就删掉' % nm)
 
+    # ---------- 规则 10：磁盘副本漂移（2026-11-04 新增） ----------
+    #
+    # 为什么必须查（真实踩坑，不是理论风险）：
+    #   `scripts/mod_<名>.py` 只是给人/AI 改代码、本地 `run_flow_local` 用的副本，
+    #   **落库和运行时真正执行的是规格里的 `scripts.<名>.code`**。两份不同步时，
+    #   本地跑的是新代码、落库的是旧代码，行为不一致且不报错 —— 2026-11-04 修完
+    #   `mod_mes_chbq.py` 的「跑了个寂寞」，本地验证全绿，规格里还是旧脚本。
+    #   这类漂移是「白干」，只报 warn 会漏，但判 err 会误伤「正在改、还没同步」的
+    #   中间态，所以折中：warn + 直接给出同步命令（`sync_script.py --write`）。
+    for nm in sorted(scripts):
+        rec = scripts.get(nm) or {}
+        code = rec.get("code") or ""
+        if not isinstance(code, str):
+            continue
+        path = os.path.join(ROOT, "scripts", "mod_%s.py" % nm)
+        if not os.path.isfile(path):
+            continue
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                disk = f.read()
+        except Exception as e:
+            warn("scripts.%s 的磁盘副本读不出来（%s）" % (nm, e),
+                 "检查 scripts/mod_%s.py 的编码/权限" % nm)
+            continue
+        # 换行风格不算漂移：Windows 上磁盘文件是 CRLF，规格里存的是 LF。
+        # 不归一化会 100% 误报（实测 240 行的脚本差 240 个字符，内容一模一样）。
+        disk_n = disk.replace("\r\n", "\n")
+        code_n = code.replace("\r\n", "\n")
+        if not code.strip():
+            warn("scripts.%s 在规格里是空代码，但磁盘上有 %d 字符" % (nm, len(disk_n)),
+                 "十有八九是忘了同步：python scripts/sync_script.py --spec <规格> "
+                 "--name %s --write" % nm)
+        elif disk_n.strip() != code_n.strip():
+            warn("scripts.%s 与磁盘副本 scripts/mod_%s.py 不一致"
+                 "（规格 %d 字 / 磁盘 %d 字）" % (nm, nm, len(code_n), len(disk_n)),
+                 "**落库跑的是规格里的代码**，改磁盘文件不生效。确认磁盘版本是对的之后："
+                 "python scripts/sync_script.py --spec <规格> --name %s --write" % nm)
+
 
 # 常见扩展名：用来识别「变量 + 扩展名」被写成单个引用的情况（`"$name.xlsx"`）
 _FILE_EXTS = (".xlsx", ".xls", ".xlsm", ".csv", ".txt", ".docx", ".doc", ".pdf",
