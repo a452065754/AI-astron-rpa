@@ -1084,14 +1084,30 @@ def main():
 
     # 规格声明了 element_requirements 就先补齐元素（缺什么拾什么，幂等）。
     # 这一步让「网页流程」不再需要人进设计器点元素——AI 用一条命令就能拿到。
+    #
+    # **draft 阶段不建元素**（2026-11-04 修）：draft 对外承诺「只校验、零副作用」，
+    # 但 auto_pick=True 会真的 POST 新建元素。实测跑 MES 流程 draft 时：
+    #   · 没给 --robot-name → robot 取 rpa_config 的默认值（AI测试_Word转PDF）
+    #   · 于是往那个机器人名下建了 3 个 MES 登录元素（该流程真实 robot 本来就有）
+    # 既污染了别的机器人，也违背了 draft 的语义。落库阶段（review 及以后）照旧自动拾取。
     if spec.get("element_requirements") and not args.skip_element_pick:
         print("      检查规格声明的元素要求...")
+        auto_pick = (not args.offline) and args.stage != "draft"
+        if not auto_pick and not args.offline:
+            print("      · draft 只检查不创建（正式落库时才自动拾取）")
         try:
-            fg.ensure_elements(spec, robot_id=robot_id, auto_pick=not args.offline)
+            fg.ensure_elements(spec, robot_id=robot_id, auto_pick=auto_pick)
         except Exception as e:
-            print(f"      ❌ 元素补齐失败：{e}")
-            print("      可先单独跑：python element_pick.py --status")
-            return 2
+            if args.stage == "draft":
+                # draft 不建元素，缺失只提示不中断（元素是环境前置，不是规格错误）。
+                # 但要说清最可能的原因：元素按 robot 隔离，robot 给错就一定找不到。
+                print(f"      ⚠️ draft 未创建元素：{e}")
+                print(f"      → 元素按机器人隔离。先确认 --robot-name 指向该流程的真实机器人"
+                      f"（当前 robot={robot_id}）；元素确实缺失时，正式落库会自动拾取。")
+            else:
+                print(f"      ❌ 元素补齐失败：{e}")
+                print("      可先单独跑：python element_pick.py --status")
+                return 2
 
     elements = None
     try:

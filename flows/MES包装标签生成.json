@@ -36,13 +36,13 @@
       "name": "username",
       "type": "Str",
       "default": "",
-      "describe": "MES 账号"
+      "describe": "MES 账号（**默认值不写入仓库**：本仓库是公开的，业务系统凭据一律不落盘。运行前在设计器「流程参数」面板填，保存即写到服务端；本地跑也可临时改本字段，但别提交）"
     },
     {
       "name": "password",
       "type": "Str",
       "default": "",
-      "describe": "MES 密码"
+      "describe": "MES 密码（同上：默认值不写入仓库。运行前在设计器「流程参数」面板填，保存即写到服务端；本地跑也可临时改本字段，但别提交）"
     },
     {
       "name": "sfsc",

@@ -177,6 +177,27 @@
   "scripts_field": []
  },
  {
+  "file": "MES包装标签生成.json",
+  "errors": [],
+  "warnings": [],
+  "script_nodes": [
+   [
+    10,
+    "按纳期分批查询并批量生成（循环到没有数据）",
+    "$script:（新内嵌脚本）"
+   ],
+   [
+    12,
+    "等列表渲染完（画面停住片刻）",
+    "$script:（新内嵌脚本）"
+   ]
+  ],
+  "scripts_field": [
+   "mes_chbq",
+   "wait_gap"
+  ]
+ },
+ {
   "file": "OCR图片文字识别小流程.json",
   "errors": [],
   "warnings": [],

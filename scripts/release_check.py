@@ -36,6 +36,7 @@
 退出码：0 全部通过 / 1 有警告（可发但要知情）/ 2 有阻塞（不许发）。
 """
 import argparse
+import glob
 import io
 import json
 import os
@@ -148,6 +149,66 @@ def check_secrets():
             add(OK, "配置样例", "存在，凭据全是占位符")
     except Exception as e:
         add(WARN, "配置样例", "解析失败：%s" % e)
+
+
+# 流程规格里「凭据类流程参数」的默认值 —— **仓库是公开的，业务系统凭据一律不落盘**。
+#
+# 为什么单列一项（2026-11-04 审查发现）：
+#   `MES包装标签生成.json` 的 `username`/`password` 默认值直接写了真实业务系统的
+#   `MES_ACCOUNT` / `REDACTED`，并随 b77f61e 推上了公开 GitHub。
+#   原有的「敏感文件」检查只看**文件级**（rpa_config.json / handover/），
+#   凭据塞在流程参数里完全看不见 —— 而真实业务流程恰恰最可能这么写。
+#
+# 白名单：本机自建演示服务/演示密钥，不是真实业务系统凭据（改动时必须有理由）。
+DEMO_CRED_OK = {
+    ("FTP连接与目录操作小流程.json", "ftp_user", "admin"),      # 本地 pyftpdlib sink
+    ("FTP连接与目录操作小流程.json", "ftp_pass", "admin123"),   # 同上
+    ("加解密与时间差小流程.json", "password", "rpa-demo-key"),  # 演示密钥，非账号口令
+    # 下面三条是「值本身就不是有效凭据」，不是真实系统的账号：
+    #   local-test-only —— 本机 SMTP 收信器（scripts/local_smtp_sink.py）不校验密码
+    #   anonymous/a@a.a —— FTP 匿名登录的标准写法（RFC 1635）
+    ("Email发送带附件日报小流程.json", "sender_pwd", "local-test-only"),
+    ("FTP上传下载与增删小流程.json", "ftp_user", "anonymous"),
+    ("FTP上传下载与增删小流程.json", "ftp_pass", "a@a.a"),
+}
+_CRED_NAME_PARTS = ("password", "passwd", "pwd", "secret", "token", "api_key", "apikey")
+_CRED_NAME_EXACT = ("username", "account", "user", "user_name", "ftp_user", "ftp_pass")
+
+
+def _is_cred_param(name):
+    n = str(name or "").lower()
+    return n in _CRED_NAME_EXACT or any(p in n for p in _CRED_NAME_PARTS)
+
+
+def check_flow_creds():
+    """扫 `flows/*.json` 的凭据类流程参数默认值。"""
+    bad = []
+    for path in sorted(glob.glob(os.path.join(ROOT, "flows", "*.json"))):
+        base = os.path.basename(path)
+        try:
+            with io.open(path, encoding="utf-8") as f:
+                spec = json.load(f) or {}
+        except Exception:
+            continue
+        for p in spec.get("params") or []:
+            if not isinstance(p, dict):
+                continue
+            nm = p.get("name")
+            val = str(p.get("default") or "").strip()
+            if not val or not _is_cred_param(nm):
+                continue
+            # 占位符/引用形态不算泄漏
+            if val.startswith(("$", "<", "${")) or val.endswith(">"):
+                continue
+            if (base, str(nm), val) in DEMO_CRED_OK:
+                continue
+            bad.append("%s:%s=%r" % (base, nm, val[:20]))
+    if bad:
+        add(BAD, "流程内凭据", "规格里写了明文凭据 %d 处：%s" % (len(bad), " · ".join(bad[:3])),
+            "把 default 改成空串，运行前在设计器参数面板填；"
+            "已推送的还要轮换该密码（git 历史里删不掉）")
+    else:
+        add(OK, "流程内凭据", "流程参数默认值无明文凭据")
 
 
 # ---------------------------------------------------------------- 3. 文档四件套
@@ -307,6 +368,7 @@ def main():
 
     check_git()
     check_secrets()
+    check_flow_creds()
     check_docs()
     if not a.quick:
         check_flows()

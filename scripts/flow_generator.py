@@ -34,7 +34,22 @@ from element_relocator import ServerDb, unwrap_special  # SQL 兜底通道（默
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CACHE_PATH = os.path.join(HERE, "docs", "atom_dict_cache.json")
 ELEMENT_CACHE = os.path.join(HERE, "docs", "element_cache.json")
-DEFAULT_ROBOT_ID = 2065231113695461380
+
+# 落库默认目标：**优先 `rpa_config.json` 的 `defaults.robot_id`**，常量只作离线兜底。
+#
+# 为什么不能把某个机器人的 id 当默认（2026-11-04 审查发现）：
+#   原值是 `2065231113695461380`，在本服上是「京东下单-示例」——一个**业务示例机器人**。
+#   不带 `--robot-name` / `--robot-id` 直接落库，`save_main_flow` 会写进它的主流程，
+#   把示例覆盖掉；换服后这个 id 又变成别人的机器人，行为完全不可预测。
+#   改为跟随配置后：换服只要改 `rpa_config.json`（或让 conf.yaml 推出 host）即可，
+#   默认值与「当前实际连的服务端」始终一致。
+_FALLBACK_ROBOT_ID = 2065231113695461380
+try:
+    _cfg_robot = cfg.default_robot_id()
+    DEFAULT_ROBOT_ID = int(_cfg_robot) if str(_cfg_robot).strip().isdigit() else _FALLBACK_ROBOT_ID
+except Exception:
+    # 离线/配置损坏时不能因此 import 失败（门禁、lint、离线构建都要能跑）
+    DEFAULT_ROBOT_ID = _FALLBACK_ROBOT_ID
 
 # 演示用真实数据目录（模板默认路径必须指向**真实存在**的文件，
 # 否则流程跑起来第一步就报「找不到文件」——2026-10-30 用户实测踩到）。

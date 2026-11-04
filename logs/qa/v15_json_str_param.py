@@ -46,9 +46,43 @@ def check(name, ok, detail=""):
     print("  %s %-52s %s" % ("✅" if ok else "❌", name, detail))
 
 
-def build(spec):
-    """按规格生成节点树（不需要联网）。"""
-    return fg.build_process_content(spec, fg.load_atom_dict(offline=True))
+def build(spec, elements=None, robot_id=None):
+    """按规格生成节点树（不需要联网）。
+
+    `elements` / `robot_id` 只对**含元素槽位**的流程有用（如 MES包装标签生成 的
+    `"elements": {"element_data": "web"}`）：不传时 `pick_element_by_slot` 拿不到样本，
+    会直接抛「元素库里没有」。2026-11-04 加入真实业务流程后，本门禁因此误判为
+    「流程写错了」——实际是门禁自己不支持元素类流程。离线元素从
+    `docs/element_cache.json` 取（`load_elements(offline=True)` 的同一份数据）。
+    """
+    return fg.build_process_content(spec, fg.load_atom_dict(offline=True),
+                                    elements=elements,
+                                    robot_id=robot_id or fg.DEFAULT_ROBOT_ID)
+
+
+def offline_elements():
+    """读离线元素缓存；没有缓存就返回空（不联网，门禁必须可离线复现）。"""
+    cache = os.path.join(ROOT, "docs", "element_cache.json")
+    if not os.path.exists(cache):
+        return {}
+    with open(cache, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def robot_of_elements(spec, elements):
+    """按 `element_requirements` 的元素名，反推它们属于哪个 robot。
+
+    元素是按 robot 复制的（`pick_samples(strict=True)` 只认目标 robot 名下），
+    所以构建前必须先知道 robot 是谁，否则样本为空、依然报「元素库里没有」。
+    """
+    reqs = spec.get("element_requirements") or []
+    names = {r.get("name") for r in reqs if isinstance(r, dict)}
+    if not names:
+        return None
+    for rec in (elements or {}).values():
+        if rec.get("element_name") in names and rec.get("robot_id"):
+            return str(rec["robot_id"])
+    return None
 
 
 def main():
@@ -68,7 +102,8 @@ def main():
 
     # ---------- A. 全库静态扫描 ----------
     print("\n[A] flows/*.json 里这些参数的落库形态")
-    bad, touched = [], 0
+    bad, skipped, touched = [], [], 0
+    elems = offline_elements()
     for path in sorted(glob.glob(os.path.join(ROOT, "flows", "*.json"))):
         with open(path, encoding="utf-8") as f:
             spec = json.load(f)
@@ -78,9 +113,16 @@ def main():
             continue
         touched += 1
         try:
-            nodes = build(spec)
+            nodes = build(spec, elements=elems, robot_id=robot_of_elements(spec, elems))
         except Exception as e:
-            bad.append("%s 生成失败：%s" % (os.path.basename(path), e))
+            msg = str(e)
+            # 「元素库里没有」= 门禁自己缺前置数据，不是被检查的 json_str 形态有问题。
+            # 判 bad 会把环境缺失伪装成代码缺陷（2026-11-04 踩到），所以单列 skipped，
+            # 但**必须打印出来**——静默跳过等于把这条流程移出门禁，比误报更危险。
+            if "元素库里没有" in msg:
+                skipped.append("%s：%s" % (os.path.basename(path), msg.split("，但")[0]))
+            else:
+                bad.append("%s 生成失败：%s" % (os.path.basename(path), msg))
             continue
         for node in nodes:
             keys = json_str_params.get(node.get("key")) or set()
@@ -89,7 +131,10 @@ def main():
                     bad.append("%s/%s = %r" % (os.path.basename(path), it.get("key"),
                                                type(it.get("value")).__name__))
     check("A1 json_str 参数一律是字符串", not bad,
-          "涉及 %d 条流程 / %d 个参数定义，异常 %d 处" % (touched, n_pairs, len(bad)))
+          "涉及 %d 条流程 / %d 个参数定义，异常 %d 处，离线跳过 %d 条"
+          % (touched, n_pairs, len(bad), len(skipped)))
+    for x in skipped[:5]:
+        print("      · 跳过（缺前置元素，未校验）：", x)
     for x in bad[:5]:
         print("      !", x)
 

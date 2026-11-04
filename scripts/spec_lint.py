@@ -189,13 +189,83 @@ def _is_args_name(node):
     return isinstance(node, ast.Name) and node.id == "args"
 
 
+def _dict_getter_names(tree):
+    """找出脚本里「把 dict 传进去、用字符串 key 取值」的辅助函数名。
+
+    为什么需要（2026-11-04 误报 9 条）：
+      `mod_mes_chbq.py` 用 `_get(ns, "sfsc", "0")` 统一处理「None / 空串 / 类型归一」，
+      这是合理写法；但 `_collect_arg_reads` 只认 `args.get("x")` / `args["x"]`，
+      于是 14 个参数里 9 个全被判成「module_param 给了但脚本没读」——纯噪音，
+      还会把真正的参数名拼错淹没掉。
+
+    判定条件（要求同时满足，避免把 `_log(out_dir, "xxx")` 误判成读取）：
+      1. 模块级函数，至少 2 个位置参数；
+      2. 函数体里**真的**用第 1 个形参当 dict、第 2 个形参当 key
+         （`d.get(k, ...)` / `d[k]` / `k in d`）。
+    """
+    out = set()
+    for n in getattr(tree, "body", []):
+        if not isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        if len(n.args.args) < 2:
+            continue
+        d_arg = n.args.args[0].arg
+        k_arg = n.args.args[1].arg
+        for m in ast.walk(n):
+            hit = False
+            if isinstance(m, ast.Call) and isinstance(m.func, ast.Attribute) \
+                    and m.func.attr == "get" and isinstance(m.func.value, ast.Name) \
+                    and m.func.value.id == d_arg:
+                if m.args and isinstance(m.args[0], ast.Name) and m.args[0].id == k_arg:
+                    hit = True
+            elif isinstance(m, ast.Subscript) and isinstance(m.value, ast.Name) \
+                    and m.value.id == d_arg \
+                    and isinstance(m.slice, ast.Name) and m.slice.id == k_arg:
+                hit = True
+            elif isinstance(m, ast.Compare):
+                left = m.left
+                if isinstance(left, ast.Name) and left.id == k_arg:
+                    if any(isinstance(c, ast.Name) and c.id == d_arg for c in m.comparators):
+                        hit = True
+            if hit:
+                out.add(n.name)
+                break
+    return out
+
+
+def _args_alias_names(tree):
+    """找出「把 args 拷成局部字典再取值」的别名：`ns = dict(args or {})` → `{"ns"}`。
+
+    `mod_mes_chbq.py` 的写法是先把 args 和流程参数兜底合并成 `ns`，再用
+    `ns.get("dry_run")` 读；只认 `args.get(...)` 会把它算成「没读」（2026-11-04 实测）。
+    只认 `dict(...)` 且参数里含 `args` 的赋值，避免把 `x = args["a"]` 这类误判成别名。
+    """
+    out = set()
+    for n in ast.walk(tree):
+        if not isinstance(n, ast.Assign) or not isinstance(n.value, ast.Call):
+            continue
+        if not (isinstance(n.value.func, ast.Name) and n.value.func.id == "dict"):
+            continue
+        if not any(isinstance(m, ast.Name) and m.id == "args" for m in ast.walk(n.value)):
+            continue
+        for t in n.targets:
+            if isinstance(t, ast.Name):
+                out.add(t.id)
+    return out
+
+
 def _collect_arg_reads(tree):
     """用 ast 收集代码里读了哪些 args 字段：`args.get("x")` / `args["x"]`（单/双引号都算）。
 
     返回 `(名字集合, 是否有非字面量读取)`。后者指 `args.get(k)` 这种运行时才知道 key 的
     写法 —— 那种没法静态核对，跳过参数一致性检查（否则会误报一堆）。
+
+    另外识别 `_get(ns, "sfsc", "0")` 这类**辅助函数取值**（见 `_dict_getter_names`）：
+    第 2 个位置参数是字符串字面量就算一次读取。
     """
     names, dynamic = set(), False
+    helpers = _dict_getter_names(tree)
+    aliases = _args_alias_names(tree)
     for n in ast.walk(tree):
         if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) \
                 and n.func.attr == "get" and _is_args_name(n.func.value):
@@ -209,6 +279,22 @@ def _collect_arg_reads(tree):
                 names.add(sl.value)
             else:
                 dynamic = True
+        # 辅助函数取值：`_get(ns, "sfsc", "0")` —— 第 2 个位置参数是字面量即算读取
+        elif isinstance(n, ast.Call) and isinstance(n.func, ast.Name) \
+                and n.func.id in helpers and len(n.args) >= 2:
+            if isinstance(n.args[1], ast.Constant) and isinstance(n.args[1].value, str):
+                names.add(n.args[1].value)
+        # 别名取值：`ns = dict(args or {})` 之后的 `ns.get("dry_run")` / `ns["dry_run"]`
+        elif (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+              and n.func.attr == "get" and isinstance(n.func.value, ast.Name)
+              and n.func.value.id in aliases):
+            if n.args and isinstance(n.args[0], ast.Constant) and isinstance(n.args[0].value, str):
+                names.add(n.args[0].value)
+        elif isinstance(n, ast.Subscript) and isinstance(n.value, ast.Name) \
+                and n.value.id in aliases:
+            sl = n.slice
+            if isinstance(sl, ast.Constant) and isinstance(sl.value, str):
+                names.add(sl.value)
     return names, dynamic
 
 

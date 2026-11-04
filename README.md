@@ -250,7 +250,7 @@ python scripts/element_pick.py --check <elementId>
 │   └── mod_*.py              # Python 子流程实现（PDF 版面还原 / OCR / 文件夹整理 / Excel 拆表）
 ├── mcp/server.py             # MCP 服务（零依赖，stdio JSON-RPC）
 ├── skill/astron-rpa-flow/    # 技能包（AI 操作手册）
-├── flows/                    # 92 条流程规格（契约文件）
+├── flows/                    # 93 条流程规格（契约文件）
 ├── docs/                     # 交接清单、开发进度、部署与 MCP 文档、平台缺陷与复现包
 │                             #（评审单 docs/reviews/ 已不入库，仅本地留档）
 └── demo/                     # 演示数据与实测产物（.gitignore 已挡掉截图/中间图）
