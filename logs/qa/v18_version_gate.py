@@ -90,31 +90,41 @@ def main():
     ck("低于 min_supported → block（不依赖 breaking 标志）", r["level"] == "block", r["level"])
 
     # ---------- 3. banner ----------
-    fake({"version": "1.0.1", "breaking": False, "min_supported": "1.0.0",
-          "highlights": ["A20 参数门禁", "发布默认草稿"]})
-    V.CACHE_FILE = os.path.join(tempfile.gettempdir(), "_v18_no_cache2.json")
-    if os.path.exists(V.CACHE_FILE):
-        os.remove(V.CACHE_FILE)
-    text, blocked = V.banner(use_cache=False)
-    ck("banner：落后时给提示且不阻塞", bool(text) and "⬆️" in text and not blocked, (text or "").splitlines()[0] if text else "None")
+    # 必须**显式**把本地版本钉在 1.0.0。早期这里依赖 run_check 还原后的真实 VERSION，
+    # 项目一发版（1.0.0 → 1.0.1）这条用例就红 —— 测试跟着数据漂，是最难查的那种假失败。
+    _orig_ver = open(V.VERSION_FILE, encoding="utf-8").read()
+    open(V.VERSION_FILE, "w", encoding="utf-8").write("1.0.0\n")
+    try:
+        fake({"version": "1.0.1", "breaking": False, "min_supported": "1.0.0",
+              "highlights": ["A20 参数门禁", "发布默认草稿"]})
+        V.CACHE_FILE = os.path.join(tempfile.gettempdir(), "_v18_no_cache2.json")
+        if os.path.exists(V.CACHE_FILE):
+            os.remove(V.CACHE_FILE)
+        text, blocked = V.banner(use_cache=False)
+        ck("banner：落后时给提示且不阻塞",
+           bool(text) and "⬆️" in text and not blocked,
+           (text or "").splitlines()[0] if text else "None")
 
-    fake({"version": "2.0.0", "breaking": True, "min_supported": "1.5.0",
-          "highlights": ["spec 格式变更"]})
-    V.CACHE_FILE = os.path.join(tempfile.gettempdir(), "_v18_no_cache3.json")
-    if os.path.exists(V.CACHE_FILE):
-        os.remove(V.CACHE_FILE)
-    text, blocked = V.banner(use_cache=False)
-    ck("banner：breaking 时给拦截且有「不能继续」", bool(text) and blocked and "不能继续" in text,
-       "blocked=%s" % blocked)
+        fake({"version": "2.0.0", "breaking": True, "min_supported": "1.5.0",
+              "highlights": ["spec 格式变更"]})
+        V.CACHE_FILE = os.path.join(tempfile.gettempdir(), "_v18_no_cache3.json")
+        if os.path.exists(V.CACHE_FILE):
+            os.remove(V.CACHE_FILE)
+        text, blocked = V.banner(use_cache=False)
+        ck("banner：breaking 时给拦截且有「不能继续」", bool(text) and blocked and "不能继续" in text,
+           "blocked=%s" % blocked)
 
-    # ---------- 4. 离线不吵人 ----------
-    fake(None)
-    V.CACHE_FILE = os.path.join(tempfile.gettempdir(), "_v18_no_cache4.json")
-    if os.path.exists(V.CACHE_FILE):
-        os.remove(V.CACHE_FILE)
-    r = V.check(use_cache=False)
-    text, blocked = V.banner(use_cache=False)
-    ck("远端不可达 → unknown，且不打印、不阻塞", r["level"] == "unknown" and text is None and not blocked)
+        # ---------- 4. 离线不吵人 ----------
+        fake(None)
+        V.CACHE_FILE = os.path.join(tempfile.gettempdir(), "_v18_no_cache4.json")
+        if os.path.exists(V.CACHE_FILE):
+            os.remove(V.CACHE_FILE)
+        r = V.check(use_cache=False)
+        text, blocked = V.banner(use_cache=False)
+        ck("远端不可达 → unknown，且不打印、不阻塞",
+           r["level"] == "unknown" and text is None and not blocked)
+    finally:
+        open(V.VERSION_FILE, "w", encoding="utf-8").write(_orig_ver)
 
     # ---------- 5. bump 进位（隔离目录，不碰真 VERSION） ----------
     tmp = tempfile.mkdtemp(prefix="v18_")

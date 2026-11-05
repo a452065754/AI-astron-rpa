@@ -453,16 +453,17 @@ def changelog(days: int = 14, commits: list[dict] | None = None) -> str:
     return "\n".join(out).rstrip()
 
 
-def _highlights(n: int = 3) -> list[str]:
-    """从最近提交里挑几条当 version.json 的亮点。
+_LAST_HIGHLIGHTS: list[str] = []   # bump() 本次算出的亮点，publish_json() 复用
 
-    顺序有讲究：**先「新增」后「修复」**。亮点是给人看「要不要现在更新」的，
-    新能力比修 bug 更能回答这个问题；但修 bug 也不能少（不然只有新增才发版）。
-    docs/chore/test 一律不要。
+
+def _pick_highlights(subjects: list[str], n: int = 3) -> list[str]:
+    """从一组 commit 标题里挑亮点。**先「新增」后「修复」**。
+
+    顺序有讲究：亮点是给人看「要不要现在更新」的，新能力比修 bug 更能回答这个问题；
+    但修 bug 也不能少（不然只有新增才发版）。docs/chore/test 一律不要。
     """
-    raw = _run(["git", "log", "-40", "--pretty=%s"])
     feat, other = [], []
-    for s in raw.splitlines():
+    for s in subjects:
         cat = _classify(s)
         txt = re.sub(r"^\w+(\([^)]*\))?[:：]\s*", "", s)[:60]
         if cat == "新增":
@@ -470,6 +471,12 @@ def _highlights(n: int = 3) -> list[str]:
         elif cat in ("修复", "重构"):
             other.append(txt)
     return (feat + other)[:n] or ["常规更新"]
+
+
+def _highlights(n: int = 3) -> list[str]:
+    """取最近提交的亮点。发版时优先用 `_LAST_HIGHLIGHTS`（只算本次区间）。"""
+    raw = _run(["git", "log", "-40", "--pretty=%s"])
+    return _pick_highlights(raw.splitlines(), n)
 
 
 def bump(kind: str = "patch", breaking: bool = False, note: str = "",
@@ -511,14 +518,28 @@ def bump(kind: str = "patch", breaking: bool = False, note: str = "",
     with open(VERSION_FILE, "w", encoding="utf-8") as f:
         f.write(new + "\n")
 
+    # 本次区间（上一个 tag..HEAD）的提交才是这一版的亮点。
+    # 不更新这个全局变量的话，publish_json() 会退回去取「最近 40 条」，
+    # 把上一版的内容也列进来 —— 同事会以为那些是新东西。
+    global _LAST_HIGHLIGHTS
+    _LAST_HIGHLIGHTS = _pick_highlights([c["subject"] for c in commits])
+
     old = ""
     if os.path.exists(CHANGELOG_FILE):
         old = open(CHANGELOG_FILE, encoding="utf-8").read()
         if old.startswith("# "):
-            first, _, rest = old.partition("\n")
-            old = rest.lstrip("\n")
-    header = "# 变更记录（CHANGELOG）\n\n> 由 `python scripts/version.py --bump <kind>` 自动生成，别手改格式。\n\n"
-    open(CHANGELOG_FILE, "w", encoding="utf-8").write(header + "\n".join(head) + "\n" + body + "\n\n" + old)
+            _, _, rest = old.partition("\n")
+            # 连紧跟的说明引用块一起剥掉，否则每 bump 一次就多重复一段
+            lines = rest.lstrip("\n").splitlines()
+            while lines and lines[0].lstrip().startswith(">"):
+                lines.pop(0)
+            old = "\n".join(lines).lstrip("\n")
+    header = ("# 变更记录（CHANGELOG）\n\n"
+              "> 由 `python scripts/release.py` 自动生成，别手改格式。\n"
+              "> 唯一用途：让人在 30 秒内判断「我要不要更新」——"
+              "所以只写「改了什么、影响谁」，实现细节看 git log。\n\n")
+    open(CHANGELOG_FILE, "w", encoding="utf-8").write(
+        header + "\n".join(head) + "\n" + body + "\n\n" + old)
     return new
 
 
@@ -537,7 +558,8 @@ def publish_json(breaking: bool = False) -> dict:
         "breaking": bool(breaking),
         # 破坏性变更时把门槛抬到当前版本：旧版一律拦下
         "min_supported": ver if breaking else "%d.%d.0" % semver(ver)[:2],
-        "highlights": _highlights(),
+        # 优先用 bump 刚算出的「本次区间」亮点；单独跑 --publish-json 时回退到最近提交
+        "highlights": _LAST_HIGHLIGHTS or _highlights(),
     }
     with open(DIST_FILE, "w", encoding="utf-8") as f:
         json.dump(doc, f, ensure_ascii=False, indent=1)

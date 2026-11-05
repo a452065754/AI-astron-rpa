@@ -1,6 +1,7 @@
 # 变更记录（CHANGELOG）
 
-> 由 `python scripts/version.py --bump <kind>` 自动生成，别手改格式。
+> 由 `python scripts/release.py` 自动生成，别手改格式。
+> 唯一用途：让人在 30 秒内判断「我要不要更新」——所以只写「改了什么、影响谁」，实现细节看 git log。
 
 ## v1.0.1（2026-11-05）
 > GitHub 版分发链路：Contents API 主源 + 一键发版 + CI 一致性
@@ -8,10 +9,6 @@
 ### 2026-11-05 · 1 次提交
 - **新增** 1：
   - feat(version): GitHub 版分发链路，raw 不可达改走 Contents API（e8b2eb4）
-
-> 由 `python scripts/version.py --bump <kind>` 自动生成，别手改格式。
-> 多人场景下这份东西的唯一用途：**让人在 30 秒内判断「我要不要更新」**。
-> 所以只写「改了什么、影响谁」，不写实现细节（细节在 git log）。
 
 ## v1.0.0（2026-11-05）
 > 首个版本化基线。此前无版本号，全部提交都归到这里。
