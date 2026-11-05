@@ -136,6 +136,28 @@ IE 系 36 个整块缺失（`astronverse.iebrowser` 没装）、`DataTable.sort_
 写了必挂 `AttributeError`。选原子前先看 `docs/atom_missing.json`（或跑一次
 `python scripts/atom_impl_check.py` 重新核对），`spec_lint` 也会直接拦。
 
+#### ⚠️ 写规格前先定参数：**只留 ≤6 条**
+
+参数不是越多越好。`params` 里每一项都会被平台序列化进 `Executor.paramJson`，而平台日志脱敏的正则对这个字段是**递归**实现（递归深度 ≈ 字符数），长度一超就 `StackOverflowError` → 该账号**整个「添加应用」列表变成 999999**。这是 2026-11-05 真实打挂过正式服的缺陷（A20），不是理论风险。
+
+**硬上限**（生产 JVM 实测）：`paramJson` 估算 **≥1450 字符 或 >8 条** → `spec_lint` 规则 11 直接报 err。
+**工程目标**：**≤6 条 / ≤1050 字符**。
+
+怎么收敛：
+
+- 只留**运维真会改**的：账号、密码、日期范围、业务开关、演练标志。
+- 静态值一律**写死进节点**：`{"type":"p_var","value":"p_url"}` → `{"type":"other","value":"http://..."}`。
+- URL / 目录 / 轮询次数 / 批大小 / keep_open —— 这些是常量，不是参数。
+- 一组参数特别多时，改成「1 个配置文件路径」参数。
+
+自查（写完就量一次，别等发布才发现）：
+
+```bash
+python scripts/spec_lint.py flows/你的流程.json
+```
+
+`param_budget_exempt` 只给仓库里的**原子演示小流程**用，业务流程不许豁免。
+
 #### 第 2 步：写规格
 
 写进 `flows/<流程名>.json`，字段 `{name, nl_examples, keywords, params, nodes}`。
@@ -285,8 +307,12 @@ python scripts/ai_flow.py --spec flows/<流程>.json --stage invoke --params '{"
 - **不跳校验**：任何流程都必须 `IS_PASS: YES` + 本地真跑 SUCCESS 才能交给用户评审。
 - **批量要明说**：用户说「整个文件夹都转」而流程是单文件的，**主动拦下并说明**，不要只处理一个文件装没事。
 - **核心目的不偏移**：用户要的是「自然语言 → 固定 RPA 流程」，不是把某个示例流程调通。
+- **参数 ≤6 条**：超过 8 条（或 `paramJson` ≥1450 字符）会让正式服「添加应用」列表整包 999999。
+  只留运维真会改的，静态值写死进节点。详见「3.2 写规格前先定参数」。
 - **不自行发布**：默认只做到草稿（`draft` / `review`）。用户明确说「发布」才加 `--confirm-publish`；
   **绝不**因为「流程跑通了」就顺手发出去 —— 发布会把机器人送进正式服的「添加应用」列表。
+- **发完要巡检**：用户自己发布之后，主动提一句跑 `python scripts/param_health.py`
+  （只读，看目标机器人是否绿灯、有没有落进 💣 段）。**平台 UI 上的手工改动本仓库看不见，巡检是唯一护栏。**
 - **不动服务端**：这套工具是外挂，不装插件、不改数据库、不重编镜像。
 - **凭据不外泄**：Key 只写 `rpa_config.json`；不要打印全文，不要提交到 git。
 
