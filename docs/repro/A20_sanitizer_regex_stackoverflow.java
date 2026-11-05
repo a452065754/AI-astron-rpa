@@ -4,12 +4,15 @@ import java.nio.file.Path;
 import java.util.regex.Pattern;
 
 /**
- * A20 复现：SensitiveDataSanitizer 的**第一个**正则 QUOTED_ARRAY_VALUE 在长 paramJson 上抛 StackOverflowError
+ * A20 复现（⚠️ 历史文件，结论已作废，请用 docs/upstream/A20Repro.java）
  *
- * ⚠️ 2026-11-05 14:10 更正：之前这个文件写的是 QUOTED_VALUE。真正爆的是排在它**前面**的
- *    QUOTED_ARRAY_VALUE（`paramJson` 是 JSON **数组**字符串，先被它整段吞掉，
- *    根本轮不到 QUOTED_VALUE）。用 QUOTED_VALUE 测出来的阈值全部作废。
- *    本文件保留历史代码，**阈值以 docs/开发进度.md §26.10 的 inner 表为准**。
+ * ❌ 2026-11-05 15:40 再次复核：下面 14:10 写的「真正爆的是 QUOTED_ARRAY_VALUE」是**错的**。
+ *    真正命中并爆栈的是 **QUOTED_VALUE** —— Executor.paramJson 是 String 字段，
+ *    序列化后是 "paramJson":"[...]"（**值带引号**），而 QUOTED_ARRAY_VALUE 要求冒号后
+ *    紧跟 [ 才匹配，这里紧跟的是 " → 根本不命中。
+ *    实测（JDK17/1MB 栈/5 次一致）：真实形态 1800 OK、2000 起 StackOverflowError；
+ *    QUOTED_ARRAY_VALUE 从 600 到 6000 全程 OK（它是非递归的 [^\]]*）。
+ *    本文件保留仅为历史留痕，**结论与阈值都不要引用**。
  *
  * 【现象】
  *   正式服 183 上点「定时任务 → 添加应用」，弹窗报「系统异常，请稍后重试」+「暂无数据」。

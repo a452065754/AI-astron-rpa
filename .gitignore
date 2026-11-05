@@ -12,6 +12,7 @@ handover/
 
 # ============ Python ============
 __pycache__/
+*.class
 *.py[cod]
 *.pyo
 .venv/

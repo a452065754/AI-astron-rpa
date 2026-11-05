@@ -6,7 +6,7 @@
 平台「添加应用」列表接口 `GET /api/robot/triggerTask/robotExe/list` 会把每个机器人的
 参数列表拼成 `Executor.paramJson`（一个 JSON 数组字符串），然后进
 `ApiLogAspect.formatResult()` → `SensitiveDataSanitizer.sanitize(Object)`。
-`sanitize` 里第一个正则是 `QUOTED_ARRAY_VALUE`，它的值部分
+`sanitize` 里真正命中的是 `QUOTED_VALUE`，它的值部分
 `\\[(?:\\\\.|[^\\]\\\\])*\\]` 在 Java 里由 `java.util.regex.Pattern$Loop` **递归**实现，
 **递归深度 ≈ 匹配到的字符数**，默认 1MB 栈在 ~1500~1800 字符处爆 `StackOverflowError`。
 异常冒泡到全局兜底 → 整个接口只剩 `{"code":"999999"}` → 前端「添加应用」报错。

@@ -365,7 +365,7 @@ def guard_param_budget(cookie, robot_id, process_id, strict=True):
 
     为什么要在发布前卡（平台缺陷 A20，2026-11-05 正式服事故）：
       `Executor.paramJson`（JSON 数组字符串）会整段进 `SensitiveDataSanitizer.sanitize`，
-      里面的 `QUOTED_ARRAY_VALUE` 靠 `Pattern$Loop` 递归匹配，递归深度 ≈ 字符数；
+      里面的 `QUOTED_VALUE` 靠 `Pattern$Loop` 递归匹配，递归深度 ≈ 字符数；
       超过 ~1500 字符就 1MB 栈溢出 → 「添加应用」列表整包 `999999` → **整个账号的定时任务
       都选不了应用**，而且只有创建者自己的账号能看见（`creator_id` 过滤），交付给别人时完全隐身。
 

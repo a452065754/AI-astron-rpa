@@ -11,10 +11,15 @@
 本仓库是公开的（2026-11-04 曾因流程参数默认值带真实凭据而被迫改写 git 历史），
 凭据一律不落盘。真要做逐字节回滚，从服务端 `c_param` 现取即可。
 
+> ⚠️ **2026-11-05 15:40 复核修正**：根因正则确认为 **`QUOTED_VALUE`**（不是 `QUOTED_ARRAY_VALUE`）。
+> `Executor.paramJson` 是 `String`，序列化后是 `"paramJson":"[...]"`（值带引号），
+> `QUOTED_ARRAY_VALUE`（要求冒号后紧跟 `[`）匹配不上；`QUOTED_ARRAY_VALUE` 本身也早已是非递归的 `[^\]]*`。
+> 复核脚本见 `docs/upstream/A20Repro.java`。下文凡把它写成 `QUOTED_ARRAY_VALUE` 的地方按此更正。
+
 ## 根因一句话
 
 平台 `ApiLogAspect.formatResult()` 把接口返回值 `JSON.toJSONString()` 后丢给
-`SensitiveDataSanitizer.sanitize(Object)`；其中**第一个**正则 `QUOTED_ARRAY_VALUE`
+`SensitiveDataSanitizer.sanitize(Object)`；真正命中的是**第二个**正则 `QUOTED_VALUE`
 （匹配「敏感键 → 数组值」）的值部分 `\[(?:\\.|[^\]\\])*\]` 由 `java.util.regex.Pattern$Loop`
 **递归**实现，递归深度 ≈ 匹配字符数。`Executor.paramJson` 是 JSON 数组字符串，
 正好被它整段吞掉 → 参数一多就 `StackOverflowError` → 异常冒泡出切面 → 全局兜底 →
