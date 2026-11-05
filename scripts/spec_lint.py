@@ -803,22 +803,12 @@ def lint(spec, atoms):
             "建议收敛到 %d 条以内：静态值（URL/目录/开关/轮次）写死进节点，只留运维真会改的"
             % pb.COUNT_WARN)
 
-    # 模块级参数（`scripts.<名>.params`）平时**不进** `paramJson`（平台按 process_id 过滤），
-    # 但 `robot_execute.app_version` 为 NULL 时 `getMianProcessId` 返回 null，查询退化成
-    # `where robot_id=?`，模块参数会和所有历史版本的流程参数一起被捞进来，条数成倍翻。
-    # 所以「流程参数合规」不等于安全 —— 这里单独提示，别让人以为算过了就没事。
-    if _budget["level"] != "red" and isinstance(spec.get("scripts"), dict):
-        _mod = []
-        for _nm, _sc in spec["scripts"].items():
-            if isinstance(_sc, dict):
-                _mod += [x for x in (_sc.get("params") or []) if isinstance(x, dict)]
-        if _mod:
-            _both = pb.summary([p for p in params if isinstance(p, dict)] + _mod)
-            if _both["level"] == "red":
-                warn("算上 %d 条模块参数后 paramJson 估算 %d 字符（跨线）" % (
-                    len(_mod), _both["span"]),
-                    "app_version 为 NULL 时平台会把模块参数也拼进去 → 必爆。"
-                    "发布后确认 robot_execute.app_version = 当前在线版本，或精简模块参数")
+    # 模块级参数（`scripts.<名>.params`）**永远不进** `paramJson`，不需要计入预算：
+    #   `CParamDao.xml#getSelfRobotParam` 是硬等值三条：robot_id + process_id + robot_version。
+    #   实测全库 92 条模块参数的 `process_id` **全部为 NULL**，而 SQL 要求 process_id 等值，
+    #   所以它们不可能被取到；`app_version` 为 NULL 时同理（`robot_version = NULL` 恒假，
+    #   返回 0 条，既不会爆栈、参数也会全丢）。
+    # 2026-11-05 曾按「app_version 为空会退化全捞」写过一条 warn，实测证伪，已删除。
 
     # ---------- 规则 1.8：流程参数的默认值不许写死某台机器的盘符路径（**err**） ----------
     #

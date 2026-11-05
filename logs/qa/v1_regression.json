@@ -219,12 +219,7 @@
  {
   "file": "MES包装标签生成.json",
   "errors": [],
-  "warnings": [
-   {
-    "msg": "算上 10 条模块参数后 paramJson 估算 2624 字符（跨线）",
-    "fix": "app_version 为 NULL 时平台会把模块参数也拼进去 → 必爆。发布后确认 robot_execute.app_version = 当前在线版本，或精简模块参数"
-   }
-  ],
+  "warnings": [],
   "script_nodes": [
    [
     10,
@@ -396,12 +391,7 @@
  {
   "file": "gen_按部门拆分Excel.json",
   "errors": [],
-  "warnings": [
-   {
-    "msg": "算上 5 条模块参数后 paramJson 估算 1803 字符（跨线）",
-    "fix": "app_version 为 NULL 时平台会把模块参数也拼进去 → 必爆。发布后确认 robot_execute.app_version = 当前在线版本，或精简模块参数"
-   }
-  ],
+  "warnings": [],
   "script_nodes": [
    [
     1,
@@ -420,10 +410,6 @@
    {
     "msg": "流程参数 7 条 / paramJson 估算 1199 字符，已接近爆栈线",
     "fix": "建议收敛到 6 条以内：静态值（URL/目录/开关/轮次）写死进节点，只留运维真会改的"
-   },
-   {
-    "msg": "算上 7 条模块参数后 paramJson 估算 2396 字符（跨线）",
-    "fix": "app_version 为 NULL 时平台会把模块参数也拼进去 → 必爆。发布后确认 robot_execute.app_version = 当前在线版本，或精简模块参数"
    }
   ],
   "script_nodes": [
