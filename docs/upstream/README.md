@@ -1,5 +1,8 @@
 # 给上游的缺陷反馈素材（`iflytek/astron-rpa`）
 
+> ✅ **已于 2026-11-05 15:45 提交**：https://github.com/iflytek/astron-rpa/issues/909（`bug` 标签因外部账号无 triage 权限未自动打上）
+> 复现脚本已贴在该 Issue 的第一条评论里。
+
 本目录**不是内部文档**，是准备直接贴到上游 GitHub Issue 的干净素材。
 凡是内部主机名、账号、业务系统名、凭据，在这里一律不出现。
 
