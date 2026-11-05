@@ -47,6 +47,7 @@ import self_heal
 import publish_flow as pf
 import param_budget as pb   # 参数预算（平台缺陷 A20）
 import publish_gate as pg   # 发布闸门：默认草稿，发布须显式确认
+import version as verchk   # 版本闸门：落后提示，breaking 拒绝运行（别叫 ver：main 里已占用）
 import run_flow_local as rfl
 import error_hints as eh
 import traceback_map as tm
@@ -1014,12 +1015,27 @@ def main():
     ap.add_argument("--robot-name", default="",
                     help="按名字找机器人，找不到就新建（换设备时不用记 robotId）。"
                          "省略则用 --robot-id / rpa_config 的 defaults.robot_id")
+    ap.add_argument("--skip-update-check", action="store_true",
+                    help="跳过版本自检（离线排障 / 故意用旧版对照时用）")
     args = ap.parse_args()
 
     # `--prep-only` 只是 `--stage draft` 的更好听的名字（名字来自用户建议：draft 听起来像
     # 「不产生副作用」，其实它会解析/创建机器人）。两者行为完全一致，别让它变成第二套逻辑。
     if args.prep_only:
         args.stage = "draft"
+
+    # 版本闸门（多人协作，2026-11-05）：**必须在任何网络/写操作之前**。
+    # 只读 1KB 的 version.json（24h 缓存），不拉仓库；取不到就当离线，静默放行。
+    # 落后 → 打一行提示；breaking / 低于 min_supported → 拒绝运行（退出码 12）。
+    # 为什么值得拦：旧脚本按新契约跑，产出的流程可能读不回来，而且**当场看不出来**。
+    if not args.skip_update_check:
+        _line, _must = verchk.banner()
+        if _line:
+            print(_line)
+            print()
+        if _must:
+            print("   本轮未执行任何操作。更新后重跑同一条命令即可。")
+            return 12
 
     # 发布闸门（2026-11-05，A20 复盘）：必须在**任何网络/写操作之前**拦。
     # 证据：robot_execute.create_time 与 robot_version.publish 时间逐秒一致

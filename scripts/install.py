@@ -39,6 +39,16 @@
 
     # 给别的 MCP 客户端（Claude Desktop 等）生成配置片段
     python scripts/install.py --print-mcp-config
+
+    # 更新到最新版本（**不碰 rpa_config.json**）
+    python scripts/install.py --update
+    python scripts/install.py --update --force   # 本地有未提交改动时自动 stash
+
+## 更新为什么单独做一条命令
+
+项目提交很频繁（平均每天 10 次以上）。重跑整个 `install.py` 也不是不行，但它会重写
+配置、重装依赖，代价高且容易让人担心「会不会把我配的东西冲掉」。
+`--update` 的语义写死为：**只换代码 + 重铺技能包 + 重跑自检，配置文件原样保留**。
 """
 import argparse
 import json
@@ -323,6 +333,106 @@ def _mask(cfg):
 
 
 # ---------------------------------------------------------------- main
+# ---------------------------------------------------------------- 更新
+def _git(*args, timeout=180):
+    r = subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True,
+                       encoding="utf-8", errors="replace", timeout=timeout)
+    return r.returncode, (r.stdout or "").strip(), (r.stderr or "").strip()
+
+
+def _read_version():
+    try:
+        with open(os.path.join(ROOT, "VERSION"), encoding="utf-8") as f:
+            return f.read().strip() or "?"
+    except OSError:
+        return "?"
+
+
+def _latest_changelog(max_lines=16):
+    """取 CHANGELOG 的最新一段（第一个 `## v` 起）——更新完告诉人「这次改了什么」。"""
+    try:
+        with open(os.path.join(ROOT, "CHANGELOG.md"), encoding="utf-8") as f:
+            lines = f.read().splitlines()
+    except OSError:
+        return ""
+    out, started = [], False
+    for line in lines:
+        if line.startswith("## v"):
+            if started:
+                break
+            started = True
+        if started:
+            out.append(line)
+    return "\n".join(out[:max_lines]).rstrip()
+
+
+def do_update(force=False, skip_deps=False, skip_doctor=False):
+    """更新到最新：只换代码，**不碰你的 rpa_config.json**。"""
+    if not os.path.isdir(os.path.join(ROOT, ".git")):
+        step("更新", "fail", "不是 git 仓库（zip 安装）→ 下载新 release 包覆盖解压，再跑 doctor")
+        return 2
+
+    old_ver = _read_version()
+    step("更新", "ok", "当前 v%s" % old_ver)
+
+    # 1) 脏工作区：不替用户丢改动
+    rc, out, _ = _git("status", "--porcelain")
+    if rc != 0:
+        step("工作区", "fail", "git status 失败（git 未装或仓库损坏）")
+        return 2
+    if out:
+        n = len(out.splitlines())
+        if not force:
+            step("工作区", "fail", "有 %d 个未提交改动；先 `git stash` 后重跑，或加 --force 自动暂存" % n)
+            return 2
+        rc, _, err = _git("stash", "push", "-u", "-m", "auto-stash before install --update")
+        if rc != 0:
+            step("工作区", "fail", "git stash 失败：%s" % err[:120])
+            return 2
+        step("工作区", "warn", "已自动 stash（`git stash list` 可找回）")
+
+    # 2) 备份配置（正常不会被 pull 影响，但防 .gitignore 变更导致意外）
+    bak = CONFIG_PATH + ".bak-before-update"
+    if os.path.exists(CONFIG_PATH):
+        shutil.copy2(CONFIG_PATH, bak)
+        step("配置备份", "ok", os.path.basename(bak))
+
+    # 3) 拉取（--ff-only：有分叉就报错，绝不自动 merge）
+    rc, out, err = _git("pull", "--ff-only")
+    if rc != 0:
+        last = ((err or out).splitlines() or ["git pull 失败"])[-1]
+        step("拉取", "fail", last[:150])
+        return 2
+    if "Already up to date" in out or "已经是最新" in out:
+        step("拉取", "skip", "已是最新")
+    else:
+        step("拉取", "ok", (out.splitlines() or ["ok"])[-1][:100])
+
+    new_ver = _read_version()
+    if new_ver != old_ver:
+        step("版本", "ok", "v%s → v%s" % (old_ver, new_ver))
+
+    # 4) 配置万一没了，从备份恢复
+    if not os.path.exists(CONFIG_PATH) and os.path.exists(bak):
+        shutil.copy2(bak, CONFIG_PATH)
+        step("配置恢复", "warn", "pull 后配置不见了，已从备份恢复")
+
+    # 5) 重铺技能包 / MCP（幂等）+ 依赖 + 自检
+    install_skill(False, "")
+    register_mcp(False, "")
+    if not skip_deps:
+        install_deps(False)
+    if not skip_doctor:
+        doctor(False)
+
+    seg = _latest_changelog()
+    if seg:
+        print("\n本次更新内容（CHANGELOG 最新一段）：")
+        for line in seg.splitlines():
+            print("  " + line)
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser(description="一键安装 AI 操作 RPA（依赖 / 配置 / 技能包 / MCP）")
     ap.add_argument("--key", default="", help="openapi API Key")
@@ -338,8 +448,14 @@ def main():
     ap.add_argument("--mcp-file", default="", help="MCP 配置写哪个文件（默认自动探测 ~/.workbuddy/mcp.json 等）")
     ap.add_argument("--skip-doctor", action="store_true")
     ap.add_argument("--print-mcp-config", action="store_true", help="只打印 MCP 配置片段后退出")
+    ap.add_argument("--update", action="store_true",
+                    help="更新到最新：git pull --ff-only + 重铺技能包 + 自检，**不动 rpa_config.json**")
+    ap.add_argument("--force", action="store_true", help="--update 时自动 stash 本地未提交改动")
     ap.add_argument("--json", action="store_true", help="以 JSON 输出结果")
     a = ap.parse_args()
+
+    if a.update:
+        return do_update(force=a.force, skip_deps=a.skip_deps, skip_doctor=a.skip_doctor)
 
     if a.print_mcp_config:
         print_mcp_config()

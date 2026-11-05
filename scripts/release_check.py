@@ -280,7 +280,8 @@ def check_gates():
              ("V14 路径去机器化", "logs/qa/v14_port_paths.py"),
              ("V15 json_str 参数", "logs/qa/v15_json_str_param.py"),
              ("V16 参数预算", "logs/qa/v16_param_budget.py"),
-             ("V17 默认草稿", "logs/qa/v17_draft_default.py")]
+             ("V17 默认草稿", "logs/qa/v17_draft_default.py"),
+             ("V18 版本闸门", "logs/qa/v18_version_gate.py")]
     for label, rel in gates:
         path = os.path.join(ROOT, rel)
         if not os.path.isfile(path):

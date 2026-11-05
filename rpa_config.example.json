@@ -1,36 +1,41 @@
 {
-  "_说明": "复制本文件为 rpa_config.json 后按自己的环境填写。rpa_config.json 已在 .gitignore 中，不会入库。",
-  "gateway": {
-    "host": "192.168.76.130:32742",
-    "scheme": "http"
-  },
-  "openapi": {
-    "base": "http://192.168.76.130:32742/api/rpa-openapi",
-    "api_key": "<在平台「开放平台 / API 密钥」页生成>"
-  },
-  "client": {
-    "python": "",
-    "local_gateway_port": 13159
-  },
-  "db": {
-    "enabled": false,
-    "ssh_host": "192.168.76.130",
-    "ssh_user": "<ssh 用户名>",
-    "ssh_password": "<ssh 密码>",
-    "container": "rpa-opensource-mysql",
-    "user": "root",
-    "password": "<mysql 密码>",
-    "database": "rpa"
-  },
-  "defaults": {
-    "robot_id": "<默认机器人 id>"
-  },
-  "llm": {
-    "_说明": "只有 nl2spec.py（自然语言直接生成流程规格）用得到；其余脚本不需要。任何 OpenAI 兼容的 /chat/completions 都行。也可以改用环境变量 NL2SPEC_API_KEY / NL2SPEC_BASE / NL2SPEC_MODEL，优先级高于本段。",
-    "provider": "xfyun-maas",
-    "base": "https://maas-api.cn-huabei-1.xf-yun.com/v2",
-    "model": "xopqwen36v35b",
-    "api_key": "<LLM API Key>",
-    "_备注": "实测：spark-x2.5-4b 处理 9k token 的规格提示词会超时（>240s），spark-x2.5 也不稳；xopqwen36v35b 4-8 秒返回，是当前可用项。"
-  }
+ "_说明": "复制本文件为 rpa_config.json 后按自己的环境填写。rpa_config.json 已在 .gitignore 中，不会入库。",
+ "gateway": {
+  "host": "192.168.76.130:32742",
+  "scheme": "http"
+ },
+ "openapi": {
+  "base": "http://192.168.76.130:32742/api/rpa-openapi",
+  "api_key": "<在平台「开放平台 / API 密钥」页生成>"
+ },
+ "client": {
+  "python": "",
+  "local_gateway_port": 13159
+ },
+ "db": {
+  "enabled": false,
+  "ssh_host": "192.168.76.130",
+  "ssh_user": "<ssh 用户名>",
+  "ssh_password": "<ssh 密码>",
+  "container": "rpa-opensource-mysql",
+  "user": "root",
+  "password": "<mysql 密码>",
+  "database": "rpa"
+ },
+ "defaults": {
+  "robot_id": "<默认机器人 id>"
+ },
+ "llm": {
+  "_说明": "只有 nl2spec.py（自然语言直接生成流程规格）用得到；其余脚本不需要。任何 OpenAI 兼容的 /chat/completions 都行。也可以改用环境变量 NL2SPEC_API_KEY / NL2SPEC_BASE / NL2SPEC_MODEL，优先级高于本段。",
+  "provider": "xfyun-maas",
+  "base": "https://maas-api.cn-huabei-1.xf-yun.com/v2",
+  "model": "xopqwen36v35b",
+  "api_key": "<LLM API Key>",
+  "_备注": "实测：spark-x2.5-4b 处理 9k token 的规格提示词会超时（>240s），spark-x2.5 也不稳；xopqwen36v35b 4-8 秒返回，是当前可用项。"
+ },
+ "update": {
+  "version_url": "http://192.168.76.130:32742/version.json",
+  "cache_hours": 24,
+  "_说明": "远端只放 1KB 的 version.json；内网 nginx / 共享盘 / file:// 都支持。删掉本段则用默认地址。breaking=true 或本地低于 min_supported 时 ai_flow 会拒绝运行"
+ }
 }
