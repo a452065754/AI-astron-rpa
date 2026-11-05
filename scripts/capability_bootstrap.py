@@ -184,7 +184,8 @@ def c_live():
     try:
         py = sys.executable
         r = subprocess.run([py, os.path.join(HERE, "ai_flow.py"),
-                            "--spec", spec_path, "--robot-name", "能力自检_最小流程"],
+                            "--spec", spec_path, "--robot-name", "能力自检_最小流程",
+                            "--stage", "review"],
                            capture_output=True, text=True, encoding="utf-8", errors="replace",
                            cwd=ROOT)
         out = (r.stdout or "") + (r.stderr or "")

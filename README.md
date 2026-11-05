@@ -65,6 +65,12 @@ python scripts/doctor.py                         # 确认「AI 侧接线」两�
 > `Executor.paramJson` 超 ~1450 字符会让平台的日志脱敏正则爆栈，整个账号的「添加应用」
 > 列表变成 `999999`，而且只有发布者自己能复现（缺陷 A20）。生成期 `spec_lint` 规则 11
 > 已按同一套阈值卡住规格，发布期 `guard_param_budget()` 再量一次 —— 不用靠人记。
+>
+> **默认只做草稿，发布要人点头**：`ai_flow.py` 不带 `--stage` 就是 `draft`（只生成+校验）；
+> `publish` / `expose` 必须加 `--confirm-publish`，否则退出码 2、一个请求都不发。
+> 原因同上：**发布会自动生成 `robot_execute` 记录，机器人就此进入「添加应用」列表**
+> （生产库实测两者 `create_time` 逐秒一致），草稿则永远不进。查「谁发布了什么」：
+> `python scripts/publish_audit.py`（只读）。
 
 装完就能直接说人话了：
 

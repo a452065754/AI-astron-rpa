@@ -18,22 +18,28 @@
 
 判据必须与平台 SQL 严格对齐（2026-11-05 二次校正，改掉了一版误报）
 --------------------------------------------------------------
-`CParamDao.xml` 里是**硬等值**，没有 `<if>` 兜底：
+`CParamDao.xml` 里有两条 SQL，**用哪条取决于该机器人有没有线上版本**（2026-11-05 第三次校正）：
 
-    select * from c_param
-     where robot_id = #{robotId} and process_id = #{processId}
-       and robot_version = #{robotVersion} and deleted = 0
+    getAllParams(processId, robotId, version)      # 「添加应用」走这条，条件是 <if> 不是等值
+      <if test="processId!=null"> and process_id = #{processId}</if>
+      <if test="version!=null">   and robot_version = #{version}</if>
+      and robot_id = #{robotId} and deleted = 0
 
-两个后果，都与「想当然」相反：
+三个后果，都与「想当然」相反：
 
-1. **`app_version` 为 NULL → 一条参数都取不到**，`paramJson` 为空，**不会爆栈**。
-   （MySQL 里 `robot_version = NULL` 恒为假，不是「退化成全捞」。）
-   这类机器人是「参数全丢」问题，不是 A20。
-2. **模块参数（`module_id` 非空）永远进不来**：它们在 `c_param` 里 `process_id` 全部为
-   NULL，而 SQL 要求 `process_id` 等值。所以 `paramJson` 只含**流程参数**。
+1. **生效版本是「线上版本」，不是 `robot_execute.app_version`**：
+   `getRobotExeList` 的 SQL left join `robot_version`（`online=1`），
+   `packageCreateRobotVersion` 在 `data_source='create'` 时把它覆写进 `appVersion`。
+   15 台全是 `create`，所以这条对每台都成立。
+2. **`app_version` 为 NULL ≠ 取 0 条**：两个 `<if>` 一起被跳过 →
+   `where robot_id=? and deleted=0` → **该机器人所有版本 + 所有模块参数全被捞出来**。
+   这才是真雷（MES 2026-11-05 事故即此：58 条 / 2053 字符）。
+3. **有线上版本时，模块参数进不来**：模块参数在 `c_param` 里 `process_id` 全部为 NULL，
+   而版本条件仍然有效，取不到它们。
 
-⇒ 估算口径 = 该机器人 `robot_version = app_version` 且 `process_id is not null` 的参数。
-   同版本有多个 `process_id` 时按**上界**算（实际只取主流程那一个）。
+⇒ 估算口径：
+   · 有线上版本 → 只算 `robot_version = 线上版本` 且 `process_id is not null` 的流程参数；
+   · 无线上版本 → 全量（历史版本 + 模块参数），即脚本里的 `_SQL_WORST` 推演。
 
 用法
 ----

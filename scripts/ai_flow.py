@@ -46,6 +46,7 @@ import nl_params as nlp
 import self_heal
 import publish_flow as pf
 import param_budget as pb   # 参数预算（平台缺陷 A20）
+import publish_gate as pg   # 发布闸门：默认草稿，发布须显式确认
 import run_flow_local as rfl
 import error_hints as eh
 import traceback_map as tm
@@ -920,7 +921,7 @@ def do_expose(cookie, robot_id, spec, process_id, repair_modules=False):
         pf.guard_param_budget(cookie, robot_id, process_id, strict=True)
     v = pf.publish_auto(cookie, robot_id, spec.get("name") or "AI生成流程",
                         introduction=(spec.get("nl_examples") or ["AI 生成流程"])[0],
-                        module_ids=mids, repair_modules=repair_modules)
+                        module_ids=mids, repair_modules=repair_modules, confirm=True)
     print(f"      已发布版本 v{v}")
     params = pf.list_params(cookie, robot_id, process_id) if process_id else []
     pj = json.dumps([{k: p.get(k) for k in
@@ -985,9 +986,13 @@ def main():
     ap.add_argument("--spec", default="", help="流程规格 JSON（AI 产出契约）；与 --nl 二选一")
     ap.add_argument("--robot-id", default=default_robot_id(), help="目标机器人（默认取 rpa_config.json 的 defaults.robot_id）")
     ap.add_argument("--process-name", default="", help="流程名，默认用规格里的 name")
-    ap.add_argument("--stage", choices=["draft", "review", "publish", "expose", "invoke"], default="review",
-                    help="draft=只生成校验 / review=落库+真跑+评审单（默认） / "
-                         "publish=发布版本 / expose=发布+登记 openapi 列表 / invoke=用 API Key 调用执行")
+    ap.add_argument("--stage", choices=["draft", "review", "publish", "expose", "invoke"], default=pg.DEFAULT_STAGE,
+                    help="draft=只生成校验（**默认**，零写操作） / review=写设计态草稿+真跑+评审单 / "
+                         "publish=发布版本（需 --confirm-publish） / "
+                         "expose=发布+登记 openapi 列表（需 --confirm-publish） / invoke=用 API Key 调用执行")
+    ap.add_argument("--confirm-publish", action="store_true",
+                    help="确认要发布到正式服。默认不带：publish/expose 一律拦下。"
+                         "只有用户明确要求「发布」时才加，AI 不得自行决定")
     ap.add_argument("--prep-only", action="store_true",
                     help="等价于 --stage draft（只生成+校验，不上传模块）。"
                          "⚠️ 名字叫 prep 但它**仍然会**解析/创建机器人（--robot-name 时），"
@@ -1015,6 +1020,13 @@ def main():
     # 「不产生副作用」，其实它会解析/创建机器人）。两者行为完全一致，别让它变成第二套逻辑。
     if args.prep_only:
         args.stage = "draft"
+
+    # 发布闸门（2026-11-05，A20 复盘）：必须在**任何网络/写操作之前**拦。
+    # 证据：robot_execute.create_time 与 robot_version.publish 时间逐秒一致
+    # （Py测试 03:20:03、MES 02:18:56）→ 发布这一步就会把机器人送进「添加应用」列表，
+    # 而列表会把 paramJson 整段塞进响应、过日志脱敏正则 → 参数多就爆栈。
+    # 所以「草稿随便写，发布必须人点头」。
+    pg.require(args.stage, args.confirm_publish)
 
 
     robot_id = args.robot_id
@@ -1058,6 +1070,11 @@ def main():
         ap.error("必须给 --nl 或 --spec")
     if args.process_name:
         spec["name"] = args.process_name
+
+    # 规格里写「自动发布」不算授权（闸门只认命令行）。提醒一句，免得两处口径打架。
+    _pf_note = pg.check_spec_flags(spec)
+    if _pf_note:
+        print("ℹ️ " + _pf_note)
 
     # ---------- 1.2 迁移重挂：规格里的旧机器路径按文件名找回来 ----------
     rb = nlp.rebase_paths(spec, ROOT)
@@ -1327,7 +1344,7 @@ def main():
         # 不传的话这一步的校验悄悄消失，等 openapi 调用时才报「该模块不存在」（坑 66）。
         # `--stage expose` 走 do_expose 是传了的，两条路径必须一致（QA 2026-11-02 指出）。
         r = pf.publish(ck, robot_id, spec["name"], ver,
-                       module_ids=module_ids_of(spec))
+                       module_ids=module_ids_of(spec), confirm=True)
         print(f"      发布结果：{r}")
         return 0
 

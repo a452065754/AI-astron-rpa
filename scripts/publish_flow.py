@@ -193,8 +193,16 @@ def module_exists_in_version(cookie, robot_id, module_id, version):
 
 
 def publish(cookie, robot_id, name, version, introduction="AI 生成流程", update_log="", online=1,
-            module_ids=None, repair_modules=False):
+            module_ids=None, repair_modules=False, confirm=False):
     """发布机器人版本。
+
+    `confirm` 默认 **False** = 拒绝发布（2026-11-05，A20 复盘后加的）。
+    原因：发布这一步会自动生成 `robot_execute` 记录，机器人立刻出现在
+    「定时任务 → 添加应用」列表里，而列表会把 `paramJson` 整段塞进响应、
+    过日志脱敏正则 → 参数一多就 StackOverflowError，把该账号整张列表打成 999999。
+    生产证据：`robot_execute.create_time` 与版本发布时间逐秒一致。
+    所以库层也默认拒绝 —— 只有 `ai_flow` 在命令行 `--confirm-publish` 通过后
+    才会显式传 `confirm=True`，避免别的脚本绕过闸门。
 
     `version` 必须是**比最新版本大的正整数**（首次 = 1），否则报「版本号错误」。
     `online` 在实体 `RobotVersion` 里是 **Integer（0/1）**，传布尔会 `500002 请求参数解析失败`。
@@ -206,6 +214,9 @@ def publish(cookie, robot_id, name, version, introduction="AI 生成流程", upd
     `robot_version=8` 的行）。所以这里默认只**校验**，不写库；只有 `repair_modules=True`
     才走 SQL 补丁（给历史上手工插入、creator_id 是旧格式的模块用）。
     """
+    if not confirm:
+        import publish_gate as _pg
+        _pg.require("publish", False, name)
     body = {
         "robotId": robot_id, "name": name, "version": int(version),
         "introduction": introduction, "updateLog": update_log or f"v{version}",

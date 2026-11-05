@@ -264,12 +264,20 @@ python scripts/ai_flow.py --spec flows/<流程>.json --robot-id <robotId>
 ## 第 5 步：评审通过后发布 / 调用
 
 ```bash
-# 发布版本（必须人工评审通过后才做）
-python scripts/ai_flow.py --spec flows/<流程>.json --stage publish --version N
+# 发布版本 —— 只有用户**明确说「发布」**时才做，且必须带 --confirm-publish
+python scripts/ai_flow.py --spec flows/<流程>.json --stage publish --version N --confirm-publish
 
 # 用 API Key 直接触发（不经过界面）
 python scripts/ai_flow.py --spec flows/<流程>.json --stage invoke --params '{"src_excel":"D:/x.xlsx"}'
 ```
+
+> ⚠️ **发布是这条流水线里唯一不许 AI 自行动作的一步**。不带 `--confirm-publish` 会被
+> `publish_gate.py` 拦下（退出码 2、不发任何请求）。原因：发布接口会顺带生成
+> `robot_execute` 记录，机器人立刻进入「定时任务 → 添加应用」列表，而列表会把
+> `paramJson` 整段塞进响应 → 参数一多就 `StackOverflowError`，把**发布者账号**的
+> 整张列表打成 999999（缺陷 A20）。生产库实测两者 `create_time` 逐秒一致。
+> 默认交付停在 `--stage review`（设计态草稿），人工在设计器点「运行」验收，
+> 满意了由人自己发布。想知道「历史上谁发了什么」：`python scripts/publish_audit.py`。
 
 ## 硬性规则（违反就等于没交付）
 
@@ -277,6 +285,8 @@ python scripts/ai_flow.py --spec flows/<流程>.json --stage invoke --params '{"
 - **不跳校验**：任何流程都必须 `IS_PASS: YES` + 本地真跑 SUCCESS 才能交给用户评审。
 - **批量要明说**：用户说「整个文件夹都转」而流程是单文件的，**主动拦下并说明**，不要只处理一个文件装没事。
 - **核心目的不偏移**：用户要的是「自然语言 → 固定 RPA 流程」，不是把某个示例流程调通。
+- **不自行发布**：默认只做到草稿（`draft` / `review`）。用户明确说「发布」才加 `--confirm-publish`；
+  **绝不**因为「流程跑通了」就顺手发出去 —— 发布会把机器人送进正式服的「添加应用」列表。
 - **不动服务端**：这套工具是外挂，不装插件、不改数据库、不重编镜像。
 - **凭据不外泄**：Key 只写 `rpa_config.json`；不要打印全文，不要提交到 git。
 
