@@ -1,12 +1,10 @@
 {
- "version": "1.0.1",
- "commit": "e8b2eb4",
+ "version": "1.0.2",
+ "commit": "50001d3",
  "date": "2026-11-05",
  "breaking": false,
  "min_supported": "1.0.0",
  "highlights": [
-  "GitHub 版分发链路，raw 不可达改走 Contents API",
-  "doctor 增加版本行；version.json 亮点改为「先新增后修复」",
-  "版本号 + install --update + 版本闸门（多人协作第一步）"
+  "亮点只取本版区间，header 不再每次 bump 重复一段"
  ]
 }
