@@ -398,10 +398,18 @@ def do_update(force=False, skip_deps=False, skip_doctor=False):
         step("配置备份", "ok", os.path.basename(bak))
 
     # 3) 拉取（--ff-only：有分叉就报错，绝不自动 merge）
-    rc, out, err = _git("pull", "--ff-only")
+    #    显式带 remote + 分支：本仓库 clone 时没有配 upstream（`git rev-parse @{upstream}` 报 fatal），
+    #    直接 `git pull` 会以 "There is no tracking information" 失败。别依赖用户的本地 git 配置。
+    rc_b, branch, _ = _git("rev-parse", "--abbrev-ref", "HEAD")
+    _, remotes, _ = _git("remote")
+    remote = (remotes.splitlines() or ["origin"])[0].strip() or "origin"
+    if rc_b != 0 or not branch or branch == "HEAD":
+        step("拉取", "fail", "取不到当前分支（仓库处于 detached HEAD？）")
+        return 2
+    rc, out, err = _git("pull", "--ff-only", remote, branch)
     if rc != 0:
-        last = ((err or out).splitlines() or ["git pull 失败"])[-1]
-        step("拉取", "fail", last[:150])
+        tail = [x for x in (err or out).splitlines() if x.strip()][-2:]
+        step("拉取", "fail", " / ".join(tail)[:160] or "git pull 失败")
         return 2
     if "Already up to date" in out or "已经是最新" in out:
         step("拉取", "skip", "已是最新")
