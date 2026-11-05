@@ -1,0 +1,12 @@
+{
+ "version": "1.0.0",
+ "commit": "4cb88a1",
+ "date": "2026-11-05",
+ "breaking": false,
+ "min_supported": "1.0.0",
+ "highlights": [
+  "doctor 增加版本行；version.json 亮点改为「先新增后修复」",
+  "版本号 + install --update + 版本闸门（多人协作第一步）",
+  "默认只做草稿，publish/expose 必须 --confirm-publish"
+ ]
+}

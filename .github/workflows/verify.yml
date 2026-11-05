@@ -1,0 +1,99 @@
+name: Verify
+
+# 多人协作的护栏：**只管一致性，不判断代码好坏**。
+#
+# 防的是最常见的三种「静默跑偏」：
+#   1. 有人改了 VERSION 却忘了 version.json → 客户端永远读不到新版，且没人察觉
+#   2. version.json 缺字段（breaking / min_supported）→ 门禁判定失效，该拦的没拦
+#   3. 版本号回退（1.0.3 → 1.0.2）→ 已经更新的人比仓库还新，更新循环卡住
+#
+# 这些错误都不会让代码跑不起来，只会在别人的机器上表现成「查不到更新」，
+# 所以必须由 CI 而不是人的记性来兜。
+on:
+  push:
+    branches: [main]
+    paths:
+      - "VERSION"
+      - "version.json"
+      - "CHANGELOG.md"
+      - "scripts/version.py"
+      - "scripts/release.py"
+      - ".github/workflows/**"
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  consistency:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 版本三处一致（VERSION / version.json / 最近 tag）
+        run: |
+          python3 - <<'PY'
+          import json, re, subprocess, sys
+
+          fail = []
+          vfile = open("VERSION", encoding="utf-8").read().strip().lstrip("v")
+          if not re.fullmatch(r"\d+\.\d+\.\d+", vfile):
+              fail.append("VERSION 内容不是 X.Y.Z：%r" % vfile)
+
+          doc = json.load(open("version.json", encoding="utf-8"))
+          jver = str(doc.get("version", "")).lstrip("v")
+          if jver != vfile:
+              fail.append("VERSION(%s) != version.json(%s) —— 客户端会读到错误的版本" % (vfile, jver))
+
+          for k, t in [("version", str), ("commit", str), ("date", str),
+                       ("breaking", bool), ("min_supported", str), ("highlights", list)]:
+              if k not in doc:
+                  fail.append("version.json 缺字段 %s" % k)
+              elif not isinstance(doc[k], t):
+                  fail.append("version.json 字段 %s 类型应为 %s" % (k, t.__name__))
+
+          if isinstance(doc.get("highlights"), list) and not doc["highlights"]:
+              fail.append("version.json highlights 为空 —— 同事看到横幅但没有理由")
+
+          # 版本回退检测：只在上一个 tag 存在时比较
+          try:
+              prev = subprocess.run(["git", "describe", "--tags", "--abbrev=0", "HEAD^"],
+                                    capture_output=True, text=True).stdout.strip().lstrip("v")
+          except Exception:
+              prev = ""
+          def sem(s):
+              return tuple(int(x) for x in (s or "0.0.0").split(".")[:3])
+          if prev and re.fullmatch(r"\d+\.\d+\.\d+", prev) and sem(vfile) < sem(prev):
+              fail.append("版本回退：%s < 上一个 tag %s" % (vfile, prev))
+
+          if fail:
+              for f in fail:
+                  print("::error::" + f)
+              sys.exit(1)
+          print("✅ 版本一致：v%s（min_supported=%s）" % (vfile, doc.get("min_supported")))
+          PY
+
+      - name: 现行 tag 必须等于 VERSION
+        run: |
+          tag=$(git describe --tags --exact-match 2>/dev/null || echo "")
+          if [ -n "$tag" ]; then
+            if [ "${tag#v}" != "$(tr -d '[:space:]' < VERSION)" ]; then
+              echo "::error::当前 commit 有 tag $tag，但 VERSION 是 $(cat VERSION)"
+              exit 1
+            fi
+            echo "✅ tag $tag 与 VERSION 一致"
+          else
+            echo "（当前 commit 无 tag，跳过）"
+          fi
+
+      - name: 版本判定逻辑回归（V18 门禁，不联网）
+        run: python logs/qa/v18_version_gate.py
+
+      - name: 脚本可执行性
+        run: |
+          python scripts/version.py --show
+          python scripts/release.py --help > /dev/null
+          echo "✅ 发版链路脚本可运行"

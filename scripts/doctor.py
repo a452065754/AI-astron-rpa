@@ -309,7 +309,9 @@ def main():
             add(WARN, "版本", "%s → 远端 v%s（落后，可继续用）" % (tag, rv),
                 "python scripts/install.py --update")
         elif r["level"] == "unknown":
-            add(OK, "版本", "%s · 远端未配置或不可达（不影响使用）" % tag)
+            n = len(r.get("sources") or [])
+            add(OK, "版本", "%s · 远端不可达（试过 %d 个源，不影响使用）" % (tag, n),
+                "python scripts/version.py --sources")
         else:
             add(OK, "版本", "%s · 已是最新" % tag)
     except Exception as e:  # 版本模块坏了不该挡住整个自检

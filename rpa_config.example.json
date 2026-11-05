@@ -34,8 +34,12 @@
   "_备注": "实测：spark-x2.5-4b 处理 9k token 的规格提示词会超时（>240s），spark-x2.5 也不稳；xopqwen36v35b 4-8 秒返回，是当前可用项。"
  },
  "update": {
-  "version_url": "http://192.168.76.130:32742/version.json",
+  "sources": [
+   "github"
+  ],
   "cache_hours": 24,
-  "_说明": "远端只放 1KB 的 version.json；内网 nginx / 共享盘 / file:// 都支持。删掉本段则用默认地址。breaking=true 或本地低于 min_supported 时 ai_flow 会拒绝运行"
+  "_说明": "sources 是有序列表，取到第一个成功的就停。\"github\" 是占位符，owner/repo 自动从 git remote 解析，不用改。也可填任意 http(s) 地址、\\\\共享盘\\version.json 或 file:///C:/x.json。默认主源是 GitHub Contents API：实测 raw.githubusercontent.com 在国内直连不通，api.github.com 通。24h 缓存后每人每天只查 1 次，匿名额度 60/h 够用；要更高额度就设环境变量 GITHUB_TOKEN。",
+  "_排障": "python scripts/version.py --sources  逐个测源并打印耗时",
+  "_兼容": "只写 version_url 也认，会当成单源列表，老配置不用改"
  }
 }

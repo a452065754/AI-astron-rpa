@@ -43,8 +43,13 @@ def ck(name, cond, detail=""):
 
 
 def fake(remote):
-    """把 fetch_remote 换成固定返回值；None 模拟不可达。"""
-    V.fetch_remote = lambda url, timeout=1.5: remote
+    """把 fetch_remote 换成固定返回值；None 模拟不可达。
+
+    签名对齐多源版：`fetch_remote(sources, timeout) -> (doc, 命中源)`。
+    早期返回裸 doc，V19 引入多源后改成二元组 —— 改这里而不是改 check()，
+    否则真实调用和测试调用会走两条不同的解包路径。
+    """
+    V.fetch_remote = lambda sources=None, timeout=1.5: (remote, "fake" if remote else "")
 
 
 def run_check(local_ver, remote):

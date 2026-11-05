@@ -20,7 +20,7 @@
 
 ## 远端从哪来
 
-同事的机器只读一个 **1KB 的 `version.json`**，不拉整个仓库：
+同事的机器只读一个 **1KB 的 `version.json`**（**已入库，在仓库根**），不拉整个仓库：
 
 ```json
 {"version": "1.0.3", "commit": "6e96cb8", "date": "2026-11-08",
@@ -28,9 +28,37 @@
  "highlights": ["A20 三道参数门禁", "发布默认改草稿"]}
 ```
 
-地址取 `rpa_config.json` 的 `update.version_url`，默认
-`http://192.168.76.130:32742/version.json`（.130 的 nginx 静态目录，内网可达、零成本）。
-也支持本地路径 / `file://`，方便在共享盘或离线环境用。
+### 为什么默认走 GitHub Contents API 而不是 raw 地址
+
+2026-11-05 实测（当前网络出口）：
+
+| 端点 | 结果 | 结论 |
+| --- | --- | --- |
+| `api.github.com/repos/.../contents/version.json` | **200** | ✅ 可用，实时、无 CDN 缓存 |
+| `github.com/.../raw/...` | 302 → 超时 | ❌ 跟随重定向后落到 raw，断 |
+| `raw.githubusercontent.com` | **连不上** | ❌ 不能用 |
+| `cdn.jsdelivr.net` / `ghproxy` / `gitmirror` | 全 000 | ❌ 不能用 |
+
+所以**主源是 Contents API**（返回 base64，本地解一次即可）。它唯一的约束是匿名 60 次/小时 ——
+配了 24h 缓存后每人每天 1 次，绰绰有余；要更高额度就设 `GITHUB_TOKEN`（5000 次/小时）。
+
+配置在 `rpa_config.json` 的 `update.sources`，**有序列表，逐个尝试直到成功**：
+
+```json
+"update": {
+  "sources": [
+    "github",
+    "https://raw.githubusercontent.com/owner/repo/main/version.json",
+    "\\\\fileserver\\astron\\version.json"
+  ],
+  "cache_hours": 24
+}
+```
+
+- `"github"` 是占位符，`owner/repo` 自动从 `git remote get-url origin` 解析，**不用硬编码**
+- 也支持任意 http(s) / 本地路径 / `file://`
+- 老配置只有 `version_url` 时自动退化成单源，行为不变
+- 一个都取不到 → 判定 `unknown`，**静默放行**（离线是常态）
 
 ## 分级策略（打扰人的尺度）
 
@@ -50,18 +78,23 @@
     python scripts/version.py --bump patch               # 1.0.0 → 1.0.1，写 CHANGELOG 顶部
     python scripts/version.py --bump minor --breaking    # 标记破坏性变更
     python scripts/version.py --changelog --days 14      # 从 git log 生成变更摘要（不写文件）
-    python scripts/version.py --publish-json             # 生成 dist/version.json 供上传
+    python scripts/version.py --publish-json             # 生成仓库根 version.json 供入库
+    python scripts/version.py --sources                  # 逐个探测源，打印连通性与耗时（排障用）
 
 退出码：`0` 最新 / `1` 落后（仅提示）/ `3` 取不到远端 / `12` 必须更新（拦）
+
+真正发版不要手动串这些命令，用 `python scripts/release.py`（见该文件）。
 """
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import os
 import re
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.request
 from datetime import datetime, timedelta
@@ -76,10 +109,11 @@ VERSION_FILE = os.path.join(ROOT, "VERSION")
 CHANGELOG_FILE = os.path.join(ROOT, "CHANGELOG.md")
 CONFIG_FILE = os.path.join(ROOT, "rpa_config.json")
 CACHE_FILE = os.path.join(ROOT, ".cache", "version_check.json")
-DIST_FILE = os.path.join(ROOT, "dist", "version.json")
+DIST_FILE = os.path.join(ROOT, "version.json")   # 入库，仓库根（不是 dist/，dist 是打包产物）
 
-DEFAULT_URL = "http://192.168.76.130:32742/version.json"
+DEFAULT_SOURCES = ["github"]      # 占位符，owner/repo 从 git remote 解析
 CACHE_HOURS = 24
+TIMEOUT = 3.0                     # api.github.com 国内 300~800ms，1.5s 太紧
 EXIT_STALE, EXIT_UNREACHABLE, EXIT_BLOCK = 1, 3, 12
 
 ICON = {"ok": "✅", "stale": "⬆️", "block": "⛔", "unknown": "❔"}
@@ -134,31 +168,150 @@ def cmp_ver(a: str, b: str) -> int:
 
 
 # ---------------------------------------------------------------- 远端
+def repo_slug() -> str:
+    """从 git remote 解析 `owner/repo`，取不到返回空串。
+
+    不硬编码仓库名：同事可能从 fork 或 Gitea 镜像拉，硬编码就查错版本了。
+    """
+    for remote in ("origin", "upstream", "gitea"):
+        url = _run(["git", "remote", "get-url", remote])
+        m = re.search(r"github\.com[:/]+([^/\s]+)/([^/\s]+?)(?:\.git)?/?$", url or "")
+        if m:
+            return "%s/%s" % (m.group(1), m.group(2))
+    return ""
+
+
+def _gh_headers() -> dict:
+    h = {"User-Agent": "astron-rpa-version-check",
+         "Accept": "application/vnd.github+json"}
+    tok = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    if tok:                                  # 匿名 60/h → 认证 5000/h
+        h["Authorization"] = "Bearer " + tok
+    return h
+
+
+def _get_json(url: str, timeout: float = TIMEOUT, headers: dict | None = None) -> dict | None:
+    """GET 一个 JSON。任何异常返回 None —— 版本检查永远不能把人拦住。"""
+    try:
+        req = urllib.request.Request(
+            url, headers=headers or {"User-Agent": "astron-rpa-version-check"})
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            doc = json.loads(r.read().decode("utf-8"))
+        return doc if isinstance(doc, dict) else None
+    except (urllib.error.URLError, OSError, ValueError, TimeoutError):
+        return None
+
+
+def fetch_github(slug: str = "", ref: str = "main", timeout: float = TIMEOUT) -> dict | None:
+    """GitHub Contents API 读 `version.json`。
+
+    为什么不用 raw：2026-11-05 实测 `raw.githubusercontent.com` **直接连不上**，
+    `github.com/.../raw/...` 是 302 指过去、跟随同样断。只有 `api.github.com` 通。
+    代价是返回 base64（解一次即可）+ 匿名 60 次/小时（配 24h 缓存后无感）。
+    """
+    slug = slug or repo_slug()
+    if not slug:
+        return None
+    url = "https://api.github.com/repos/%s/contents/version.json?ref=%s" % (slug, ref)
+    d = _get_json(url, timeout=timeout, headers=_gh_headers())
+    if not d or not d.get("content"):
+        return None
+    try:
+        doc = json.loads(base64.b64decode(d["content"]).decode("utf-8"))
+    except (ValueError, KeyError, TypeError):
+        return None
+    if isinstance(doc, dict) and doc.get("version"):
+        doc.setdefault("_source", "github:%s@%s" % (slug, ref))
+        return doc
+    return None
+
+
+def fetch_github_release(slug: str = "", timeout: float = TIMEOUT) -> dict | None:
+    """次级源：`releases/latest` 只有 tag，**没有** breaking / min_supported / highlights。
+
+    只够回答「我落后了吗」，不够判断「必须更新吗」。标记 `_thin` 让上层降级处理。
+    """
+    slug = slug or repo_slug()
+    if not slug:
+        return None
+    d = _get_json("https://api.github.com/repos/%s/releases/latest" % slug,
+                  timeout=timeout, headers=_gh_headers())
+    tag = str((d or {}).get("tag_name") or "").lstrip("v")
+    if not re.fullmatch(r"\d+\.\d+\.\d+", tag):
+        return None
+    return {"version": tag, "_thin": True, "highlights": [],
+            "date": str((d or {}).get("published_at") or "")[:10],
+            "_source": "github-release:%s" % slug}
+
+
+_RAW_RE = re.compile(r"https?://raw\.githubusercontent\.com/([^/]+)/([^/]+)/([^/]+)/")
+
+
+def fetch_one(src: str, timeout: float = TIMEOUT) -> dict | None:
+    """按源的形态分派：`github` → Contents API / URL → HTTP / 其余 → 本地路径。"""
+    if src.strip().lower() in ("github", "gh"):
+        return fetch_github(timeout=timeout)
+
+    if src.startswith(("http://", "https://")):
+        # 用户照网上教程填 raw 地址时自动改走 API —— 国内 raw 根本连不上
+        m = _RAW_RE.match(src)
+        if m:
+            doc = fetch_github("%s/%s" % (m.group(1), m.group(2)), ref=m.group(3), timeout=timeout)
+            if doc:
+                return doc
+        return _get_json(src, timeout=timeout)
+
+    path = src[7:] if src.startswith("file://") else src
+    try:
+        with open(path, encoding="utf-8") as f:
+            doc = json.load(f)
+        return doc if isinstance(doc, dict) and doc.get("version") else None
+    except (OSError, ValueError):
+        return None
+
+
 def update_cfg() -> dict:
-    cfg = {"version_url": DEFAULT_URL, "cache_hours": CACHE_HOURS}
+    """返回 `{"sources": [...], "cache_hours": N}`。兼容只有 `version_url` 的老配置。"""
+    cfg = {"sources": list(DEFAULT_SOURCES), "cache_hours": CACHE_HOURS}
     try:
         with open(CONFIG_FILE, encoding="utf-8") as f:
             up = (json.load(f) or {}).get("update") or {}
-        for k in ("version_url", "cache_hours"):
-            if up.get(k) not in (None, ""):
-                cfg[k] = up[k]
     except (OSError, ValueError):
+        return cfg
+    src = up.get("sources")
+    if isinstance(src, list) and src:
+        cfg["sources"] = [str(s) for s in src if str(s).strip()]
+    elif up.get("version_url"):                       # 向后兼容
+        cfg["sources"] = [str(up["version_url"])]
+    try:
+        cfg["cache_hours"] = float(up.get("cache_hours") or CACHE_HOURS)
+    except (TypeError, ValueError):
         pass
     return cfg
 
 
-def fetch_remote(url: str, timeout: float = 1.5) -> dict | None:
-    """取远端 version.json。支持 http(s) / 本地路径 / file://。任何异常返回 None（静默）。"""
-    try:
-        if url.startswith(("http://", "https://")):
-            req = urllib.request.Request(url, headers={"User-Agent": "astron-rpa-version-check"})
-            with urllib.request.urlopen(req, timeout=timeout) as r:
-                return json.loads(r.read().decode("utf-8"))
-        path = url[7:] if url.startswith("file://") else url
-        with open(path, encoding="utf-8") as f:
-            return json.load(f)
-    except (urllib.error.URLError, OSError, ValueError, TimeoutError):
-        return None
+def fetch_remote(sources: list[str] | None = None,
+                 timeout: float = TIMEOUT) -> tuple[dict | None, str]:
+    """按顺序试每个源，**第一个成功即返回**。全失败返回 `(None, "")`。"""
+    for s in (sources if sources is not None else update_cfg()["sources"]):
+        doc = fetch_one(s, timeout=timeout)
+        if doc:
+            return doc, str(doc.get("_source") or s)
+    return None, ""
+
+
+def probe_sources(timeout: float = TIMEOUT) -> list[dict]:
+    """逐个源实测连通性 —— `--sources` 用，排障时比猜快。"""
+    cfg = update_cfg()
+    out = []
+    for s in cfg["sources"]:
+        t0 = time.perf_counter()
+        doc = fetch_one(s, timeout=timeout)
+        ms = int((time.perf_counter() - t0) * 1000)
+        out.append({"source": s, "ok": bool(doc), "ms": ms,
+                    "version": (doc or {}).get("version", ""),
+                    "detail": (doc or {}).get("_source") or ("取不到" if not doc else "直读")})
+    return out
 
 
 def _read_cache() -> dict | None:
@@ -169,25 +322,25 @@ def _read_cache() -> dict | None:
         return None
 
 
-def _write_cache(remote: dict) -> None:
+def _write_cache(remote: dict, source: str = "") -> None:
     try:
         os.makedirs(os.path.dirname(CACHE_FILE), exist_ok=True)
         with open(CACHE_FILE, "w", encoding="utf-8") as f:
             json.dump({"checked_at": datetime.now().isoformat(timespec="seconds"),
-                       "remote": remote}, f, ensure_ascii=False, indent=1)
+                       "source": source, "remote": remote}, f, ensure_ascii=False, indent=1)
     except OSError:
         pass
 
 
-def check(use_cache: bool = True, timeout: float = 1.5) -> dict:
+def check(use_cache: bool = True, timeout: float = TIMEOUT) -> dict:
     """比对本地与远端。返回 level ∈ {ok, stale, block, unknown}。
 
-    `unknown` 表示取不到远端（离线 / 服务端没放 version.json）——
+    `unknown` 表示所有源都取不到（离线 / 没发版 / 网络受限）——
     **不把它当错误**，多人环境里离线是常态，不能因此拦住人干活。
     """
     cfg = update_cfg()
     hours = float(cfg.get("cache_hours") or CACHE_HOURS)
-    remote = None
+    remote, source = None, ""
 
     if use_cache:
         c = _read_cache()
@@ -195,17 +348,18 @@ def check(use_cache: bool = True, timeout: float = 1.5) -> dict:
             try:
                 age = datetime.now() - datetime.fromisoformat(c["checked_at"])
                 if age < timedelta(hours=hours):
-                    remote = c["remote"]
+                    remote, source = c["remote"], c.get("source") or "cache"
             except (KeyError, ValueError):
                 pass
 
     if remote is None:
-        remote = fetch_remote(cfg["version_url"], timeout=timeout)
+        remote, source = fetch_remote(cfg["sources"], timeout=timeout)
         if remote:
-            _write_cache(remote)
+            _write_cache(remote, source)
 
     me = local()
-    res = {"local": me, "remote": remote, "url": cfg["version_url"], "level": "unknown"}
+    res = {"local": me, "remote": remote, "source": source, "label": source,
+           "sources": cfg["sources"], "url": source, "level": "unknown"}
     if not remote or not remote.get("version"):
         return res
 
@@ -214,6 +368,12 @@ def check(use_cache: bool = True, timeout: float = 1.5) -> dict:
     behind = cmp_ver(me["version"], rv) < 0
     res.update({"remote_version": rv, "behind": behind,
                 "delta": [semver(me["version"])[i] - semver(rv)[i] for i in range(3)]})
+
+    if remote.get("_thin"):
+        # release 只有 tag，没有 breaking/min_supported —— 最多只敢判「落后」，绝不拦人
+        res["level"] = "stale" if behind else "ok"
+        res["thin"] = True
+        return res
 
     if remote.get("breaking") or cmp_ver(me["version"], min_ok) < 0:
         res["level"] = "block" if behind else "ok"
@@ -312,14 +472,22 @@ def _highlights(n: int = 3) -> list[str]:
     return (feat + other)[:n] or ["常规更新"]
 
 
-def bump(kind: str = "patch", breaking: bool = False, note: str = "") -> str:
+def bump(kind: str = "patch", breaking: bool = False, note: str = "",
+         explicit: str = "") -> str:
+    """升版本并写 CHANGELOG。`explicit` 用于直接指定版本号（发版脚本用），
+    避免「bump 按 kind 算出 1.1.0，但你要 1.2.0」导致 CHANGELOG 标题对不上。"""
     cur = semver(version())
-    idx = {"major": 0, "minor": 1, "patch": 2}[kind]
-    nxt = list(cur)
-    nxt[idx] += 1
-    for i in range(idx + 1, 3):
-        nxt[i] = 0
-    new = "%d.%d.%d" % tuple(nxt)
+    if explicit:
+        new = explicit.strip().lstrip("v")
+        if not re.fullmatch(r"\d+\.\d+\.\d+", new):
+            raise SystemExit("❌ 版本号格式应为 X.Y.Z，收到 %r" % explicit)
+    else:
+        idx = {"major": 0, "minor": 1, "patch": 2}[kind]
+        nxt = list(cur)
+        nxt[idx] += 1
+        for i in range(idx + 1, 3):
+            nxt[i] = 0
+        new = "%d.%d.%d" % tuple(nxt)
 
     # 自上一个 tag 起的提交（没有 tag 就取最近 30 条）
     last_tag = _run(["git", "describe", "--tags", "--abbrev=0"])
@@ -355,18 +523,25 @@ def bump(kind: str = "patch", breaking: bool = False, note: str = "") -> str:
 
 
 def publish_json(breaking: bool = False) -> dict:
+    """生成仓库根的 `version.json`（随代码入库）。
+
+    放仓库根而不是 `dist/`：`dist/` 是打包产物、已在 .gitignore 里，
+    清单必须能被 GitHub Contents API 直接读到，所以必须在版本控制的路径上。
+    """
     me = local()
+    ver = me["version"]
     doc = {
-        "version": me["version"],
+        "version": ver,
         "commit": me["commit"],
         "date": me["date"] or datetime.now().strftime("%Y-%m-%d"),
         "breaking": bool(breaking),
-        "min_supported": "%d.%d.0" % semver(me["version"])[:2],
+        # 破坏性变更时把门槛抬到当前版本：旧版一律拦下
+        "min_supported": ver if breaking else "%d.%d.0" % semver(ver)[:2],
         "highlights": _highlights(),
     }
-    os.makedirs(os.path.dirname(DIST_FILE), exist_ok=True)
     with open(DIST_FILE, "w", encoding="utf-8") as f:
         json.dump(doc, f, ensure_ascii=False, indent=1)
+        f.write("\n")
     return doc
 
 
@@ -378,7 +553,8 @@ def main() -> int:
     g.add_argument("--check", action="store_true", help="与远端比对")
     g.add_argument("--bump", choices=["major", "minor", "patch"], help="升版本并写 CHANGELOG")
     g.add_argument("--changelog", action="store_true", help="打印 git log 摘要（不写文件）")
-    g.add_argument("--publish-json", action="store_true", help="生成 dist/version.json")
+    g.add_argument("--publish-json", action="store_true", help="生成仓库根 version.json（入库）")
+    g.add_argument("--sources", action="store_true", help="逐个探测远端源，打印连通性与耗时")
     ap.add_argument("--breaking", action="store_true", help="标记破坏性变更（写进 CHANGELOG 与 version.json）")
     ap.add_argument("--note", default="", help="一句话说明（写进 CHANGELOG）")
     ap.add_argument("--days", type=int, default=14, help="changelog 回溯天数")
@@ -395,19 +571,32 @@ def main() -> int:
         print(changelog(days=a.days))
         return 0
 
+    if a.sources:
+        cfg = update_cfg()
+        print("远端源（按优先级，命中第一个即停）：")
+        rows = probe_sources()
+        for i, r in enumerate(rows, 1):
+            mark = "✅" if r["ok"] else "❌"
+            tail = ("v%s · %s" % (r["version"], r["detail"])) if r["ok"] else r["detail"]
+            print("  %d. %s %-52s %5dms  %s" % (i, mark, r["source"][:52], r["ms"], tail))
+        ok = any(r["ok"] for r in rows)
+        print("\n结论：%s" % ("至少一个源可用" if ok else "全部不可用 —— 离线环境属正常，检查会静默放行"))
+        print("缓存：%s（%.0f 小时）" % (os.path.relpath(CACHE_FILE, ROOT), cfg["cache_hours"]))
+        return 0 if ok else EXIT_UNREACHABLE
+
     if a.bump:
         new = bump(a.bump, breaking=a.breaking, note=a.note)
         print("✅ 版本 → v%s（CHANGELOG 已更新）" % new)
-        print("   下一步：git add VERSION CHANGELOG.md && git commit -m \"chore(release): v%s\"" % new)
-        print("   然后：python scripts/version.py --publish-json")
+        print("   下一步：python scripts/release.py --version %s   （一键 commit/tag/push/校验）" % new)
         return 0
 
     if a.publish_json:
         doc = publish_json(breaking=a.breaking)
         print("✅ 已生成 %s" % os.path.relpath(DIST_FILE, ROOT))
         print(json.dumps(doc, ensure_ascii=False, indent=1))
-        print("\n上传到内网 nginx 静态目录（.130）：")
-        print("  scp dist/version.json xudongdong@192.168.76.130:/opt/astron-nginx/html/version.json")
+        print("\n这个文件要随代码一起提交，GitHub Contents API 才读得到：")
+        print("  git add VERSION CHANGELOG.md version.json && git commit -m \"chore(release): v%s\"" % doc["version"])
+        print("  或直接用：python scripts/release.py")
         return 0
 
     # --check
@@ -416,10 +605,15 @@ def main() -> int:
     print("本地 v%s (%s, %s)" % (me, r["local"]["commit"], r["local"]["date"] or "-"))
     if r["level"] == "unknown":
         if not a.quiet:
-            print("远端 取不到（%s）—— 离线或 version.json 未发布，不判定" % r["url"])
+            print("远端 取不到（试过 %d 个源）—— 离线或未发版，不判定" % len(r["sources"]))
+            for s in r["sources"]:
+                print("   · " + s)
+            print("   排障：python scripts/version.py --sources")
         return EXIT_UNREACHABLE
     print("远端 v%s (%s) · %s" % (rv, (r["remote"] or {}).get("date", "-"),
                                  {"ok": "已是最新", "stale": "落后", "block": "必须更新"}[r["level"]]))
+    if r.get("source"):
+        print("来源 %s%s" % (r["source"], "（release 只有 tag，不判 breaking）" if r.get("thin") else ""))
     hl = (r["remote"] or {}).get("highlights") or []
     for h in hl[:4]:
         print("   · " + h)

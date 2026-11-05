@@ -1,0 +1,135 @@
+name: Release
+
+# 打 tag 即发版：`python scripts/release.py` 推完 tag，这里自动建 Release。
+# 正文取自 CHANGELOG.md 里该版本那一段 —— 只有一份变更记录，不重复维护。
+#
+# 防的是这三种事故：
+#   1. 忘了改 version.json → tag 与清单不一致，客户端永远读不到新版
+#   2. tag 打在错误的 commit 上 → 装上的人拿到半成品
+#   3. Release 正文手写、与 CHANGELOG 对不上 → 同事看到两套说法
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "要补建 Release 的 tag（如 v1.0.1）"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: 校验 tag 与 version.json 一致
+        env:
+          TAG_NAME: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          TAG="${TAG_NAME#v}"
+          if [ ! -f version.json ]; then
+            echo "::error::仓库根缺少 version.json —— 客户端读不到版本，先跑 python scripts/release.py"
+            exit 1
+          fi
+          VER=$(python3 -c "import json;print(json.load(open('version.json',encoding='utf-8'))['version'])")
+          echo "tag=$TAG version.json=$VER"
+          if [ "$TAG" != "$VER" ]; then
+            echo "::error::tag($TAG) 与 version.json($VER) 不一致。发版必须用 scripts/release.py，它会同时更新两者。"
+            exit 1
+          fi
+          if [ ! -f "VERSION" ]; then
+            echo "::error::缺少 VERSION 文件"
+            exit 1
+          fi
+          VFILE=$(tr -d '[:space:]' < VERSION)
+          if [ "$VFILE" != "$TAG" ]; then
+            echo "::error::VERSION($VFILE) 与 tag($TAG) 不一致"
+            exit 1
+          fi
+          echo "✅ 三处版本一致：$TAG"
+
+      - name: 从 CHANGELOG 提取本节
+        env:
+          TAG_NAME: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          python3 - "$TAG_NAME" <<'PY'
+          import os, re, sys
+
+          tag = sys.argv[1].lstrip("v")
+          text = open("CHANGELOG.md", encoding="utf-8").read()
+
+          # 匹配 "## v1.0.1（2026-11-06）" 到下一个同级标题之前
+          pat = re.compile(r"^##\s+v%s\b.*?$(.*?)(?=^##\s+v|\Z)" % re.escape(tag),
+                           re.M | re.S)
+          m = pat.search(text)
+          body = m.group(1).strip() if m else ""
+
+          import json
+          try:
+              doc = json.load(open("version.json", encoding="utf-8"))
+          except Exception:
+              doc = {}
+
+          head = []
+          if doc.get("breaking"):
+              head.append("> ⚠️ **本次为破坏性变更**：旧版 `ai_flow` 会拒绝运行，必须更新。\n")
+          hl = doc.get("highlights") or []
+          if hl:
+              head.append("**本次亮点**\n")
+              head += ["- " + h for h in hl]
+              head.append("")
+
+          foot = [
+              "",
+              "---",
+              "",
+              "### 怎么更新",
+              "",
+              "```bash",
+              "python scripts/install.py --update    # 只换代码+技能包，rpa_config.json 不动",
+              "python scripts/doctor.py              # 自查",
+              "```",
+              "",
+              "最低支持版本：`%s`　·　提交：`%s`" % (
+                  doc.get("min_supported", "-"), doc.get("commit", "-")),
+          ]
+
+          out = "\n".join(head) + ("\n" + body + "\n" if body else "") + "\n".join(foot)
+          os.makedirs("/tmp/notes", exist_ok=True)
+          open("/tmp/notes/release.md", "w", encoding="utf-8").write(out)
+          print(out[:600])
+          PY
+
+      - name: 创建 Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          # 幂等：已存在就只更新正文，不报错
+          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            gh release edit "$TAG_NAME" --notes-file /tmp/notes/release.md
+            echo "已存在，正文已更新"
+          else
+            gh release create "$TAG_NAME" \
+              --title "$TAG_NAME" \
+              --notes-file /tmp/notes/release.md \
+              --verify-tag
+            echo "Release 已创建"
+          fi
+
+      - name: 汇总
+        if: always()
+        run: |
+          echo "### Release ${{ github.event.inputs.tag || github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          cat /tmp/notes/release.md >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "（无正文）" >> $GITHUB_STEP_SUMMARY
