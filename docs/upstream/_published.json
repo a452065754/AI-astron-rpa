@@ -1,0 +1,11 @@
+{
+ "01-A15-cv-gray.md": "https://github.com/iflytek/astron-rpa/issues/910",
+ "02-A12-A13-dialog-hang.md": "https://github.com/iflytek/astron-rpa/issues/911",
+ "03-A14-screen-lock.md": "https://github.com/iflytek/astron-rpa/issues/912",
+ "04-A16-convert-to-txt.md": "https://github.com/iflytek/astron-rpa/issues/913",
+ "05-A3-word-overwrite.md": "https://github.com/iflytek/astron-rpa/issues/914",
+ "06-A4-ftp-rename.md": "https://github.com/iflytek/astron-rpa/issues/915",
+ "07-A5-A7-A8-contract.md": "https://github.com/iflytek/astron-rpa/issues/916",
+ "08-A18-llm-delta.md": "https://github.com/iflytek/astron-rpa/issues/917",
+ "09-A9-iebrowser-missing.md": "https://github.com/iflytek/astron-rpa/issues/918"
+}

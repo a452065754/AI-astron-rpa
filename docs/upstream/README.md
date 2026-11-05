@@ -1,15 +1,35 @@
 # 给上游的缺陷反馈素材（`iflytek/astron-rpa`）
 
-> ✅ **已于 2026-11-05 15:45 提交**：https://github.com/iflytek/astron-rpa/issues/909（`bug` 标签因外部账号无 triage 权限未自动打上）
+> ✅ **A20 已于 2026-11-05 15:45 提交**：https://github.com/iflytek/astron-rpa/issues/909（`bug` 标签因外部账号无 triage 权限未自动打上）
 > 复现脚本已贴在该 Issue 的第一条评论里。
+>
+> ✅ **其余 12 条已于 2026-11-05 16:00 提交**：合并成 9 个 issue **#910 ~ #918**，
+> 清单与逐条验证结论见 `ISSUES-其余缺陷盘点.md`，正文源文件在 `issues/*.md`。
+> 批量提交用 `publish_issues.py`（已提交的会自动跳过）。
 
 本目录**不是内部文档**，是准备直接贴到上游 GitHub Issue 的干净素材。
 凡是内部主机名、账号、业务系统名、凭据，在这里一律不出现。
 
 | 文件 | 用途 |
 | --- | --- |
-| `ISSUE-A20-log-sanitizer-stackoverflow.md` | Issue 正文，从「标题」往下整段复制即可 |
-| `A20Repro.java` | 可附在 Issue 里的最小复现，零依赖，`javac A20Repro.java && java A20Repro` |
+| `ISSUE-A20-log-sanitizer-stackoverflow.md` | A20（#909）Issue 正文 |
+| `A20Repro.java` | A20 最小复现，零依赖 |
+| `ISSUES-其余缺陷盘点.md` | 其余 15 条的 main 现状 + 验证结论 + 上报结果 |
+| `issues/*.md` | #910~#918 的正文源文件（首个 `# 标题` 即 issue 标题） |
+| `verify_main.py` | 对 main 源码逐条复核，输出 CONFIRMED / FIXED / INCONCLUSIVE |
+| `publish_issues.py` | 批量提交 `issues/*.md`，结果记入 `_published.json` |
+
+## 复跑验证 / 重发
+
+```bash
+# 1. 拉 main 源码到 .tmp_rev/upstream（脚本见 git 历史）
+# 2. 复核
+python docs/upstream/verify_main.py --main-dir .tmp_rev/upstream --components "$(cat .tmp_rev/components.txt)" \
+  | tee docs/upstream/_verify_result.md
+# 3. 改了正文后补发（已发过的会 SKIP）
+python docs/upstream/publish_issues.py --only 01
+```
+
 
 ## 怎么发
 

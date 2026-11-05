@@ -1,0 +1,86 @@
+[
+ {
+  "id": "A3",
+  "title": "Word 覆盖已存在文件不生效",
+  "status": "CONFIRMED",
+  "evidence": "OVERWRITE 分支的 os.remove 仍被注释，直接 return 原路径（core.py:81）"
+ },
+ {
+  "id": "A4",
+  "title": "FTP 文件夹重命名传错变量",
+  "status": "CONFIRMED",
+  "evidence": "FOLDER 分支仍把 **cur_file_name** 当源路径传给 ftp_rename（ftp.py:310：`FtpCore.ftp_rename(ftp_instance, cur_file_name, new_folder_name)`），该变量只在 FILE 分支被赋值 → 文件夹改名必失败"
+ },
+ {
+  "id": "A5",
+  "title": "多输出声明 ≠ 实现",
+  "status": "CONFIRMED",
+  "evidence": "read_data 声明 4 个输出，实际 return 最多 1 个值；copy_data 声明 4 个输出，实际 return 最多 1 个值"
+ },
+ {
+  "id": "A6",
+  "title": "Excel 插图变外链",
+  "status": "INCONCLUSIVE",
+  "evidence": "需 Excel 实机（看 xlsx 内 xl/media 是否为空），静态无法判定"
+ },
+ {
+  "id": "A7",
+  "title": "字典有实现无的死 key",
+  "status": "CONFIRMED",
+  "evidence": "实现类中仍无这些方法：DataTable.sort_table、Docx.open_document、Docx.read_document_content（字典侧需服务端 c_atom_meta_new 佐证）"
+ },
+ {
+  "id": "A8",
+  "title": "参数求值返回 3 值",
+  "status": "CONFIRMED",
+  "evidence": "params.py:126 `return \"\".join(pieces), need_eval, need_eval`（3 值），但签名写的是 `(Any, bool)`（2 值）；调用方 `a, b = self._param_to_eval(...)` 在这个分支上实测 ValueError: too many values to unpack (expected 2)"
+ },
+ {
+  "id": "A9",
+  "title": "IE 模块整块缺失",
+  "status": "CONFIRMED",
+  "evidence": "engine/components 下无 astronverse-iebrowser（共 26 个组件）"
+ },
+ {
+  "id": "A11",
+  "title": "insert_sep 不换行",
+  "status": "INCONCLUSIVE",
+  "evidence": "需 Word 实机验证光标是否前进，静态无法判定"
+ },
+ {
+  "id": "A12",
+  "title": "无前端时 Dialog 全崩",
+  "status": "CONFIRMED",
+  "evidence": "ws.py:112 仍无 `if Ws.loop is None` 保护（future = asyncio.run_coroutine_threadsafe(raw_send_reply(), ）；Ws.loop=None 时实测 AttributeError: 'NoneType' object has no attribute 'call_soon_threadsafe'"
+ },
+ {
+  "id": "A13",
+  "title": "4 个 Dialog 原子无超时",
+  "status": "CONFIRMED",
+  "evidence": "4 处裸 `.wait()` 无超时：行 293, 359, 459, 578（同文件已有 wait_with_timeout，只是没用到这几处）"
+ },
+ {
+  "id": "A14",
+  "title": "screen_lock/unlock 空实现",
+  "status": "CONFIRMED",
+  "evidence": "screen_lock 仍 raise NotImplementedError（system.py:153）、screen_unlock 仍 raise NotImplementedError（system.py:190）"
+ },
+ {
+  "id": "A15",
+  "title": "CV 模板灰度通道用错",
+  "status": "CONFIRMED",
+  "evidence": "process_image 里 image/element 都已转 BGR（image,element,anchor），但大图用 COLOR_BGR2GRAY、模板用 COLOR_RGB2GRAY：L135 image→COLOR_BGR2GRAY | L146 element→COLOR_RGB2GRAY; L152 anchor→COLOR_RGB2GRAY\n    数值复现（完美对齐的彩色模板，TM_CCORR_NORMED 等价归一化相关）：\n      两侧都 BGR2GRAY = 1.000000 ｜ 平台现状（大图BGR/模板RGB）= 0.879471 ｜ 两侧都 RGB2GRAY = 1.000000\n      纯红像素灰度：正确 76.2 / 现状 29.1（差 47.2）"
+ },
+ {
+  "id": "A16",
+  "title": "convert_to_txt NameError",
+  "status": "CONFIRMED",
+  "evidence": "core_win.py:830 仍调用 Document(...)，而该文件既未 import 也未定义 Document（导入的是 IDocumentCore）→ 运行必 NameError"
+ },
+ {
+  "id": "A18",
+  "title": "流式 delta.content 硬取",
+  "status": "CONFIRMED",
+  "evidence": "llm.py:50 仍硬取 delta[\"content\"]；标准 OpenAI 兼容流里首个 chunk 常为 `{\"delta\":{\"role\":\"assistant\"}}`（无 content），实测 KeyError: 'content'"
+ }
+]
