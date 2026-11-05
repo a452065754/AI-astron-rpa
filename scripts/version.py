@@ -384,26 +384,39 @@ def check(use_cache: bool = True, timeout: float = TIMEOUT) -> dict:
     return res
 
 
+def _banner_text(level: str, rv: str, local_v: str, hl: list[str],
+                 min_ok: str = "", thin: bool = False) -> tuple[str | None, bool]:
+    """把判定结果渲染成给人看的两三行。`banner()` 和 `--demo` 共用，避免两套文案。"""
+    tip = "python scripts/install.py --update"
+    if level == "block":
+        head = ("⛔ 本项目已升级到 v%s，且为**破坏性变更**（或低于最低支持版本），"
+                "当前 v%s 不能继续。" % (rv, local_v))
+        body = ["   " + h for h in hl[:3]] + ["   更新后重跑：%s" % tip]
+        if min_ok:
+            body.insert(0, "   最低支持版本：v%s" % min_ok)
+        return "\n".join([head] + body), True
+
+    if level == "stale":
+        head = "⬆️ 项目有新版本 v%s（当前 v%s）" % (rv, local_v)
+        body = ["   · " + h for h in hl[:2]] + ["   → 更新：%s" % tip]
+        if thin:
+            body.append("   （远端只有版本号，本次无法判断是否破坏性变更）")
+        return "\n".join([head] + body), False
+
+    return None, False
+
+
 def banner(use_cache: bool = True) -> tuple[str | None, bool]:
     """给 ai_flow / doctor 用：返回 (要打印的行, 是否必须中止)。无话可说时返回 (None, False)。"""
     r = check(use_cache=use_cache)
-    if r["level"] == "ok":
-        return None, False
-    if r["level"] == "unknown":
-        return None, False          # 离线不吵人
+    if r["level"] in ("ok", "unknown"):
+        return None, False          # 同版本不打扰；离线更不吵人
 
-    rv = r.get("remote_version", "?")
-    hl = (r.get("remote") or {}).get("highlights") or []
-    tip = "python scripts/install.py --update"
-    if r["level"] == "block":
-        head = "⛔ 本项目已升级到 v%s，且为**破坏性变更**（或低于最低支持版本），当前 v%s 不能继续。" % (
-            rv, r["local"]["version"])
-        body = ["   " + h for h in hl[:3]] + ["   更新后重跑：%s" % tip]
-        return "\n".join([head] + body), True
-
-    head = "⬆️ 项目有新版本 v%s（当前 v%s）" % (rv, r["local"]["version"])
-    body = ["   · " + h for h in hl[:2]] + ["   → 更新：%s" % tip]
-    return "\n".join([head] + body), False
+    return _banner_text(r["level"], r.get("remote_version", "?"),
+                        r["local"]["version"],
+                        (r.get("remote") or {}).get("highlights") or [],
+                        str((r.get("remote") or {}).get("min_supported") or ""),
+                        bool(r.get("thin")))
 
 
 # ---------------------------------------------------------------- CHANGELOG
@@ -567,6 +580,70 @@ def publish_json(breaking: bool = False) -> dict:
     return doc
 
 
+def _prev_version(v: str) -> str:
+    """造一个「比 v 低一版」的版本号，用来演示落后场景。"""
+    a, b, c = semver(v)
+    if c > 0:
+        return "%d.%d.%d" % (a, b, c - 1)
+    if b > 0:
+        return "%d.%d.0" % (a, b - 1)
+    return "%d.0.0" % max(a - 1, 0)
+
+
+def demo() -> int:
+    """把四种情况一次演完，用**真实远端数据**，不联网之外不做任何副作用。
+
+    存在的理由：这套机制最容易被问的一句话是「我怎么没看到更新提醒」——
+    因为**已是最新时它本来就该静默**。光解释没用，得让人看见。
+    """
+    print("演示：同事在四种情况下分别会看到什么（用真实远端数据，不改任何文件）\n")
+    r = check(use_cache=True)
+    remote = r.get("remote") or {}
+    rv = str(remote.get("version") or "")
+    cur = local()["version"]
+
+    if not rv:
+        print("❌ 取不到远端版本，没法演示。先查源：python scripts/version.py --sources")
+        return EXIT_UNREACHABLE
+
+    hl = remote.get("highlights") or []
+    min_ok = str(remote.get("min_supported") or "")
+    older = _prev_version(rv)
+
+    print("远端 v%s　·　你的本地 v%s" % (rv, cur))
+    print("缓存命中的源：%s" % (r.get("source") or "-"))
+    if cur == rv:
+        print("→ 你现在就在最新版上，所以**不会**看到提醒。下面演示落后一版时是什么样。")
+    print()
+
+    def show(title, cond, level, thin=False):
+        print("── %s" % title)
+        print("   触发条件：%s" % cond)
+        line, must = _banner_text(level, rv, older, hl, min_ok, thin)
+        for ln in (line or "（无输出）").splitlines():
+            print("   " + ln)
+        print("   是否拦住：%s" % ("会，ai_flow 退出码 12，零副作用" if must else "不会，只提示"))
+        print()
+
+    show("情况 1：本地落后（最常见）",
+         "本地 v%s < 远端 v%s，且不是破坏性变更" % (older, rv), "stale")
+    show("情况 2：破坏性变更",
+         "远端 breaking=true，或本地 < min_supported（当前 v%s）" % (min_ok or "-"), "block")
+
+    print("── 情况 3：已是最新（你现在就是这种）")
+    print("   banner 返回 None，**什么都不打印**。")
+    print("   这是故意的：每次启动都弹「有新版本」会让人习惯性忽略，")
+    print("   真该拦人的时候也就失效了。想主动确认就手动跑 --check。")
+    print()
+
+    print("── 情况 4：离线 / 所有源都不通")
+    print("   同样静默放行，不报错也不阻塞。离线是常态，不能因此拦住人干活。")
+    print()
+
+    print("主动查一次（忽略缓存）：python scripts/version.py --check --no-cache")
+    return 0
+
+
 # ---------------------------------------------------------------- CLI
 def main() -> int:
     ap = argparse.ArgumentParser(description="版本号：查看 / 比对 / bump / 生成 version.json")
@@ -577,6 +654,7 @@ def main() -> int:
     g.add_argument("--changelog", action="store_true", help="打印 git log 摘要（不写文件）")
     g.add_argument("--publish-json", action="store_true", help="生成仓库根 version.json（入库）")
     g.add_argument("--sources", action="store_true", help="逐个探测远端源，打印连通性与耗时")
+    g.add_argument("--demo", action="store_true", help="演示四种情况下的提醒文案（回答「怎么没看到提醒」）")
     ap.add_argument("--breaking", action="store_true", help="标记破坏性变更（写进 CHANGELOG 与 version.json）")
     ap.add_argument("--note", default="", help="一句话说明（写进 CHANGELOG）")
     ap.add_argument("--days", type=int, default=14, help="changelog 回溯天数")
@@ -605,6 +683,9 @@ def main() -> int:
         print("\n结论：%s" % ("至少一个源可用" if ok else "全部不可用 —— 离线环境属正常，检查会静默放行"))
         print("缓存：%s（%.0f 小时）" % (os.path.relpath(CACHE_FILE, ROOT), cfg["cache_hours"]))
         return 0 if ok else EXIT_UNREACHABLE
+
+    if a.demo:
+        return demo()
 
     if a.bump:
         new = bump(a.bump, breaking=a.breaking, note=a.note)
