@@ -294,15 +294,22 @@ def changelog(days: int = 14, commits: list[dict] | None = None) -> str:
 
 
 def _highlights(n: int = 3) -> list[str]:
-    """从最近提交里挑几条当 version.json 的亮点（去掉 docs/chore）。"""
-    raw = _run(["git", "log", "-30", "--pretty=%s"])
-    picks = []
+    """从最近提交里挑几条当 version.json 的亮点。
+
+    顺序有讲究：**先「新增」后「修复」**。亮点是给人看「要不要现在更新」的，
+    新能力比修 bug 更能回答这个问题；但修 bug 也不能少（不然只有新增才发版）。
+    docs/chore/test 一律不要。
+    """
+    raw = _run(["git", "log", "-40", "--pretty=%s"])
+    feat, other = [], []
     for s in raw.splitlines():
-        if _classify(s) in ("修复", "新增", "重构"):
-            picks.append(re.sub(r"^\w+(\([^)]*\))?[:：]\s*", "", s)[:60])
-        if len(picks) >= n:
-            break
-    return picks or ["常规更新"]
+        cat = _classify(s)
+        txt = re.sub(r"^\w+(\([^)]*\))?[:：]\s*", "", s)[:60]
+        if cat == "新增":
+            feat.append(txt)
+        elif cat in ("修复", "重构"):
+            other.append(txt)
+    return (feat + other)[:n] or ["常规更新"]
 
 
 def bump(kind: str = "patch", breaking: bool = False, note: str = "") -> str:

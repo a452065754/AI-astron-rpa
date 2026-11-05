@@ -294,6 +294,27 @@ def main():
     else:
         add(OK, "MCP 登记", "；".join("%s → %s" % (lb, path) for lb, p, path in mcp_ok))
 
+    # ---------- 版本 ----------
+    # 报障时贴 doctor 输出 → 顺手带上版本号，省掉「你跑的是哪版」这一轮往返。
+    # 远端取不到（离线）不算问题：多人环境里离线是常态。
+    try:
+        import version as verchk
+        r = verchk.check()
+        me, rv = r["local"], r.get("remote_version")
+        tag = "v%s (%s)" % (me["version"], me["commit"])
+        if r["level"] == "block":
+            add(BAD, "版本", "%s → 远端 v%s，必须更新（breaking 或低于最低支持）" % (tag, rv),
+                "python scripts/install.py --update")
+        elif r["level"] == "stale":
+            add(WARN, "版本", "%s → 远端 v%s（落后，可继续用）" % (tag, rv),
+                "python scripts/install.py --update")
+        elif r["level"] == "unknown":
+            add(OK, "版本", "%s · 远端未配置或不可达（不影响使用）" % tag)
+        else:
+            add(OK, "版本", "%s · 已是最新" % tag)
+    except Exception as e:  # 版本模块坏了不该挡住整个自检
+        add(WARN, "版本", "取不到版本信息：%s" % e)
+
     # ---------- 输出 ----------
     print()
     for r in _rows:
