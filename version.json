@@ -1,10 +1,10 @@
 {
- "version": "1.0.2",
- "commit": "50001d3",
+ "version": "1.0.3",
+ "commit": "22ac977",
  "date": "2026-11-05",
  "breaking": false,
  "min_supported": "1.0.0",
  "highlights": [
-  "亮点只取本版区间，header 不再每次 bump 重复一段"
+  "新增 --demo，直观看四种情况下的提醒文案"
  ]
 }
