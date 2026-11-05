@@ -18,6 +18,29 @@
 | `issues/*.md` | #910~#918 的正文源文件（首个 `# 标题` 即 issue 标题） |
 | `verify_main.py` | 对 main 源码逐条复核，输出 CONFIRMED / FIXED / INCONCLUSIVE |
 | `publish_issues.py` | 批量提交 `issues/*.md`，结果记入 `_published.json` |
+| `track_issues.py` | **进度巡检**：拉最新状态与基线比对，只输出有变化的条目 |
+| `_issue_baseline.json` | 状态基线（机器可读，巡检比对用） |
+| `ISSUE_STATE.md` | 自动生成的快照表 + 本次变化（勿手改） |
+| `_published.json` | 正文文件 → issue 号 的映射（勿手改） |
+
+## 关注官方进度
+
+```bash
+python docs/upstream/track_issues.py            # 比对 + 更新基线 + 重写 ISSUE_STATE.md
+python docs/upstream/track_issues.py --dry-run  # 只看，不动基线
+python docs/upstream/track_issues.py --json     # 机器可读
+```
+
+无变化时只打印一行「无变化」。**issue 被关 ≠ 已修复**，必须再跑 `verify_main.py`：
+
+```bash
+python docs/upstream/verify_main.py --main-dir .tmp_rev/upstream --components "$(cat .tmp_rev/components.txt)"
+```
+
+结论从 `CONFIRMED` 翻成 `FIXED`，才去把 `平台缺陷清单.md` §0.5 与 §1 对应行的 📤 改成 ✅。
+
+> 上一轮的教训：以为上游改了 `QUOTED_ARRAY_VALUE` 就等于修好了，实际爆栈的是 `QUOTED_VALUE`。
+> **只认复跑结果，不认「已修复」三个字。**
 
 ## 复跑验证 / 重发
 

@@ -1,0 +1,126 @@
+{
+ "_checked_at": "2026-11-05 16:03",
+ "_repo": "iflytek/astron-rpa",
+ "issues": {
+  "909": {
+   "number": 909,
+   "title": "[BUG] 日志脱敏正则递归导致「添加应用」接口整包 999999（paramJson 超长）",
+   "state": "open",
+   "state_reason": null,
+   "comments": 1,
+   "labels": [],
+   "created_at": "2026-11-05T07:40:51Z",
+   "updated_at": "2026-11-05T07:41:03Z",
+   "closed_at": null,
+   "html_url": "https://github.com/iflytek/astron-rpa/issues/909"
+  },
+  "910": {
+   "number": 910,
+   "title": "[BUG] vision 模板匹配两侧灰度转换常量不一致，彩色目标匹配分被系统性压低",
+   "state": "open",
+   "state_reason": null,
+   "comments": 0,
+   "labels": [],
+   "created_at": "2026-11-05T07:55:09Z",
+   "updated_at": "2026-11-05T07:55:09Z",
+   "closed_at": null,
+   "html_url": "https://github.com/iflytek/astron-rpa/issues/910"
+  },
+  "911": {
+   "number": 911,
+   "title": "[BUG] Dialog 4 个原子无超时且无前端时静默永久挂起（message_box 有超时，其余 4 个没有）",
+   "state": "open",
+   "state_reason": null,
+   "comments": 0,
+   "labels": [],
+   "created_at": "2026-11-05T07:55:11Z",
+   "updated_at": "2026-11-05T07:55:11Z",
+   "closed_at": null,
+   "html_url": "https://github.com/iflytek/astron-rpa/issues/911"
+  },
+  "912": {
+   "number": 912,
+   "title": "[BUG] System.screen_lock / screen_unlock 是 raise NotImplementedError 的空实现，但字典里可正常拖出",
+   "state": "open",
+   "state_reason": null,
+   "comments": 0,
+   "labels": [],
+   "created_at": "2026-11-05T07:55:13Z",
+   "updated_at": "2026-11-05T07:55:13Z",
+   "closed_at": null,
+   "html_url": "https://github.com/iflytek/astron-rpa/issues/912"
+  },
+  "913": {
+   "number": 913,
+   "title": "[BUG] Docx.convert_to_txt 必抛 NameError: name 'Document' is not defined",
+   "state": "open",
+   "state_reason": null,
+   "comments": 0,
+   "labels": [],
+   "created_at": "2026-11-05T07:55:15Z",
+   "updated_at": "2026-11-05T07:55:15Z",
+   "closed_at": null,
+   "html_url": "https://github.com/iflytek/astron-rpa/issues/913"
+  },
+  "914": {
+   "number": 914,
+   "title": "[BUG] Word「覆盖已存在文件」的 os.remove 被注释掉，OVERWRITE 实际不删除旧文件",
+   "state": "open",
+   "state_reason": null,
+   "comments": 0,
+   "labels": [],
+   "created_at": "2026-11-05T07:55:17Z",
+   "updated_at": "2026-11-05T07:55:17Z",
+   "closed_at": null,
+   "html_url": "https://github.com/iflytek/astron-rpa/issues/914"
+  },
+  "915": {
+   "number": 915,
+   "title": "[BUG] FTP 文件夹重命名把 cur_file_name 当源路径传入，文件夹模式下必然失败",
+   "state": "open",
+   "state_reason": null,
+   "comments": 0,
+   "labels": [],
+   "created_at": "2026-11-05T07:55:19Z",
+   "updated_at": "2026-11-05T07:55:19Z",
+   "closed_at": null,
+   "html_url": "https://github.com/iflytek/astron-rpa/issues/915"
+  },
+  "916": {
+   "number": 916,
+   "title": "[BUG] 原子声明与实现不一致三处：多输出只 return 一个值 / 字典有 key 实现无方法 / 参数求值 return 3 值",
+   "state": "open",
+   "state_reason": null,
+   "comments": 0,
+   "labels": [],
+   "created_at": "2026-11-05T07:55:21Z",
+   "updated_at": "2026-11-05T07:55:21Z",
+   "closed_at": null,
+   "html_url": "https://github.com/iflytek/astron-rpa/issues/916"
+  },
+  "917": {
+   "number": 917,
+   "title": "[BUG] chat_streamable 硬取 delta[\"content\"]，接标准 OpenAI 兼容流式接口时 KeyError",
+   "state": "open",
+   "state_reason": null,
+   "comments": 0,
+   "labels": [],
+   "created_at": "2026-11-05T07:55:23Z",
+   "updated_at": "2026-11-05T07:55:23Z",
+   "closed_at": null,
+   "html_url": "https://github.com/iflytek/astron-rpa/issues/917"
+  },
+  "918": {
+   "number": 918,
+   "title": "[BUG] 字典里有 36 个 IE 系原子，发布包里没有 astronverse.iebrowser 模块",
+   "state": "open",
+   "state_reason": null,
+   "comments": 0,
+   "labels": [],
+   "created_at": "2026-11-05T07:55:25Z",
+   "updated_at": "2026-11-05T07:55:25Z",
+   "closed_at": null,
+   "html_url": "https://github.com/iflytek/astron-rpa/issues/918"
+  }
+ }
+}
