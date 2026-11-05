@@ -1,5 +1,6 @@
 {
   "name": "PDF转可编辑Word小流程",
+  "param_budget_exempt": "原子演示流程：9 条参数覆盖 OCR/版面还原两档用法，不发布成「应用」，不在正式服建机器人",
   "nl_examples": [
     "把这个PDF转成能编辑文字的Word",
     "扫描件OCR成Word",

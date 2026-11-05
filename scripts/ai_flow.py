@@ -45,6 +45,7 @@ import flow_generator as fg
 import nl_params as nlp
 import self_heal
 import publish_flow as pf
+import param_budget as pb   # 参数预算（平台缺陷 A20）
 import run_flow_local as rfl
 import error_hints as eh
 import traceback_map as tm
@@ -913,6 +914,10 @@ def do_expose(cookie, robot_id, spec, process_id, repair_modules=False):
     if spec.get("scripts"):
         print("      发布前刷新脚本模块内容（平台按当前内容复制进版本）...")
         refresh_modules(cookie, robot_id, spec)
+    # 参数体检（平台缺陷 A20）：发布前按服务端真实参数算 paramJson 长度，超线直接不发。
+    # 发出去之后再发现，就得面对「添加应用列表 999999」，而且只有发布者账号能复现。
+    if process_id:
+        pf.guard_param_budget(cookie, robot_id, process_id, strict=True)
     v = pf.publish_auto(cookie, robot_id, spec.get("name") or "AI生成流程",
                         introduction=(spec.get("nl_examples") or ["AI 生成流程"])[0],
                         module_ids=mids, repair_modules=repair_modules)
@@ -1161,6 +1166,20 @@ def main():
         return 2
     check = fg.validate(pc, atom_dict, elements=elements, robot_id=robot_id,
                         params={p["name"]: p for p in (spec.get("params") or [])})
+    # 参数预算（平台缺陷 A20）：`Executor.paramJson` 太长会让平台的脱敏正则爆栈，
+    # 把该账号整个「添加应用」列表打成 999999。lint 和发布门禁都管这件事，
+    # 这里再兜一道 —— 直接把 `--stage draft` 的假绿堵住（draft 不落库也不发布，
+    # 但产物会被当成「已验证通过」，等真发出去才发现就晚了）。
+    _bud = pb.summary([p for p in (spec.get("params") or []) if isinstance(p, dict)])
+    if _bud["level"] == "red" and not spec.get("param_budget_exempt"):
+        check["errors"].append(
+            "流程参数 %d 条 / paramJson 估算 %d 字符，超过平台爆栈线 —— 静态值请写死进节点"
+            % (_bud["count"], _bud["span"]))
+        check["is_pass"] = False
+    elif _bud["level"] != "green":
+        check["warnings"].append(
+            "流程参数 %d 条 / paramJson 估算 %d 字符，已接近爆栈线（建议 ≤%d）"
+            % (_bud["count"], _bud["span"], pb.SPAN_WARN))
     print(f"      IS_PASS: {'YES ✅' if check['is_pass'] else 'NO ❌'}"
           f"（错误 {len(check['errors'])} / 警告 {len(check['warnings'])}）")
     for e in check["errors"]:
@@ -1302,6 +1321,8 @@ def main():
     if args.stage == "publish":
         ver = args.version
         print(f"[publish] 发布机器人版本 v{ver} ...")
+        # 参数体检（平台缺陷 A20）：超线宁可这次不发，也不要发出一个打挂「添加应用」的版本
+        pf.guard_param_budget(ck, robot_id, pid, strict=True)
         # `module_ids` 必须传：publish 会用它核对「模块有没有被带进发布版本」。
         # 不传的话这一步的校验悄悄消失，等 openapi 调用时才报「该模块不存在」（坑 66）。
         # `--stage expose` 走 do_expose 是传了的，两条路径必须一致（QA 2026-11-02 指出）。

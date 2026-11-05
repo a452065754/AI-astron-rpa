@@ -278,7 +278,8 @@ def check_gates():
     gates = [("V1 全量回归", "logs/qa/v1_regression.py"),
              ("V13 D1 收窄", "logs/qa/v13_b1_counter.py"),
              ("V14 路径去机器化", "logs/qa/v14_port_paths.py"),
-             ("V15 json_str 参数", "logs/qa/v15_json_str_param.py")]
+             ("V15 json_str 参数", "logs/qa/v15_json_str_param.py"),
+             ("V16 参数预算", "logs/qa/v16_param_budget.py")]
     for label, rel in gates:
         path = os.path.join(ROOT, rel)
         if not os.path.isfile(path):
@@ -354,10 +355,59 @@ def check_distribution():
         add(WARN, "自检覆盖", "找不到 scripts/doctor.py")
 
 
+# ---------------------------------------------------------------- 7. 线上参数预算
+def check_param_budget_remote():
+    """线上机器人的参数预算体检（平台缺陷 A20）。
+
+    为什么要进发布门禁：参数超出 ~1450 字符后，`/triggerTask/robotExe/list` 会在
+    `SensitiveDataSanitizer` 里爆 `StackOverflowError`，整个「添加应用」列表只剩
+    `{"code":"999999"}`，**而且只有发布者自己的账号能复现**（`creator_id` 过滤）——
+    交付给别人时完全隐身，属于「本机能用、别人全废」那一类。
+    这里直接问服务端要真实参数表，红项一律算阻塞（发出去就是把别人的应用列表打挂）。
+    """
+    script = os.path.join(ROOT, "scripts", "param_health.py")
+    if not os.path.isfile(script):
+        add(WARN, "参数预算", "脚本不存在：scripts/param_health.py")
+        return
+    try:
+        r = subprocess.run([sys.executable, script, "--json"], cwd=ROOT,
+                           capture_output=True, text=True, timeout=120)
+    except subprocess.TimeoutExpired:
+        add(WARN, "参数预算", "线上巡检超时（>120s），跳过")
+        return
+    if r.returncode not in (0, 1, 2) or not (r.stdout or "").strip():
+        add(WARN, "参数预算", "线上不可达或 SSH/DB 凭据失效，跳过",
+            "手工跑：python scripts/param_health.py")
+        return
+    try:
+        data = json.loads(r.stdout)
+    except Exception:
+        add(WARN, "参数预算", "巡检输出不是 JSON，跳过")
+        return
+    red = [x for x in data.get("robots") or [] if x.get("level") == "red"]
+    yellow = [x for x in data.get("robots") or [] if x.get("level") == "yellow"]
+    if red:
+        # 为什么是 WARN 不是 BAD：红项是**服务端存量数据**，不是这个仓库的内容。
+        # 仓库能不能交给别人，不该被线上历史数据卡住（那样只会让人习惯性忽略这条）；
+        # 真正防「新版本踩坑」的是发布期的 pf.guard_param_budget()（硬中止）+ 生成期 lint。
+        # 但这条绝不能静音：红项意味着**点一次「添加应用」该账号就会报 999999**。
+        add(WARN, "参数预算", "%d 个线上机器人已在爆栈线上（点「添加应用」会 999999）：%s" % (
+            len(red), ", ".join("%s(%d条/%d字符)" % (x["name"], x["count"], x["span"])
+                                for x in red[:3])),
+            "存量需人工决策（待办清单 P0#8）：python scripts/param_health.py 看清单；"
+            "新流程已被 lint + 发布门禁拦住，不会再加新的")
+    elif yellow:
+        add(WARN, "参数预算", "%d 个机器人接近爆栈线" % len(yellow),
+            "python scripts/param_health.py 看占用最大的参数")
+    else:
+        add(OK, "参数预算", "%d 个机器人全部在安全线内" % len(data.get("robots") or []))
+
+
 # ---------------------------------------------------------------- main
 def main():
     ap = argparse.ArgumentParser(description="发布就绪体检（只读）")
     ap.add_argument("--quick", action="store_true", help="跳过门禁与 lint（只查静态项）")
+    ap.add_argument("--no-remote", action="store_true", help="跳过线上参数预算巡检")
     ap.add_argument("--json", action="store_true")
     a = ap.parse_args()
 
@@ -374,6 +424,8 @@ def main():
         check_flows()
         check_gates()
     check_distribution()
+    if not a.no_remote:
+        check_param_budget_remote()
 
     bad = [r for r in _rows if r["level"] == BAD]
     warn = [r for r in _rows if r["level"] == WARN]

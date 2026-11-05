@@ -34,6 +34,7 @@ import sys
 import requests
 
 import rpa_config as cfg
+import param_budget as pb
 
 # 环境相关的东西一律从 rpa_config 取（迁移时只改 rpa_config.json / 环境变量）
 TIMEOUT = 20
@@ -346,6 +347,40 @@ def sync_params(cookie, robot_id, process_id, params):
     extra = [n for n in by_name if n not in {p.get("name") for p in (params or [])}]
     return {"added": added, "updated": updated, "extra_on_server": extra,
             "total": len(by_name) + len(added)}
+
+
+def guard_param_budget(cookie, robot_id, process_id, strict=True):
+    """发布前参数体检：按**服务端真实参数**算 `paramJson` 长度，超线就中止发布。
+
+    为什么要在发布前卡（平台缺陷 A20，2026-11-05 正式服事故）：
+      `Executor.paramJson`（JSON 数组字符串）会整段进 `SensitiveDataSanitizer.sanitize`，
+      里面的 `QUOTED_ARRAY_VALUE` 靠 `Pattern$Loop` 递归匹配，递归深度 ≈ 字符数；
+      超过 ~1500 字符就 1MB 栈溢出 → 「添加应用」列表整包 `999999` → **整个账号的定时任务
+      都选不了应用**，而且只有创建者自己的账号能看见（`creator_id` 过滤），交付给别人时完全隐身。
+
+    参数是**跟着发布版本复制**的，`sync_params` 又只增不删 —— 参数条数会随版本累积，
+    所以必须每发一版就量一次。
+
+    返回 {"count","span","level","extra"}；`strict=True` 且算红时抛 SystemExit（不发布）。
+    """
+    rows = [r for r in (list_params(cookie, robot_id, process_id) or []) if isinstance(r, dict)]
+    stat = pb.summary(rows)
+    tip = ("把静态值（URL / 目录 / 开关 / 轮次）从流程参数里删掉、在节点里写死；"
+           "只留运维真会改的 %d 条以内" % pb.COUNT_WARN)
+    line = "参数体检：%d 条 / paramJson 估算 %d 字符（建议 ≤%d 字符）" % (
+        stat["count"], stat["span"], pb.SPAN_WARN)
+    if stat["level"] == "red":
+        print("      ❌ " + line)
+        print("         ↑ 再发布会让「添加应用」列表返回 999999（整个账号的定时任务都选不了应用）")
+        print("         占用最大的参数：%s" % " > ".join(
+            "%s(%d)" % (n, s) for s, n, _ in pb.advise(rows)[:5]))
+        if strict:
+            raise SystemExit("已中止发布：%s。%s" % (line, tip))
+    elif stat["level"] == "yellow":
+        print("      ⚠️ " + line + " —— 已接近爆栈线，" + tip)
+    else:
+        print("      ✅ " + line)
+    return stat
 
 
 def list_module_params(cookie, robot_id, module_id):

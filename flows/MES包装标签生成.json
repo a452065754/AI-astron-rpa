@@ -15,88 +15,40 @@
   ],
   "params": [
     {
-      "name": "login_url",
-      "type": "Str",
-      "default": "http://mes.xfds.local/prj-xyds/login.action",
-      "describe": "MES 登录地址"
-    },
-    {
-      "name": "biz_url",
-      "type": "Str",
-      "default": "http://192.168.0.26:81/BG/CHBQ.aspx",
-      "describe": "包装标签打印页（主页菜单「包装标签打印」指向这里）"
-    },
-    {
-      "name": "base_url",
-      "type": "Str",
-      "default": "http://192.168.0.26:81",
-      "describe": "标签服务根地址（与 biz_url 同源）"
-    },
-    {
       "name": "username",
       "type": "Str",
       "default": "",
-      "describe": "MES 账号（**默认值不写入仓库**：本仓库是公开的，业务系统凭据一律不落盘。运行前在设计器「流程参数」面板填，保存即写到服务端；本地跑也可临时改本字段，但别提交）"
+      "describe": "MES 账号"
     },
     {
       "name": "password",
       "type": "Str",
       "default": "",
-      "describe": "MES 密码（同上：默认值不写入仓库。运行前在设计器「流程参数」面板填，保存即写到服务端；本地跑也可临时改本字段，但别提交）"
+      "describe": "MES 密码"
     },
     {
       "name": "sfsc",
       "type": "Str",
       "default": "0",
-      "describe": "是否生成计划：0=是（都生成，当前默认），1=否（只处理未生成的），-1=不限。改这个面板的值即生效（节点8 JS 与节点10 模块都按 p_var 引用取值）"
+      "describe": "生成计划 0/1/-1"
     },
     {
       "name": "arrival_from",
       "type": "Str",
       "default": "",
-      "describe": "纳期起（yyyy-MM-dd）；留空 = 今天（只处理纳期 >= 今天的工单）；填 all = 不限下限（清历史积压用）"
+      "describe": "纳期起 yyyy-MM-dd"
     },
     {
       "name": "arrival_to",
       "type": "Str",
       "default": "",
-      "describe": "纳期止（yyyy-MM-dd）；留空 = 不限上限"
-    },
-    {
-      "name": "batch_size",
-      "type": "Str",
-      "default": "200",
-      "describe": "每批提交条数（上限 400）。接口走 GET，条数过多 URL 超长会被拒（实测 16KB 可、20KB 报 431）"
-    },
-    {
-      "name": "wait_seconds",
-      "type": "Str",
-      "default": "60",
-      "describe": "每批提交后等待服务端生成完成的秒数"
-    },
-    {
-      "name": "max_rounds",
-      "type": "Str",
-      "default": "50",
-      "describe": "最多跑多少轮，防止异常时死循环"
+      "describe": "纳期止 yyyy-MM-dd"
     },
     {
       "name": "dry_run",
       "type": "Str",
       "default": "true",
-      "describe": "true=演练（只查询统计、不提交生成）；确认无误后改 false"
-    },
-    {
-      "name": "out_dir",
-      "type": "Str",
-      "default": "${PROJECT_ROOT}/logs/mes_chbq",
-      "describe": "运行记录输出目录"
-    },
-    {
-      "name": "keep_open",
-      "type": "Str",
-      "default": "false",
-      "describe": "true=跑完保留浏览器页面不关（方便肉眼确认）；false=按原需求关闭页面"
+      "describe": "演练模式 true/false"
     }
   ],
   "element_requirements": [
@@ -215,7 +167,7 @@
         "web_open": "web"
       },
       "inputs": {
-        "url": "$p:login_url",
+        "url": "http://mes.xfds.local/prj-xyds/login.action",
         "browser_type": "chrome",
         "timeout": 30,
         "timeout_handle_type": "execError",
@@ -305,7 +257,7 @@
       },
       "inputs": {
         "browser_obj": "$web",
-        "new_tab_url": "$p:biz_url",
+        "new_tab_url": "http://192.168.0.26:81/BG/CHBQ.aspx",
         "wait_page": true
       }
     },
@@ -356,7 +308,7 @@
       },
       "inputs": {
         "content": "$script:mes_chbq",
-        "module_param": "$json:[{\"varName\": \"base_url\", \"varValue\": \"$p:base_url\"}, {\"varName\": \"sfsc\", \"varValue\": \"$p:sfsc\"}, {\"varName\": \"arrival_from\", \"varValue\": \"$p:arrival_from\"}, {\"varName\": \"arrival_to\", \"varValue\": \"$p:arrival_to\"}, {\"varName\": \"batch_size\", \"varValue\": \"$p:batch_size\"}, {\"varName\": \"wait_seconds\", \"varValue\": \"$p:wait_seconds\"}, {\"varName\": \"max_rounds\", \"varValue\": \"$p:max_rounds\"}, {\"varName\": \"dry_run\", \"varValue\": \"$p:dry_run\"}, {\"varName\": \"out_dir\", \"varValue\": \"$p:out_dir\"}]"
+        "module_param": "$json:[{\"varName\": \"base_url\", \"varValue\": \"http://192.168.0.26:81\"}, {\"varName\": \"sfsc\", \"varValue\": \"$p:sfsc\"}, {\"varName\": \"arrival_from\", \"varValue\": \"$p:arrival_from\"}, {\"varName\": \"arrival_to\", \"varValue\": \"$p:arrival_to\"}, {\"varName\": \"batch_size\", \"varValue\": \"200\"}, {\"varName\": \"wait_seconds\", \"varValue\": \"60\"}, {\"varName\": \"max_rounds\", \"varValue\": \"50\"}, {\"varName\": \"dry_run\", \"varValue\": \"$p:dry_run\"}, {\"varName\": \"out_dir\", \"varValue\": \"F://AI-Workbench//10-Projects//星辰开源//logs//mes_chbq\"}]"
       }
     },
     {
@@ -426,7 +378,7 @@
       "alias": "不是保留页面模式",
       "out": {},
       "inputs": {
-        "args1": "$p:keep_open",
+        "args1": "false",
         "condition": "==",
         "args2": "false"
       }

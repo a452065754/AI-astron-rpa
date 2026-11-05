@@ -9,28 +9,48 @@
  {
   "file": "Email发送带附件日报小流程.json",
   "errors": [],
-  "warnings": [],
+  "warnings": [
+   {
+    "msg": "流程参数 8 条，paramJson 估算 1535 字符（硬上限 1450 字符） —— 已豁免：原子演示流程：8 条 SMTP 参数就是演示本身（换邮箱要改的就是这些），不发布成「应用」，只在本机跑演示",
+    "fix": "确认该流程不会被发布成「应用」"
+   }
+  ],
   "script_nodes": [],
   "scripts_field": []
  },
  {
   "file": "Excel写公式加格式小流程.json",
   "errors": [],
-  "warnings": [],
+  "warnings": [
+   {
+    "msg": "流程参数 7 条 / paramJson 估算 1196 字符，已接近爆栈线",
+    "fix": "建议收敛到 6 条以内：静态值（URL/目录/开关/轮次）写死进节点，只留运维真会改的"
+   }
+  ],
   "script_nodes": [],
   "scripts_field": []
  },
  {
   "file": "Excel合并单元格与插入行小流程.json",
   "errors": [],
-  "warnings": [],
+  "warnings": [
+   {
+    "msg": "流程参数 7 条 / paramJson 估算 1188 字符，已接近爆栈线",
+    "fix": "建议收敛到 6 条以内：静态值（URL/目录/开关/轮次）写死进节点，只留运维真会改的"
+   }
+  ],
   "script_nodes": [],
   "scripts_field": []
  },
  {
   "file": "Excel复制粘贴与删除小流程.json",
   "errors": [],
-  "warnings": [],
+  "warnings": [
+   {
+    "msg": "流程参数 7 条 / paramJson 估算 1164 字符，已接近爆栈线",
+    "fix": "建议收敛到 6 条以内：静态值（URL/目录/开关/轮次）写死进节点，只留运维真会改的"
+   }
+  ],
   "script_nodes": [],
   "scripts_field": []
  },
@@ -64,14 +84,24 @@
  {
   "file": "Excel批注与格式小流程.json",
   "errors": [],
-  "warnings": [],
+  "warnings": [
+   {
+    "msg": "流程参数 8 条 / paramJson 估算 1336 字符，已接近爆栈线",
+    "fix": "建议收敛到 6 条以内：静态值（URL/目录/开关/轮次）写死进节点，只留运维真会改的"
+   }
+  ],
   "script_nodes": [],
   "scripts_field": []
  },
  {
   "file": "Excel按列去重小流程.json",
   "errors": [],
-  "warnings": [],
+  "warnings": [
+   {
+    "msg": "流程参数 6 条 / paramJson 估算 1117 字符，已接近爆栈线",
+    "fix": "建议收敛到 6 条以内：静态值（URL/目录/开关/轮次）写死进节点，只留运维真会改的"
+   }
+  ],
   "script_nodes": [
    [
     1,
@@ -84,7 +114,12 @@
  {
   "file": "Excel按条件拆表小流程.json",
   "errors": [],
-  "warnings": [],
+  "warnings": [
+   {
+    "msg": "流程参数 7 条 / paramJson 估算 1210 字符，已接近爆栈线",
+    "fix": "建议收敛到 6 条以内：静态值（URL/目录/开关/轮次）写死进节点，只留运维真会改的"
+   }
+  ],
   "script_nodes": [
    [
     1,
@@ -151,7 +186,12 @@
  {
   "file": "FTP上传下载与增删小流程.json",
   "errors": [],
-  "warnings": [],
+  "warnings": [
+   {
+    "msg": "流程参数 7 条 / paramJson 估算 1235 字符，已接近爆栈线",
+    "fix": "建议收敛到 6 条以内：静态值（URL/目录/开关/轮次）写死进节点，只留运维真会改的"
+   }
+  ],
   "script_nodes": [],
   "scripts_field": []
  },
@@ -179,7 +219,12 @@
  {
   "file": "MES包装标签生成.json",
   "errors": [],
-  "warnings": [],
+  "warnings": [
+   {
+    "msg": "算上 10 条模块参数后 paramJson 估算 2624 字符（跨线）",
+    "fix": "app_version 为 NULL 时平台会把模块参数也拼进去 → 必爆。发布后确认 robot_execute.app_version = 当前在线版本，或精简模块参数"
+   }
+  ],
   "script_nodes": [
    [
     10,
@@ -228,7 +273,12 @@
  {
   "file": "PDF版面还原Word小流程.json",
   "errors": [],
-  "warnings": [],
+  "warnings": [
+   {
+    "msg": "流程参数 6 条 / paramJson 估算 1115 字符，已接近爆栈线",
+    "fix": "建议收敛到 6 条以内：静态值（URL/目录/开关/轮次）写死进节点，只留运维真会改的"
+   }
+  ],
   "script_nodes": [
    [
     1,
@@ -248,14 +298,24 @@
  {
   "file": "PDF转Docx小流程.json",
   "errors": [],
-  "warnings": [],
+  "warnings": [
+   {
+    "msg": "流程参数 6 条 / paramJson 估算 1125 字符，已接近爆栈线",
+    "fix": "建议收敛到 6 条以内：静态值（URL/目录/开关/轮次）写死进节点，只留运维真会改的"
+   }
+  ],
   "script_nodes": [],
   "scripts_field": []
  },
  {
   "file": "PDF转可编辑Word小流程.json",
   "errors": [],
-  "warnings": [],
+  "warnings": [
+   {
+    "msg": "流程参数 9 条（硬上限 8 条），paramJson 估算 1655 字符 —— 已豁免：原子演示流程：9 条参数覆盖 OCR/版面还原两档用法，不发布成「应用」，不在正式服建机器人",
+    "fix": "确认该流程不会被发布成「应用」"
+   }
+  ],
   "script_nodes": [
    [
     2,
@@ -289,7 +349,12 @@
  {
   "file": "Word批量替换小流程.json",
   "errors": [],
-  "warnings": [],
+  "warnings": [
+   {
+    "msg": "流程参数 6 条 / paramJson 估算 1064 字符，已接近爆栈线",
+    "fix": "建议收敛到 6 条以内：静态值（URL/目录/开关/轮次）写死进节点，只留运维真会改的"
+   }
+  ],
   "script_nodes": [],
   "scripts_field": []
  },
@@ -331,7 +396,12 @@
  {
   "file": "gen_按部门拆分Excel.json",
   "errors": [],
-  "warnings": [],
+  "warnings": [
+   {
+    "msg": "算上 5 条模块参数后 paramJson 估算 1803 字符（跨线）",
+    "fix": "app_version 为 NULL 时平台会把模块参数也拼进去 → 必爆。发布后确认 robot_execute.app_version = 当前在线版本，或精简模块参数"
+   }
+  ],
   "script_nodes": [
    [
     1,
@@ -346,7 +416,16 @@
  {
   "file": "gen_按部门拆分销售明细并排序.json",
   "errors": [],
-  "warnings": [],
+  "warnings": [
+   {
+    "msg": "流程参数 7 条 / paramJson 估算 1199 字符，已接近爆栈线",
+    "fix": "建议收敛到 6 条以内：静态值（URL/目录/开关/轮次）写死进节点，只留运维真会改的"
+   },
+   {
+    "msg": "算上 7 条模块参数后 paramJson 估算 2396 字符（跨线）",
+    "fix": "app_version 为 NULL 时平台会把模块参数也拼进去 → 必爆。发布后确认 robot_execute.app_version = 当前在线版本，或精简模块参数"
+   }
+  ],
   "script_nodes": [
    [
     1,
@@ -491,7 +570,12 @@
  {
   "file": "数据表行列与公式小流程.json",
   "errors": [],
-  "warnings": [],
+  "warnings": [
+   {
+    "msg": "流程参数 8 条 / paramJson 估算 1349 字符，已接近爆栈线",
+    "fix": "建议收敛到 6 条以内：静态值（URL/目录/开关/轮次）写死进节点，只留运维真会改的"
+   }
+  ],
   "script_nodes": [],
   "scripts_field": []
  },
@@ -519,7 +603,12 @@
  {
   "file": "文件夹按类型整理小流程.json",
   "errors": [],
-  "warnings": [],
+  "warnings": [
+   {
+    "msg": "流程参数 7 条 / paramJson 估算 1270 字符，已接近爆栈线",
+    "fix": "建议收敛到 6 条以内：静态值（URL/目录/开关/轮次）写死进节点，只留运维真会改的"
+   }
+  ],
   "script_nodes": [
    [
     1,
@@ -609,7 +698,12 @@
  {
   "file": "桌面鼠标键盘操作小流程.json",
   "errors": [],
-  "warnings": [],
+  "warnings": [
+   {
+    "msg": "流程参数 12 条（硬上限 8 条），paramJson 估算 2110 字符 —— 已豁免：原子演示流程：12 条坐标参数是「每个动作各演示一次」的必然结果，不发布成「应用」；正式业务流程请把坐标写死进节点",
+    "fix": "确认该流程不会被发布成「应用」"
+   }
+  ],
   "script_nodes": [],
   "scripts_field": []
  },

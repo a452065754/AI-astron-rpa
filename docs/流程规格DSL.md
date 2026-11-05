@@ -93,6 +93,34 @@
 - 校验：`spec_lint` 规则 1.8（**err**）；历史规格迁移：`python scripts/port_paths.py --write`；
   回归门禁：`logs/qa/v14_port_paths.py`（15 条断言，含「换仓库根路径跟着变」）。
 
+### 2.2 参数预算：`paramJson` ≤1050 字符 / 6 条（2026-11-05 起，**err**）
+
+平台把每个机器人的参数序列化进 `Executor.paramJson` 再送日志脱敏，脱敏里第一个正则
+`QUOTED_ARRAY_VALUE` 是**递归**实现（深度 ≈ 字符数）；`inner` 长度超过约 1450 字符就
+`StackOverflowError`，整个账号的「添加应用」列表变成 `999999`，而且**只有发布者自己的
+账号能看见**（`creator_id` 过滤），交付给别人时完全隐身。
+
+| 指标 | 阈值 | 说明 |
+| --- | --- | --- |
+| `paramJson` 估算长度 | **≤1050 字符**（警告线 1050 / 硬线 1450） | 长度才是真变量，一条几千字的 `varValue` 单独就能打挂 |
+| 参数条数 | **≤6 条**（硬线 8 条） | 每条 `ParamDto` 固定开销约 150 字符 |
+
+写法要求：只把**运维真会改**的留成参数（账号/密码/业务开关/日期范围/演练），
+静态值（URL、目录、轮询次数、批大小、是否保留页面）**写死进节点**：
+
+```json
+// ❌ 14 条参数，其中 8 条从来没改过
+"params": [{"name":"login_url", ...}, {"name":"biz_url", ...}, {"name":"username", ...}]
+// ✅ 静态值直接落进节点，参数只留 6 条
+"inputs": {"url": "http://mes.xfds.local/prj-xyds/login.action"}
+```
+
+判定用 `scripts/param_budget.py`（`ParamDto` 真实 7 字段建模，生产数据回算逐字符一致）。
+`spec_lint` 规则 11 会把预算占满的参数按占用从大到小列出来，照着删即可。
+
+唯一逃生口：规格顶层 `"param_budget_exempt": "为什么可以不管"`（仓库里 3 条原子演示小流程
+在用，它们不发布成「应用」）。**必须写理由**，`release_check` 会把带豁免的规格单独列成 WARN。
+
 ---
 
 ## 3. `nodes`：节点

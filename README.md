@@ -61,6 +61,10 @@ python scripts/doctor.py                         # 确认「AI 侧接线」两�
 > `~/.workbuddy/mcp.json`，CodeBuddy CLI = `~/.workbuddy-ai/` 那一套。**装错目录 = 装完不生效**
 > （技能不触发、MCP 工具看不到），`doctor.py` 最后两项就是查这个的。
 > 想确认整个仓库能不能交给别人用：`python scripts/release_check.py`。
+> 其中「参数预算」一项会跑 `python scripts/param_health.py`（只读）**量线上机器人的参数长度**：
+> `Executor.paramJson` 超 ~1450 字符会让平台的日志脱敏正则爆栈，整个账号的「添加应用」
+> 列表变成 `999999`，而且只有发布者自己能复现（缺陷 A20）。生成期 `spec_lint` 规则 11
+> 已按同一套阈值卡住规格，发布期 `guard_param_budget()` 再量一次 —— 不用靠人记。
 
 装完就能直接说人话了：
 
@@ -248,6 +252,10 @@ python scripts/element_pick.py --check <elementId>
 │   ├── publish_flow.py       # 落库、发布、登记 openapi
 │   ├── make_module.py        # 本地 .py → 平台 Python 子流程模块
 │   └── mod_*.py              # Python 子流程实现（PDF 版面还原 / OCR / 文件夹整理 / Excel 拆表）
+│   # ── 服务端排障小工具（2026-11-05 加，只做只读查询/取日志，不含写操作）──
+│   ├── db183.py              # 在正式服 .183 的 rpa 库跑 SQL（ssh + docker exec -i 喂 stdin，规避引号）
+│   ├── run183.py             # 在 .183 宿主机或指定容器里跑 shell 脚本（挂 -c 选容器）
+│   └── nginx_probe.py        # .183 nginx 容器内探针（读 access.log，按 IP / 时间 / 状态码筛）
 ├── mcp/server.py             # MCP 服务（零依赖，stdio JSON-RPC）
 ├── skill/astron-rpa-flow/    # 技能包（AI 操作手册）
 ├── flows/                    # 93 条流程规格（契约文件）

@@ -21,6 +21,7 @@
 | 引用 | `$p:x` 是否已声明、`$x` / `$var:x` 是否在上游节点产出、`$json:` 能否解析 |
 | 配对 | `Code.ForList` 必须有 `Code.ForEnd`、`Code.If` 必须有 `Code.IfEnd` |
 | 迁移 | `Script.module` 是否把 `module_id` 做成了流程参数（换环境才不用改流程） |
+| 预算 | 流程参数条数 / `paramJson` 估算长度（顶到线会让平台「添加应用」整包 999999，缺陷 A20） |
 | 脚本 | `Script.module` 的 `module_param` 结构、`out.program_script`；`content` 写 `$script:名字` 时还查：脚本是否存在、能否 `ast.parse`、有没有 `def main(args)`、**`args.get` 的参数名与 `module_param` 是否对得上**、import 是否在白名单内、**有没有写 `why`（命中判定 B-几）与 `maintain_hint`**、有没有定义了没人用的脚本 |
 
 ## 用法
@@ -40,6 +41,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import flow_generator as fg
+import param_budget as pb   # 规则 11：paramJson 长度预算（平台缺陷 A20）
 
 ROOT = os.path.dirname(HERE)
 
@@ -759,6 +761,64 @@ def lint(spec, atoms):
         pnames.append(n)
     pset = set(pnames)
     pmap = {p.get("name"): p for p in params if isinstance(p, dict) and p.get("name")}
+
+    # ---------- 规则 11：参数预算 —— paramJson 长度不许顶到脱敏正则的爆栈线（**err**） ----------
+    #
+    # 2026-11-05 的事故（平台缺陷 A20）：MES 机器人的主流程参数涨到 9 条后，正式服
+    # 「添加应用」列表接口整包返回 `{"code":"999999"}`，**整个账号的定时任务都选不了应用**。
+    #
+    # 链路：`Executor.paramJson` → `ApiLogAspect.formatResult()` → `SensitiveDataSanitizer
+    # .sanitize(Object)` → 第一个正则 `QUOTED_ARRAY_VALUE` 的值部分
+    # `\[(?:\\.|[^\]\\])*\]` 由 `java.util.regex.Pattern$Loop` **递归**匹配，
+    # 递归深度 ≈ 匹配字符数 → 1MB 栈在 ~1500~1800 字符处 StackOverflowError。
+    #
+    # 所以在**生成期**就把「参数表有多长」卡住：宁可现在报错让 AI 把静态值写死进节点，
+    # 也不要发布之后才发现别人的账号点不开应用。阈值与实测数据见 scripts/param_budget.py。
+    #
+    # 唯一逃生口：`"param_budget_exempt": "为什么可以不管"`（仓库里的原子演示小流程用），
+    # release_check 会把带豁免的规格单独列成 WARN，不会被悄悄埋掉。
+    _budget = pb.summary([p for p in params if isinstance(p, dict)])
+    _exempt = spec.get("param_budget_exempt")
+    if _budget["level"] == "red":
+        _rank = " > ".join("%s(%d)" % (n, s) for s, n, _v in pb.advise(params)[:5])
+        _fix = (
+            "把「运维不会改的静态值」从 params 里删掉、在节点里写成字面量（原 `$p:名称` → 直接写值），"
+            "主流程参数控制在 %d 条以内。占用最大的几个：%s。"
+            "依据：paramJson 超 ~1450 字符会让平台脱敏正则爆栈，整个「添加应用」列表返回 999999（缺陷 A20）"
+            % (pb.COUNT_WARN, _rank)
+        )
+        if _budget["count"] > pb.COUNT_ERR:
+            _msg = "流程参数 %d 条（硬上限 %d 条），paramJson 估算 %d 字符" % (
+                _budget["count"], pb.COUNT_ERR, _budget["span"])
+        else:
+            _msg = "流程参数 %d 条，paramJson 估算 %d 字符（硬上限 %d 字符）" % (
+                _budget["count"], _budget["span"], pb.SPAN_ERR)
+        if _exempt:
+            warn("%s —— 已豁免：%s" % (_msg, _exempt), "确认该流程不会被发布成「应用」")
+        else:
+            err(_msg, _fix)
+    elif _budget["level"] == "yellow":
+        warn("流程参数 %d 条 / paramJson 估算 %d 字符，已接近爆栈线" % (
+            _budget["count"], _budget["span"]),
+            "建议收敛到 %d 条以内：静态值（URL/目录/开关/轮次）写死进节点，只留运维真会改的"
+            % pb.COUNT_WARN)
+
+    # 模块级参数（`scripts.<名>.params`）平时**不进** `paramJson`（平台按 process_id 过滤），
+    # 但 `robot_execute.app_version` 为 NULL 时 `getMianProcessId` 返回 null，查询退化成
+    # `where robot_id=?`，模块参数会和所有历史版本的流程参数一起被捞进来，条数成倍翻。
+    # 所以「流程参数合规」不等于安全 —— 这里单独提示，别让人以为算过了就没事。
+    if _budget["level"] != "red" and isinstance(spec.get("scripts"), dict):
+        _mod = []
+        for _nm, _sc in spec["scripts"].items():
+            if isinstance(_sc, dict):
+                _mod += [x for x in (_sc.get("params") or []) if isinstance(x, dict)]
+        if _mod:
+            _both = pb.summary([p for p in params if isinstance(p, dict)] + _mod)
+            if _both["level"] == "red":
+                warn("算上 %d 条模块参数后 paramJson 估算 %d 字符（跨线）" % (
+                    len(_mod), _both["span"]),
+                    "app_version 为 NULL 时平台会把模块参数也拼进去 → 必爆。"
+                    "发布后确认 robot_execute.app_version = 当前在线版本，或精简模块参数")
 
     # ---------- 规则 1.8：流程参数的默认值不许写死某台机器的盘符路径（**err**） ----------
     #
