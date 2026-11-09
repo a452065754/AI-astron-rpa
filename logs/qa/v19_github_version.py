@@ -304,9 +304,22 @@ def t_publish():
         doc = V.publish_json(breaking=True)
         ck("breaking 时 min_supported == 当前版本（旧版被拦）",
            doc["min_supported"] == V.version(), doc["min_supported"])
+
+        # 这条是本轮实盘踩到的真 bug：非 breaking 却把门槛抬到当前版本，
+        # 导致所有旧版同事被**直接拦住**，而这次根本没有破坏性变更。
         doc2 = V.publish_json(breaking=False)
-        ck("非 breaking 时 min_supported 只到 major.minor.0",
-           doc2["min_supported"].endswith(".0"), doc2["min_supported"])
+        ck("非 breaking 时 min_supported 严格小于当前版本（旧版只提示、不被拦）",
+           V.cmp_ver(doc2["min_supported"], V.version()) < 0, doc2["min_supported"])
+
+        # 手工抬过的门槛应被继承，而不是被抹平回 major.0.0
+        prev_v = V.version()
+        a, b, c = V.semver(prev_v)
+        manual = "%d.%d.%d" % (a, b - 1 if b > 0 else b, 5)
+        json.dump({"version": "0.0.1", "min_supported": manual},
+                  open(V.DIST_FILE, "w", encoding="utf-8"))
+        doc3 = V.publish_json(breaking=False)
+        ck("非 breaking 时继承上一版已抬高的门槛（%s）" % manual,
+           doc3["min_supported"] == manual, doc3["min_supported"])
     finally:
         V._highlights = orig_high
         if bak is not None:

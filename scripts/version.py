@@ -624,21 +624,43 @@ def bump(kind: str = "patch", breaking: bool = False, note: str = "",
     return new
 
 
+def _prev_min_supported() -> str:
+    """读上一个已发布清单里的 min_supported。读不到返回空串。"""
+    try:
+        with open(DIST_FILE, encoding="utf-8") as f:
+            m = str((json.load(f) or {}).get("min_supported") or "")
+        return m if re.fullmatch(r"\d+\.\d+\.\d+", m) else ""
+    except (OSError, ValueError):
+        return ""
+
+
 def publish_json(breaking: bool = False) -> dict:
     """生成仓库根的 `version.json`（随代码入库）。
 
     放仓库根而不是 `dist/`：`dist/` 是打包产物、已在 .gitignore 里，
-    清单必须能被 GitHub Contents API 直接读到，所以必须在版本控制的路径上。
+    清单必须能被远端直接读到，所以必须在版本控制的路径上。
     """
     me = local()
     ver = me["version"]
+
+    # min_supported 的语义是「低于此版本不许跑」，不是「跟着版本号涨」。
+    # 早期写成 `"%d.%d.0" % ver[:2]`，结果 1.1.0 一发就把门槛抬到 1.1.0，
+    # **所有 1.0.x 的同事被直接拦住** —— 而这次根本不是破坏性变更。
+    # 正确做法：非 breaking 时继承上一版的门槛；只有它已经 >= 当前版本
+    # （被误抬过，或这是首个版本）才退到 major.0.0。
+    if breaking:
+        min_ok = ver
+    else:
+        prev = _prev_min_supported()
+        floor = "%d.0.0" % semver(ver)[0]
+        min_ok = prev if prev and cmp_ver(prev, ver) < 0 else floor
+
     doc = {
         "version": ver,
         "commit": me["commit"],
         "date": me["date"] or datetime.now().strftime("%Y-%m-%d"),
         "breaking": bool(breaking),
-        # 破坏性变更时把门槛抬到当前版本：旧版一律拦下
-        "min_supported": ver if breaking else "%d.%d.0" % semver(ver)[:2],
+        "min_supported": min_ok,
         # 优先用 bump 刚算出的「本次区间」亮点；单独跑 --publish-json 时回退到最近提交
         "highlights": _LAST_HIGHLIGHTS or _highlights(),
     }
