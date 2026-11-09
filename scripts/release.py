@@ -82,18 +82,34 @@ def _git(*args: str, timeout: int = 120, no_proxy: bool = False) -> tuple[int, s
         return 1, "", str(e)
 
 
-def _push(remote: str, ref: str) -> tuple[int, str, str]:
-    """push 一次；若因代理 502 失败且目标是 GitHub，自动绕过代理重试。
+# 内网地址：不该走代理。公司代理连不到 10.x / 192.168.x，会一直等到超时。
+_INTERNAL_RE = re.compile(
+    r"://(localhost|127\.|10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)")
 
-    这是实测踩到的：`http_proxy` 让 `git push` 报
-    `CONNECT tunnel failed, response 502`，但同一台机器 `curl` 直连 github 是通的。
-    不自动处理的话，发版会卡在最后一步，而人很难联想到是代理。
+
+def _is_internal(url: str) -> bool:
+    return bool(_INTERNAL_RE.search(url or ""))
+
+
+def _push(remote: str, ref: str) -> tuple[int, str, str]:
+    """push 一次，并按远端性质选是否走代理。
+
+    两种实测过的失败都在这儿收口：
+    - **内网 Gitea**（10.18.5.61:3300）：全局 `http_proxy` 会把请求送去代理，
+      代理连不到内网地址 → 干等 120 秒超时。内网必须直连。
+    - **GitHub**：有时反而是代理挂了（`CONNECT tunnel failed, 502`），
+      而直连能通 → 仅在代理类错误时绕过代理重试一次。
     """
+    url = _git("remote", "get-url", remote)[1] or ""
+
+    if _is_internal(url):
+        return _git("push", remote, ref, no_proxy=True)
+
     rc, out, err = _git("push", remote, ref)
     if rc == 0:
         return rc, out, err
-    url = _git("remote", "get-url", remote)[1] or ""
-    if "github.com" in url and ("502" in err or "proxy" in err.lower() or "tunnel" in err.lower()):
+    if "github.com" in url and ("502" in err or "proxy" in err.lower()
+                                or "tunnel" in err.lower()):
         rc2, out2, err2 = _git("push", remote, ref, no_proxy=True)
         if rc2 == 0:
             return 0, out2, "（首次走代理 502，已绕过代理重试成功）"
