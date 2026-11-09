@@ -1,0 +1,251 @@
+{
+  "name": "帆软消息清空小流程_前半段验证",
+  "nl_examples": [
+    "只验证登录到消息中心，不点全部清空"
+  ],
+  "keywords": [
+    "前半段验证"
+  ],
+  "params": [
+    {
+      "name": "username",
+      "type": "Str",
+      "default": "admin",
+      "describe": "数据决策系统登录账号"
+    },
+    {
+      "name": "password",
+      "type": "Str",
+      "default": "admin",
+      "describe": "数据决策系统登录密码"
+    }
+  ],
+  "element_requirements": [
+    {
+      "name": "帆软_用户名输入框",
+      "kind": "web",
+      "pick": {
+        "url": "http://baobiao.xfds.local:8180/webroot/decision/login",
+        "css": "#wrapper input[type='text']"
+      },
+      "note": "登录页用户名输入框；页面为 FineUI 动态渲染，需等 wait_web_load"
+    },
+    {
+      "name": "帆软_密码输入框",
+      "kind": "web",
+      "pick": {
+        "url": "http://baobiao.xfds.local:8180/webroot/decision/login",
+        "css": "#wrapper input[type='password']"
+      }
+    },
+    {
+      "name": "帆软_登录按钮",
+      "kind": "web",
+      "pick": {
+        "url": "http://baobiao.xfds.local:8180/webroot/decision/login",
+        "xpath": "//*[normalize-space(text())='登录']"
+      },
+      "note": "不能写 //*[contains(text(),'登录')]，会同时命中「保持登录状态」"
+    },
+    {
+      "name": "帆软_消息提醒铃铛",
+      "kind": "web",
+      "pick": {
+        "url": "http://baobiao.xfds.local:8180/webroot/decision/",
+        "css": "div.dec-frame-header-message"
+      },
+      "note": "右上角铃铛，带未读红色角标；必须 simulate_flag=true，合成点击不触发面板"
+    },
+    {
+      "name": "帆软_查看消息",
+      "kind": "web",
+      "pick": {
+        "url": "http://baobiao.xfds.local:8180/webroot/decision/",
+        "xpath": "//*[normalize-space(text())='查看消息']"
+      },
+      "note": "只在铃铛面板展开后存在，落库时需先真实点击铃铛"
+    }
+  ],
+  "nodes": [
+    {
+      "atom": "BrowserSoftware.browser_open",
+      "alias": "打开数据决策系统登录页",
+      "out": {
+        "web_open": "web"
+      },
+      "inputs": {
+        "url": "http://baobiao.xfds.local:8180/webroot/decision/login",
+        "browser_type": "chrome",
+        "timeout": 30,
+        "timeout_handle_type": "execError",
+        "wait_load_success": true,
+        "open_with_incognito": false
+      }
+    },
+    {
+      "atom": "BrowserSoftware.wait_web_load",
+      "alias": "等待登录页渲染",
+      "out": {},
+      "inputs": {
+        "browser_obj": "$web",
+        "timeout": 30
+      }
+    },
+    {
+      "atom": "BrowserElement.input",
+      "alias": "输入账号",
+      "out": {
+        "form_input": "filled_user"
+      },
+      "inputs": {
+        "browser_obj": "$web",
+        "fill_type": "text",
+        "fill_input": "$p:username",
+        "fill_input_credential": "",
+        "element_timeout": 20,
+        "input_type": "overwrite",
+        "simulate_flag": false,
+        "scroll_into_center": true
+      },
+      "elements": {
+        "element_data": {
+          "kind": "web",
+          "name": "帆软_用户名输入框"
+        }
+      }
+    },
+    {
+      "atom": "BrowserElement.input",
+      "alias": "输入密码",
+      "out": {
+        "form_input": "filled_pwd"
+      },
+      "inputs": {
+        "browser_obj": "$web",
+        "fill_type": "text",
+        "fill_input": "$p:password",
+        "fill_input_credential": "",
+        "element_timeout": 20,
+        "input_type": "overwrite",
+        "simulate_flag": false,
+        "scroll_into_center": true
+      },
+      "elements": {
+        "element_data": {
+          "kind": "web",
+          "name": "帆软_密码输入框"
+        }
+      }
+    },
+    {
+      "atom": "BrowserElement.click",
+      "alias": "点击登录",
+      "out": {},
+      "inputs": {
+        "browser_obj": "$web",
+        "element_timeout": 20,
+        "button_type": "click",
+        "assistive_key": "None",
+        "simulate_flag": true,
+        "scroll_into_center": true
+      },
+      "elements": {
+        "element_data": {
+          "kind": "web",
+          "name": "帆软_登录按钮"
+        }
+      }
+    },
+    {
+      "atom": "BrowserSoftware.wait_web_load",
+      "alias": "等待登录跳转完成",
+      "out": {},
+      "inputs": {
+        "browser_obj": "$web",
+        "timeout": 60
+      }
+    },
+    {
+      "atom": "BrowserElement.wait_element",
+      "alias": "等右上角消息铃铛出现",
+      "out": {
+        "wait_element": "bell_ready"
+      },
+      "inputs": {
+        "browser_obj": "$web",
+        "ele_status": "y",
+        "element_timeout": 30
+      },
+      "elements": {
+        "element_data": {
+          "kind": "web",
+          "name": "帆软_消息提醒铃铛"
+        }
+      }
+    },
+    {
+      "atom": "BrowserElement.click",
+      "alias": "点开右上角消息提醒",
+      "out": {},
+      "inputs": {
+        "browser_obj": "$web",
+        "element_timeout": 20,
+        "button_type": "click",
+        "assistive_key": "None",
+        "simulate_flag": true,
+        "scroll_into_center": true
+      },
+      "elements": {
+        "element_data": {
+          "kind": "web",
+          "name": "帆软_消息提醒铃铛"
+        }
+      }
+    },
+    {
+      "atom": "BrowserElement.wait_element",
+      "alias": "等消息面板里的查看消息出现",
+      "out": {
+        "wait_element": "panel_ready"
+      },
+      "inputs": {
+        "browser_obj": "$web",
+        "ele_status": "y",
+        "element_timeout": 20
+      },
+      "elements": {
+        "element_data": {
+          "kind": "web",
+          "name": "帆软_查看消息"
+        }
+      }
+    },
+    {
+      "atom": "BrowserElement.click",
+      "alias": "查看消息",
+      "out": {},
+      "inputs": {
+        "browser_obj": "$web",
+        "element_timeout": 20,
+        "button_type": "click",
+        "assistive_key": "None",
+        "simulate_flag": true,
+        "scroll_into_center": true
+      },
+      "elements": {
+        "element_data": {
+          "kind": "web",
+          "name": "帆软_查看消息"
+        }
+      }
+    },
+    {
+      "atom": "BrowserSoftware.browser_close",
+      "alias": "关闭浏览器",
+      "out": {},
+      "inputs": {
+        "browser_obj": "$web"
+      }
+    }
+  ]
+}
