@@ -188,26 +188,34 @@ _ORIGIN_RE = re.compile(
 
 
 def repo_origin() -> dict | None:
-    """解析 origin 的归属，返回 `{kind, scheme, host, base, owner, repo}`。
+    """解析主仓库的归属。优先 origin，其次 upstream / gitea。
 
     **这是「从哪 clone 就从哪查版本」的实现**：同事从内网 Gitea clone，
     origin 就不是 github.com，硬走 Contents API 必然 404，然后静默降级成
     「查不到更新」—— 看起来像没发版，实际是查错地方了。
+    """
+    for remote in ("origin", "upstream", "gitea"):
+        o = remote_origin(remote)
+        if o:
+            return o
+    return None
+
+
+def remote_origin(name: str) -> dict | None:
+    """解析指定 remote 的归属，返回 `{kind, scheme, host, base, owner, repo}`。
 
     支持 https / http / ssh 三种写法，带端口（如 `:3300`）也能正确切分。
     """
-    for remote in ("origin", "upstream", "gitea"):
-        url = _run(["git", "remote", "get-url", remote])
-        m = _ORIGIN_RE.match((url or "").strip())
-        if not m:
-            continue
-        scheme = m.group("scheme") or "https"
-        host = m.group("host") or m.group("sshhost")
-        owner, repo = m.group("owner"), m.group("repo")
-        kind = "github" if host.endswith("github.com") else "selfhosted"
-        return {"kind": kind, "scheme": scheme, "host": host, "owner": owner,
-                "repo": repo, "base": "%s://%s/%s/%s" % (scheme, host, owner, repo)}
-    return None
+    url = _run(["git", "remote", "get-url", name])
+    m = _ORIGIN_RE.match((url or "").strip())
+    if not m:
+        return None
+    scheme = m.group("scheme") or "https"
+    host = m.group("host") or m.group("sshhost")
+    owner, repo = m.group("owner"), m.group("repo")
+    kind = "github" if host.endswith("github.com") else "selfhosted"
+    return {"kind": kind, "scheme": scheme, "host": host, "owner": owner,
+            "repo": repo, "base": "%s://%s/%s/%s" % (scheme, host, owner, repo)}
 
 
 def _gh_headers() -> dict:
@@ -293,14 +301,18 @@ def fetch_selfhosted(origin: dict, timeout: float = TIMEOUT) -> dict | None:
     return None
 
 
+def fetch_from_origin(origin: dict, timeout: float = TIMEOUT) -> dict | None:
+    """按给定 origin 的归属读清单。让调用方能指定「校验哪个仓库」。"""
+    if not origin:
+        return None
+    if origin.get("kind") == "github":
+        return fetch_github("%s/%s" % (origin["owner"], origin["repo"]), timeout=timeout)
+    return fetch_selfhosted(origin, timeout=timeout)
+
+
 def fetch_auto(timeout: float = TIMEOUT) -> dict | None:
     """按 origin 的归属自动选端点。从哪 clone，就从哪查版本。"""
-    o = repo_origin()
-    if not o:
-        return None
-    if o["kind"] == "github":
-        return fetch_github("%s/%s" % (o["owner"], o["repo"]), timeout=timeout)
-    return fetch_selfhosted(o, timeout=timeout)
+    return fetch_from_origin(repo_origin(), timeout=timeout)
 
 
 def fetch_one(src: str, timeout: float = TIMEOUT) -> dict | None:

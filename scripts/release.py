@@ -180,21 +180,30 @@ def next_version(kind: str, explicit: str) -> str:
 
 
 # ---------------------------------------------------------------- 发布后校验
-def verify_remote(expect: str, tries: int = 8, gap: float = 5.0) -> bool:
-    """轮询远端清单，确认**主远端**真能读到新版本。
+def verify_remote(expect: str, remotes: list[str] | None = None,
+                  tries: int = 8, gap: float = 5.0) -> bool:
+    """校验：**任意一个已成功推送的远端**能读到新版本就算过。
 
-    push 返回 0 只说明 git 传上去了，不代表同事的 `--check` 立刻能读到。
-    这里真读一次，把「我以为发了」变成「确实发了」。
-    用 `fetch_auto()` 而不是写死 GitHub：同事从内网 Gitea clone 时，
-    校验的必须是同一个地方，否则发版脚本说成功、同事那边永远查不到。
+    为什么按远端逐个试而不是只查 origin：GitHub 连不上而 Gitea 通的时候，
+    只查 origin 会判失败，但事实上同事从 Gitea 已经能拿到新版了。
+    校验的对象必须是「同事实际会去读的地方」。
     """
+    names = remotes if remotes is not None else _remotes()
+    cands = [(n, vs.remote_origin(n)) for n in names]
+    cands = [(n, o) for n, o in cands if o]
+    if not cands:
+        warn("没有可解析的远端，跳过校验")
+        return False
+
     for i in range(1, tries + 1):
-        doc = vs.fetch_auto()
-        got = str((doc or {}).get("version") or "")
-        if got == expect:
-            print("     第 %d 次读取：v%s ✅（%s）" % (i, got, (doc or {}).get("_source", "")))
-            return True
-        print("     第 %d 次读取：%s，等待 %.0fs 重试" % (i, ("v" + got) if got else "未读到", gap))
+        for name, o in cands:
+            doc = vs.fetch_from_origin(o)
+            got = str((doc or {}).get("version") or "")
+            if got == expect:
+                print("     第 %d 次读取：v%s ✅（%s）" % (i, got, name))
+                return True
+        print("     第 %d 次读取：%s 上都还没读到 v%s，等待 %.0fs 重试"
+              % (i, "/".join(n for n, _ in cands), expect, gap))
         if i < tries:
             time.sleep(gap)
     return False
@@ -221,48 +230,45 @@ def _remotes() -> list[str]:
     return [ln.strip() for ln in (out or "").splitlines() if ln.strip()] if rc == 0 else []
 
 
-def push_everywhere(branch: str, tag: str) -> bool:
-    """origin 必成功；其他远端（内网 Gitea 镜像等）失败只警告，不阻断发版。
+def push_everywhere(branch: str, tag: str) -> tuple[bool, list[str]]:
+    """尽力推**所有**远端。返回 (是否发版成立, 成功推送的远端名)。
 
-    为什么不让镜像失败也拦下：发版的价值在「主远端上有个确定的版本」。
-    内网服务可能临时不通，若因此把整个发版判失败，人就学去忽略这个报错了。
-    但也不能静默 —— 明确说出哪个没推上去、怎么补。
+    **至少一个远端成功就算成立**。为什么不再要求 origin 必成功：
+    实盘存在 GitHub 完全连不上、但内网 Gitea 通畅的时候。此时发版依然有价值 ——
+    同事从 Gitea 能拿到新版。若因为主远端不通就整单判失败，人会去「先不管发版」，
+    版本号反而停在半路。失败的逐个点名，恢复后用 --retry-push 补。
     """
     remotes = _remotes()
     if not remotes:
         bad("没有配置任何远端")
-        return False
+        return False, []
 
-    primary = "origin" if "origin" in remotes else remotes[0]
-    mirrors = [r for r in remotes if r != primary]
-    if primary != "origin":
-        warn("没有 origin，主远端改用 %s" % primary)
+    pushed, failed = [], []
+    for r in remotes:
+        r1, _, e1 = _push(r, branch)
+        if r1 != 0:
+            failed.append((r, "分支: " + (e1 or "未知")[:110]))
+            continue
+        r2, _, e2 = _push(r, tag)
+        if r2 != 0:
+            failed.append((r, "tag: " + (e2 or "未知")[:110]))
+            continue
+        pushed.append(r)
+        ok("分支 + tag → %s" % r)
 
-    rc, _, err = _push(primary, branch)
-    if rc != 0:
-        bad("push %s 分支失败：%s" % (primary, err[:300]))
+    for r, why in failed:
+        warn("%s 未推成功：%s" % (r, why))
+
+    if not pushed:
+        bad("所有远端都没推上去")
         print("\n本地 commit 和 tag 都在，网络恢复后执行：")
         print("  python scripts/release.py --retry-push")
-        return False
-    ok("分支 %s → %s" % (branch, primary))
+        return False, []
 
-    rc, _, err = _push(primary, tag)
-    if rc != 0:
-        bad("push %s tag 失败：%s" % (primary, err[:300]))
-        print("\n分支已推、tag 未推。恢复后：python scripts/release.py --retry-push")
-        return False
-    ok("tag %s → %s" % (tag, primary))
-
-    for m in mirrors:
-        r1, _, e1 = _push(m, branch)
-        r2, _, e2 = _push(m, tag)
-        if r1 == 0 and r2 == 0:
-            ok("分支 + tag → %s（镜像）" % m)
-        else:
-            warn("镜像 %s 未推成功：%s" % (m, (e1 or e2 or "未知")[:120]))
-            print("       不影响本次发版（%s 已生效），恢复后补推：" % primary)
-            print("       git push %s %s && git push %s %s" % (m, branch, m, tag))
-    return True
+    if failed:
+        print("   %s 已生效；失败的恢复后补推：python scripts/release.py --retry-push"
+              % "、".join(pushed))
+    return True, pushed
 
 
 # ---------------------------------------------------------------- 主流程
@@ -289,9 +295,10 @@ def main() -> int:
         tag = "v" + cur
         rule("补推 v%s" % cur)
         _, br, _ = _git("rev-parse", "--abbrev-ref", "HEAD")
-        if not push_everywhere((br or BRANCH_DEFAULT).strip(), tag):
+        okc, pushed = push_everywhere((br or BRANCH_DEFAULT).strip(), tag)
+        if not okc:
             return 1
-        return 0 if (a.skip_verify or verify_remote(cur)) else 1
+        return 0 if (a.skip_verify or verify_remote(cur, pushed)) else 1
 
     good, branch = preflight(a.allow_dirty, a.allow_branch)
     if not good:
@@ -376,12 +383,13 @@ def main() -> int:
 
     # ---- push
     rule("5/6 推送到远端")
-    if not push_everywhere(branch, tag):
+    okc, pushed = push_everywhere(branch, tag)
+    if not okc:
         return 1
 
     # ---- 线上校验
     rule("6/6 线上校验（确认同事真能读到）")
-    verified = a.skip_verify or verify_remote(new)
+    verified = a.skip_verify or verify_remote(new, pushed)
     if verified and not a.skip_verify:
         ok("Contents API 已返回 v%s" % new)
     elif not verified:
