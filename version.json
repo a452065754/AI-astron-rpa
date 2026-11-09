@@ -1,12 +1,11 @@
 {
- "version": "1.1.0",
- "commit": "adafa47",
+ "version": "1.1.1",
+ "commit": "1a7097e",
  "date": "2026-11-09",
  "breaking": false,
  "min_supported": "1.0.0",
  "highlights": [
-  "版本源自动适配 origin，发版推所有远端",
-  "帆软消息清空小流程 + 同步上游 issue 巡检状态",
-  "任一远端成功即发版成立，不再因 origin 失败整单判死"
+  "非 breaking 不得抬高 min_supported（否则旧版被直接拦住）",
+  "内网远端一律直连，不走全局代理"
  ]
 }

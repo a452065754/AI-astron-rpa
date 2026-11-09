@@ -3,6 +3,14 @@
 > 由 `python scripts/release.py` 自动生成，别手改格式。
 > 唯一用途：让人在 30 秒内判断「我要不要更新」——所以只写「改了什么、影响谁」，实现细节看 git log。
 
+## v1.1.1（2026-11-09）
+> 修非 breaking 误抬 min_supported
+
+### 2026-11-09 · 2 次提交
+- **修复** 2：
+  - fix(version): 非 breaking 不得抬高 min_supported（否则旧版被直接拦住）（1a7097e）
+  - fix(release): 内网远端一律直连，不走全局代理（81ec7b8）
+
 ## v1.1.0（2026-11-09）
 > 内网 Gitea 镜像：版本源自动适配 origin，发版推所有远端
 
