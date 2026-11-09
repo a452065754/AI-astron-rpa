@@ -38,8 +38,8 @@
    "github"
   ],
   "cache_hours": 24,
-  "_说明": "sources 是有序列表，取到第一个成功的就停。\"github\" 是占位符，owner/repo 自动从 git remote 解析，不用改。也可填任意 http(s) 地址、\\\\共享盘\\version.json 或 file:///C:/x.json。默认主源是 GitHub Contents API：实测 raw.githubusercontent.com 在国内直连不通，api.github.com 通。24h 缓存后每人每天只查 1 次，匿名额度 60/h 够用；要更高额度就设环境变量 GITHUB_TOKEN。",
-  "_排障": "python scripts/version.py --sources  逐个测源并打印耗时",
+  "_说明": "sources 是有序列表，取到第一个成功的就停。\"github\" 是占位符，会**按 git remote 自动判断**：origin 是 github.com 就走 Contents API（实测 raw.githubusercontent.com 国内直连不通）；是自建 Gitea/GitLab 就走它的 raw 地址（两种路径都试）。所以从哪 clone 就从哪查版本，一般不用改这里。也可填任意 http(s) 地址、\\\\共享盘\\version.json 或 file:///C:/x.json。24h 缓存后每人每天只查 1 次，GitHub 匿名额度 60/h 够用；要更高额度就设环境变量 GITHUB_TOKEN。",
+  "_排障": "python scripts/version.py --sources  逐个测源并打印耗时与命中的实际地址",
   "_兼容": "只写 version_url 也认，会当成单源列表，老配置不用改"
  }
 }

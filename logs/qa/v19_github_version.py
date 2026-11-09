@@ -65,8 +65,78 @@ def t_slug():
     ck("从 ssh remote 解析（带 .git 后缀）", V.repo_slug() == "foo/bar-rpa", V.repo_slug())
 
     V._run = lambda args, cwd=V.ROOT: "http://gitea.local/x/y.git"
-    ck("非 GitHub remote 返回空（不瞎猜）", V.repo_slug() == "", repr(V.repo_slug()))
+    ck("非 GitHub remote 返回空（repo_slug 只认 github.com）",
+       V.repo_slug() == "", repr(V.repo_slug()))
     V._run = orig
+
+
+# ---------------------------------------------------------------- 1b. origin 归属
+def t_origin():
+    print("\n[1b] origin 归属解析（从哪 clone 就从哪查版本）")
+
+    orig = V._run
+    try:
+        cases = [
+            ("https://github.com/foo/bar-rpa.git", "github", "github.com", "foo", "bar-rpa"),
+            ("git@github.com:foo/bar-rpa.git", "github", "github.com", "foo", "bar-rpa"),
+            # 自建服务带端口 —— 最容易切错的一种
+            ("http://10.18.5.61:3300/xdd/AI-astron-rpa.git",
+             "selfhosted", "10.18.5.61:3300", "xdd", "AI-astron-rpa"),
+            ("http://git.839520.xyz/xdd/AI-astron-rpa.git",
+             "selfhosted", "git.839520.xyz", "xdd", "AI-astron-rpa"),
+        ]
+        for url, kind, host, owner, repo in cases:
+            V._run = lambda args, cwd=V.ROOT, u=url: (
+                u if "get-url" in args and args[-1] == "origin" else "")
+            o = V.repo_origin()
+            ok = (o and o["kind"] == kind and o["host"] == host
+                  and o["owner"] == owner and o["repo"] == repo)
+            ck("%-46s → %s" % (url[:46], kind), ok, o)
+
+        # base 必须能直接拼 raw 路径
+        V._run = lambda args, cwd=V.ROOT: (
+            "http://10.18.5.61:3300/xdd/AI-astron-rpa.git"
+            if "get-url" in args and args[-1] == "origin" else "")
+        o = V.repo_origin()
+        ck("selfhosted base 拼装正确",
+           o and o["base"] == "http://10.18.5.61:3300/xdd/AI-astron-rpa", o and o["base"])
+
+        V._run = lambda args, cwd=V.ROOT: "/local/path/repo"
+        ck("非 URL 形态的 remote 返回 None（不瞎猜）", V.repo_origin() is None, V.repo_origin())
+    finally:
+        V._run = orig
+
+
+# ---------------------------------------------------------------- 1c. 自建服务路径
+def t_selfhosted():
+    print("\n[1c] 自建服务路径回退（Gitea / GitLab 写法不同）")
+
+    origin = {"kind": "selfhosted", "base": "http://h:3300/o/r"}
+    orig = V._get_json
+
+    seen = []
+
+    def mock_ok_at(only: str):
+        def f(url, timeout=0, headers=None):
+            seen.append(url)
+            return {"version": "3.1.4"} if only in url else None
+        return f
+
+    V._get_json = mock_ok_at("/raw/branch/main/")
+    ck("认出 Gitea 写法（/raw/branch/main/）",
+       (V.fetch_selfhosted(origin) or {}).get("version") == "3.1.4")
+
+    seen.clear()
+    V._get_json = mock_ok_at("/-/raw/main/")
+    ck("认出 GitLab 写法（/-/raw/main/）",
+       (V.fetch_selfhosted(origin) or {}).get("version") == "3.1.4")
+    ck("先试 Gitea 再试 GitLab（顺序固定）",
+       len(seen) >= 2 and "/raw/branch/" in seen[0], seen[:2])
+
+    V._get_json = lambda url, timeout=0, headers=None: {"message": "404"}
+    ck("全部 404 返回 None（不伪装成有版本）", V.fetch_selfhosted(origin) is None)
+
+    V._get_json = orig
 
 
 # ---------------------------------------------------------------- 2. Contents API
@@ -267,6 +337,8 @@ def main():
     print("V19 门禁：GitHub 版本分发链路（不联网）")
     print("=" * 66)
     t_slug()
+    t_origin()
+    t_selfhosted()
     t_contents()
     t_fallback()
     t_levels()

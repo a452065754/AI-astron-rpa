@@ -66,13 +66,39 @@ BRANCH_DEFAULT = "main"
 
 
 # ---------------------------------------------------------------- 小工具
-def _git(*args: str, timeout: int = 120) -> tuple[int, str, str]:
+def _git(*args: str, timeout: int = 120, no_proxy: bool = False) -> tuple[int, str, str]:
+    env = None
+    if no_proxy:
+        # 代理只认 CONNECT 到 github.com:443 时可能返回 502，而直连是通的。
+        # 环境变量对 git 的优先级高于 -c http.proxy，所以必须整个摘掉。
+        env = {k: v for k, v in os.environ.items()
+               if k.lower() not in ("http_proxy", "https_proxy", "all_proxy")}
     try:
         r = subprocess.run(["git"] + list(args), cwd=ROOT, capture_output=True,
-                           text=True, encoding="utf-8", errors="replace", timeout=timeout)
+                           text=True, encoding="utf-8", errors="replace",
+                           timeout=timeout, env=env)
         return r.returncode, (r.stdout or "").strip(), (r.stderr or "").strip()
     except (OSError, subprocess.SubprocessError) as e:
         return 1, "", str(e)
+
+
+def _push(remote: str, ref: str) -> tuple[int, str, str]:
+    """push 一次；若因代理 502 失败且目标是 GitHub，自动绕过代理重试。
+
+    这是实测踩到的：`http_proxy` 让 `git push` 报
+    `CONNECT tunnel failed, response 502`，但同一台机器 `curl` 直连 github 是通的。
+    不自动处理的话，发版会卡在最后一步，而人很难联想到是代理。
+    """
+    rc, out, err = _git("push", remote, ref)
+    if rc == 0:
+        return rc, out, err
+    url = _git("remote", "get-url", remote)[1] or ""
+    if "github.com" in url and ("502" in err or "proxy" in err.lower() or "tunnel" in err.lower()):
+        rc2, out2, err2 = _git("push", remote, ref, no_proxy=True)
+        if rc2 == 0:
+            return 0, out2, "（首次走代理 502，已绕过代理重试成功）"
+        return rc2, out2, err2
+    return rc, out, err
 
 
 def ok(msg: str) -> None:
@@ -155,16 +181,18 @@ def next_version(kind: str, explicit: str) -> str:
 
 # ---------------------------------------------------------------- 发布后校验
 def verify_remote(expect: str, tries: int = 8, gap: float = 5.0) -> bool:
-    """轮询 Contents API，确认远端真能读到新版本。
+    """轮询远端清单，确认**主远端**真能读到新版本。
 
     push 返回 0 只说明 git 传上去了，不代表同事的 `--check` 立刻能读到。
     这里真读一次，把「我以为发了」变成「确实发了」。
+    用 `fetch_auto()` 而不是写死 GitHub：同事从内网 Gitea clone 时，
+    校验的必须是同一个地方，否则发版脚本说成功、同事那边永远查不到。
     """
     for i in range(1, tries + 1):
-        doc = vs.fetch_github()
+        doc = vs.fetch_auto()
         got = str((doc or {}).get("version") or "")
         if got == expect:
-            print("     第 %d 次读取：v%s ✅" % (i, got))
+            print("     第 %d 次读取：v%s ✅（%s）" % (i, got, (doc or {}).get("_source", "")))
             return True
         print("     第 %d 次读取：%s，等待 %.0fs 重试" % (i, ("v" + got) if got else "未读到", gap))
         if i < tries:
@@ -186,6 +214,55 @@ def notify_text(ver: str, breaking: bool, highlights: list[str]) -> str:
     if not breaking:
         lines += ["", "（不更新也能继续用，只是没有本次的改进）"]
     return "\n".join(lines)
+
+
+def _remotes() -> list[str]:
+    rc, out, _ = _git("remote")
+    return [ln.strip() for ln in (out or "").splitlines() if ln.strip()] if rc == 0 else []
+
+
+def push_everywhere(branch: str, tag: str) -> bool:
+    """origin 必成功；其他远端（内网 Gitea 镜像等）失败只警告，不阻断发版。
+
+    为什么不让镜像失败也拦下：发版的价值在「主远端上有个确定的版本」。
+    内网服务可能临时不通，若因此把整个发版判失败，人就学去忽略这个报错了。
+    但也不能静默 —— 明确说出哪个没推上去、怎么补。
+    """
+    remotes = _remotes()
+    if not remotes:
+        bad("没有配置任何远端")
+        return False
+
+    primary = "origin" if "origin" in remotes else remotes[0]
+    mirrors = [r for r in remotes if r != primary]
+    if primary != "origin":
+        warn("没有 origin，主远端改用 %s" % primary)
+
+    rc, _, err = _push(primary, branch)
+    if rc != 0:
+        bad("push %s 分支失败：%s" % (primary, err[:300]))
+        print("\n本地 commit 和 tag 都在，网络恢复后执行：")
+        print("  python scripts/release.py --retry-push")
+        return False
+    ok("分支 %s → %s" % (branch, primary))
+
+    rc, _, err = _push(primary, tag)
+    if rc != 0:
+        bad("push %s tag 失败：%s" % (primary, err[:300]))
+        print("\n分支已推、tag 未推。恢复后：python scripts/release.py --retry-push")
+        return False
+    ok("tag %s → %s" % (tag, primary))
+
+    for m in mirrors:
+        r1, _, e1 = _push(m, branch)
+        r2, _, e2 = _push(m, tag)
+        if r1 == 0 and r2 == 0:
+            ok("分支 + tag → %s（镜像）" % m)
+        else:
+            warn("镜像 %s 未推成功：%s" % (m, (e1 or e2 or "未知")[:120]))
+            print("       不影响本次发版（%s 已生效），恢复后补推：" % primary)
+            print("       git push %s %s && git push %s %s" % (m, branch, m, tag))
+    return True
 
 
 # ---------------------------------------------------------------- 主流程
@@ -211,16 +288,9 @@ def main() -> int:
         cur = vs.version()
         tag = "v" + cur
         rule("补推 v%s" % cur)
-        rc, _, err = _git("push", "origin", "HEAD")
-        if rc != 0:
-            bad("push 分支失败：%s" % err[:200])
+        _, br, _ = _git("rev-parse", "--abbrev-ref", "HEAD")
+        if not push_everywhere((br or BRANCH_DEFAULT).strip(), tag):
             return 1
-        ok("分支已推")
-        rc, _, err = _git("push", "origin", tag)
-        if rc != 0 and "already exists" not in err and "up-to-date" not in err:
-            bad("push tag 失败：%s" % err[:200])
-            return 1
-        ok("tag %s 已推" % tag)
         return 0 if (a.skip_verify or verify_remote(cur)) else 1
 
     good, branch = preflight(a.allow_dirty, a.allow_branch)
@@ -251,7 +321,8 @@ def main() -> int:
         print("  git add VERSION CHANGELOG.md version.json")
         print("  git commit -m \"chore(release): %s\"" % tag)
         print("  git tag -a %s" % tag)
-        print("  git push origin %s && git push origin %s" % (branch, tag))
+        print("  git push <主远端> %s && git push <主远端> %s" % (branch, tag))
+        print("  git push <每个镜像远端> %s && git push <每个镜像远端> %s" % (branch, tag))
         rule("5/6 dry-run：预计的同事通知")
         print(notify_text(new, a.breaking, ["（dry-run 不生成）"]))
         print("\n（dry-run 结束，未改动任何文件）")
@@ -304,21 +375,9 @@ def main() -> int:
         return 0
 
     # ---- push
-    rule("5/6 推送到 origin")
-    rc, _, err = _git("push", "origin", branch)
-    if rc != 0:
-        bad("push 分支失败：%s" % err[:300])
-        print("\n本地 commit 和 tag 都在，网络恢复后执行：")
-        print("  python scripts/release.py --retry-push")
+    rule("5/6 推送到远端")
+    if not push_everywhere(branch, tag):
         return 1
-    ok("分支 %s 已推" % branch)
-
-    rc, _, err = _git("push", "origin", tag)
-    if rc != 0:
-        bad("push tag 失败：%s" % err[:300])
-        print("\n分支已推、tag 未推。恢复后：python scripts/release.py --retry-push")
-        return 1
-    ok("tag %s 已推（GitHub Actions 将自动建 Release）" % tag)
 
     # ---- 线上校验
     rule("6/6 线上校验（确认同事真能读到）")
@@ -332,8 +391,13 @@ def main() -> int:
 
     # ---- 收尾
     rule("发版完成")
-    print("  Release 页：https://github.com/%s/releases/tag/%s" % (vs.repo_slug() or "<owner/repo>", tag))
-    print("  Actions：  https://github.com/%s/actions" % (vs.repo_slug() or "<owner/repo>"))
+    o = vs.repo_origin()
+    if o:
+        print("  Release 页：%s/releases/tag/%s" % (o["base"], tag))
+        if o["kind"] == "github":
+            print("  Actions：  %s/actions" % o["base"])
+        else:
+            print("  提示：自建服务（Gitea 等）不会自动建 Release，页面只有 tag")
     print("\n--- 直接复制给同事 ---\n")
     print(notify_text(new, a.breaking, doc["highlights"]))
     return 0 if verified else 1

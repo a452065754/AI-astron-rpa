@@ -169,9 +169,10 @@ def cmp_ver(a: str, b: str) -> int:
 
 # ---------------------------------------------------------------- 远端
 def repo_slug() -> str:
-    """从 git remote 解析 `owner/repo`，取不到返回空串。
+    """从 git remote 解析 GitHub 的 `owner/repo`，取不到返回空串。
 
-    不硬编码仓库名：同事可能从 fork 或 Gitea 镜像拉，硬编码就查错版本了。
+    不硬编码仓库名：同事可能从 fork 拉，硬编码就查错版本了。
+    **只认 github.com** —— 自建服务用 `repo_origin()`。
     """
     for remote in ("origin", "upstream", "gitea"):
         url = _run(["git", "remote", "get-url", remote])
@@ -179,6 +180,34 @@ def repo_slug() -> str:
         if m:
             return "%s/%s" % (m.group(1), m.group(2))
     return ""
+
+
+_ORIGIN_RE = re.compile(
+    r"^(?:(?P<scheme>https?)://(?P<host>[^/]+)/|git@(?P<sshhost>[^:]+):)"
+    r"(?P<owner>[^/]+)/(?P<repo>[^/\s]+?)(?:\.git)?/?$")
+
+
+def repo_origin() -> dict | None:
+    """解析 origin 的归属，返回 `{kind, scheme, host, base, owner, repo}`。
+
+    **这是「从哪 clone 就从哪查版本」的实现**：同事从内网 Gitea clone，
+    origin 就不是 github.com，硬走 Contents API 必然 404，然后静默降级成
+    「查不到更新」—— 看起来像没发版，实际是查错地方了。
+
+    支持 https / http / ssh 三种写法，带端口（如 `:3300`）也能正确切分。
+    """
+    for remote in ("origin", "upstream", "gitea"):
+        url = _run(["git", "remote", "get-url", remote])
+        m = _ORIGIN_RE.match((url or "").strip())
+        if not m:
+            continue
+        scheme = m.group("scheme") or "https"
+        host = m.group("host") or m.group("sshhost")
+        owner, repo = m.group("owner"), m.group("repo")
+        kind = "github" if host.endswith("github.com") else "selfhosted"
+        return {"kind": kind, "scheme": scheme, "host": host, "owner": owner,
+                "repo": repo, "base": "%s://%s/%s/%s" % (scheme, host, owner, repo)}
+    return None
 
 
 def _gh_headers() -> dict:
@@ -247,10 +276,37 @@ def fetch_github_release(slug: str = "", timeout: float = TIMEOUT) -> dict | Non
 _RAW_RE = re.compile(r"https?://raw\.githubusercontent\.com/([^/]+)/([^/]+)/([^/]+)/")
 
 
+def fetch_selfhosted(origin: dict, timeout: float = TIMEOUT) -> dict | None:
+    """自建服务（Gitea / GitLab / Forgejo）读 version.json。
+
+    路径在两家之间有分歧，两个都试一遍比让用户查文档快：
+    - Gitea / Forgejo：`/{owner}/{repo}/raw/branch/{ref}/{path}`
+    - GitLab：        `/{owner}/{repo}/-/raw/{ref}/{path}`
+    """
+    base = origin["base"]
+    for tmpl in ("/raw/branch/main/version.json", "/-/raw/main/version.json",
+                 "/raw/main/version.json"):
+        doc = _get_json(base + tmpl, timeout=timeout)
+        if doc and doc.get("version"):
+            doc.setdefault("_source", "selfhosted:%s%s" % (base, tmpl))
+            return doc
+    return None
+
+
+def fetch_auto(timeout: float = TIMEOUT) -> dict | None:
+    """按 origin 的归属自动选端点。从哪 clone，就从哪查版本。"""
+    o = repo_origin()
+    if not o:
+        return None
+    if o["kind"] == "github":
+        return fetch_github("%s/%s" % (o["owner"], o["repo"]), timeout=timeout)
+    return fetch_selfhosted(o, timeout=timeout)
+
+
 def fetch_one(src: str, timeout: float = TIMEOUT) -> dict | None:
-    """按源的形态分派：`github` → Contents API / URL → HTTP / 其余 → 本地路径。"""
-    if src.strip().lower() in ("github", "gh"):
-        return fetch_github(timeout=timeout)
+    """按源的形态分派：`github` → 自动按 origin 选端点 / URL → HTTP / 其余 → 本地路径。"""
+    if src.strip().lower() in ("github", "auto", "gh"):
+        return fetch_auto(timeout=timeout)
 
     if src.startswith(("http://", "https://")):
         # 用户照网上教程填 raw 地址时自动改走 API —— 国内 raw 根本连不上
