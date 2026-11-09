@@ -1,10 +1,12 @@
 {
- "version": "1.0.3",
- "commit": "22ac977",
- "date": "2026-11-05",
+ "version": "1.1.0",
+ "commit": "adafa47",
+ "date": "2026-11-09",
  "breaking": false,
- "min_supported": "1.0.0",
+ "min_supported": "1.1.0",
  "highlights": [
-  "新增 --demo，直观看四种情况下的提醒文案"
+  "版本源自动适配 origin，发版推所有远端",
+  "帆软消息清空小流程 + 同步上游 issue 巡检状态",
+  "任一远端成功即发版成立，不再因 origin 失败整单判死"
  ]
 }
